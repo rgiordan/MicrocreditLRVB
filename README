@@ -1,9 +1,23 @@
-To install,
+This R package has a number of dependencies that must be installed and
+built before it can be installed.
 
-- Compile the LRVB libraries in LinearResponseVariationalBayes.cpp
-- Make sure you edit src/Makevars to point to the LRVB libraries.
-- Run devtools install_local.
+First, it requires an environment variable called GIT_REPO_LOC to be
+set to the location of git repositories.  For example, in your .bashrc,
+put the line
 
-If you make changes, before re-installing you may need to
-- Run compileAttributes()
-- Copy the using statements to src/RcppExports.cpp
+export GIT_REPO_LOC="$HOME/git_repos/"
+
+Install stan and stan math to the git repo location.
+
+You will also need the R packages Rcpp and RcppEigen and devtools.
+
+Change to the subdirectory MicrocreditLRVB/inst/microcredit_cpp/src and
+run cmake then make install:
+
+cd $GIT_REPO_LOC/MicrocreditLRVB/inst/microcredit_cpp/src
+cmake .
+sudo make install
+
+Then install the R package:
+cd $GIT_REPO_LOC
+R -e 'library(devtools); install_local("MicrocreditLRVB")'

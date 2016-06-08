@@ -4,16 +4,14 @@ PKG_CXXFLAGS=\
 -I../inst/microcredit_cpp/include \
 -I $(GIT_REPO_LOC)/LinearResponseVariationalBayes.cpp/include \
 -I /home/rgiordan/R/x86_64-pc-linux-gnu-library/3.2/RcppEigen/include \
--I $(GIT_REPO_LOC)/home/rgiordan/Documents/git_repos/math/ \
+-I $(GIT_REPO_LOC)/math/ \
 -I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/boost/math/special_functions \
 -I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/boost/math/tools \
 -I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/
 
 PKG_LIBS= $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) \
 -L$(GIT_REPO_LOC)/LinearResponseVariationalBayes.cpp/src \
--ltransform_hessian \
--L$(GIT_REPO_LOC)/microcredit_vb/r_package/MicroCreditLRVB/inst/include/ \
--lmicrocredit_model
+-lmicrocredit_model_lrvb
 
 PKG_CPPFLAGS= -Wno-deprecated -fPIC
 
