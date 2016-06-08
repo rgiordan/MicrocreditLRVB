@@ -1,0 +1,9 @@
+To install,
+
+- Compile the LRVB libraries in LinearResponseVariationalBayes.cpp
+- Make sure you edit src/Makevars to point to the LRVB libraries.
+- Run devtools install_local.
+
+If you make changes, before re-installing you may need to
+- Run compileAttributes()
+- Copy the using statements to src/RcppExports.cpp

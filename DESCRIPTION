@@ -1,0 +1,11 @@
+Package: MicroCreditLRVB
+Type: Package
+Title: Micro credit LRVB stuff
+Version: 0.1
+Date: 2016-05-19
+Author: Ryan Giordano
+Maintainer: Ryan Giordano <rgiordan@gmail.com>
+Description: Micro credit module
+License: GPL (>= 2)
+Imports: Rcpp (>= 0.12.5), RcppEigen (>= 0.3.2.2.0), Matrix
+LinkingTo: Rcpp, RcppEigen, trust, Matrix
