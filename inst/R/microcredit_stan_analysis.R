@@ -1,0 +1,106 @@
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(rstan)
+library(Matrix)
+library(mvtnorm)
+
+library(MicroCreditLRVB)
+
+project_directory <-
+  file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
+
+analysis_name <- "simulated_data"
+
+# Simualate some data
+true_mu <- c(0.2, 0.5)
+true_sigma <- matrix(c(1.0, 0.2, 0.2, 0.8), 2, 2)
+true_lambda <- solve(true_sigma)
+true_tau <- 1 / 0.7
+
+# Number of groups
+n_g <- 20
+
+# Number of data points per group
+n_per_group <- 1000
+
+# Generate sample data
+y_vec <- list()
+y_g_vec <- list()
+x_vec <- list()
+true_mu_g_vec <- list()
+for (g in 1:n_g) {
+  true_mu_g_vec[[g]] <- rmvnorm(1, mean=true_mu, sigma=true_sigma)
+  x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
+  y_vec[[g]] <- rnorm(x_vec[[g]] %*% true_mu, 1 / sqrt(true_tau))
+  y_g_vec[[g]] <- rep(g, n_per_group)
+}
+
+y <- do.call(c, y_vec)
+y_g <- do.call(c, y_g_vec)
+x <- do.call(rbind, x_vec)
+
+######################################
+# STAN
+
+# Load the STAN model
+stan_directory <-
+  file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/stan")
+stan_model_name <- "basic_hierarchical_model_lkj_priors"
+model_file_rdata <-
+  file.path(stan_directory, paste(stan_model_name, "Rdata", sep="."))
+if (file.exists(model_file_rdata)) {
+  print("Loading pre-compiled Stan model.")
+  load(model_file_rdata)
+} else {
+  print("Compiling Stan model.")
+  model_file <-
+    file.path(stan_directory, paste(stan_model_name, "stan", sep="."))
+  model <- stan_model(model_file)
+  save(model, file=model_file_rdata)
+}
+
+# Stan data.
+stan_dat <- list(NG = vp$n_g,
+                 N = length(y),
+                 K = vp$k,
+                 y_group = y_g,
+                 y = y,
+                 x = x,
+                 mu_prior_sigma = solve(pp$mu_info),
+                 mu_prior_mean = pp$mu_mean,
+                 use_mu1_prior = FALSE,
+                 mu1_prior_sigma = solve(pp$mu_info),
+                 mu1_prior_mean = pp$mu_mean,
+                 scale_prior_alpha = pp$lambda_alpha,
+                 scale_prior_beta = pp$lambda_beta,
+                 lkj_prior_eta = pp$lambda_eta,
+                 tau_prior_alpha = pp$tau_alpha,
+                 tau_prior_beta = pp$tau_beta)
+
+perturb_epsilon <- 0.01
+stan_dat_perturbed <- stan_dat
+mu_prior_info_perturb <- pp$mu_info
+mu_prior_info_perturb[1,1] <- mu_prior_info_perturb[1,1] + perturb_epsilon
+stan_dat_perturbed$mu_prior_sigma <- solve(mu_prior_info_perturb)
+stan_dat$mu_prior_sigma
+
+# some knobs we can tweak
+chains <- 1
+iters <- 20000
+control <- list(adapt_t0 = 10,       # default = 10
+                stepsize = 1,        # default = 1
+                max_treedepth = 6)   # default = 10
+seed <- 42
+
+# Note: this takes a while.
+stan_draws_file <-
+  file.path(project_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
+mcmc_time <- Sys.time()
+stan_sim <- sampling(model, data = stan_dat, seed = seed,
+                     chains = chains, iter = iters, control = control)
+mcmc_time <- Sys.time() - mcmc_time
+stan_sim_perturb <- sampling(model, data = stan_dat_perturbed, seed = seed,
+                             chains = chains, iter = iters, control = control)
+save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
+     stan_dat, stan_dat_perturbed, file=stan_draws_file)
