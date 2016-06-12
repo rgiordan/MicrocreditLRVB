@@ -35,21 +35,6 @@ MakeSymmetric <- function(mat) {
 
 vp <- InitializeVariationalParameters(x, y, y_g)
 
-# Prior parameters
-pp <- list()
-pp[["k"]] <- vp$k
-pp[["mu_mean"]] <- rep(0, vp$k)
-pp[["mu_info"]] <- matrix(c(0.03, 0., 0, 0.02), vp$k, vp$k)
-pp[["lambda_eta"]] <- 15.01
-pp[["lambda_alpha"]] <- 20.01
-pp[["lambda_beta"]] <- 20.01
-pp[["tau_alpha"]] <- 2.01
-pp[["tau_beta"]] <- 2.01
-
-# Optimization parameters stored in the prior:
-pp[["lambda_diag_min"]] <- 1e-10
-pp[["lambda_n_min"]] <- vp$k + 0.5
-
 ################################
 # Get the encoders and useful indices.  The encoders map between model parameters
 # and particular entries in the covariance matrix.
@@ -163,12 +148,12 @@ lrvb_sd_df$param <- as.character(lrvb_sd_df$param)
 
 prior_sens_df <- inner_join(prior_sens_df, lrvb_sd_df, by=c("param", "component", "group"))
 
-mcmc_sample <- extract(stan_sim)
-mcmc_sample_perturb <- extract(stan_sim_perturb)
-
 
 ###################
 # Put the results in a tidy format and graph
+
+mcmc_sample <- extract(stan_sim)
+mcmc_sample_perturb <- extract(stan_sim_perturb)
 
 result <- GetResultDataframe(mcmc_sample, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
 result_perturb <- GetResultDataframe(mcmc_sample_perturb, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
