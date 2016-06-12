@@ -181,37 +181,34 @@ result_perturb_diff <-
   dcast(param + component + group ~ method) %>%
   mutate(diff = mcmc_perturbed - mcmc) %>%
   mutate(value = diff / perturb_epsilon, metric="lambda_11_sens", method="mcmc") %>%
-  # filter(diff > 0.05) %>% # Get rid of differences too small to detect with MCMC error
   dplyr::select(-mcmc, -mcmc_perturbed, -diff) %>%
   rbind(prior_sens_lambda_11_df) %>%
   dcast(param + component + group + metric ~ method) %>%
   filter(!is.na(mcmc))
 
 
-if (FALSE) {
-  ggplot(filter(result, metric == "sd", param == "lambda") %>%
-           dcast(param + component + group ~ method)) +
-    geom_point(aes(x=mcmc, y=mfvb, color="mfvb"), size=3) +
-    geom_point(aes(x=mcmc, y=lrvb, color="lrvb"), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
+ggplot(filter(result, metric == "mean") %>%
+  dcast(param + component + group ~ method)) +
+  geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
 
-  ggplot(result_perturb_diff) +
-    geom_point(aes(x=mcmc, y=lrvb, color=param), size=2) +
-    geom_abline(aes(slope=1, intercept=0))
+ggplot(filter(result, metric == "mean", param != "lambda") %>%
+         dcast(param + component + group ~ method)) +
+  geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
 
+ggplot(filter(result, metric == "sd", param == "lambda") %>%
+     dcast(param + component + group ~ method)) +
+  geom_point(aes(x=mcmc, y=mfvb, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
 
-  ggplot(filter(result, metric == "mean") %>%
-           dcast(param + component + group ~ method)) +
-    geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
+ggplot(result_perturb_diff) +
+  geom_point(aes(x=mcmc, y=lrvb, color=param), size=2) +
+  geom_abline(aes(slope=1, intercept=0))
 
-  ggplot(filter(result, metric == "mean", param == "lambda") %>%
-           dcast(param + component + group ~ method)) +
-    geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
-}
 
 

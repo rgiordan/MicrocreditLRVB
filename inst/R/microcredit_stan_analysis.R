@@ -12,11 +12,15 @@ project_directory <-
 
 analysis_name <- "simulated_data"
 
+set.seed(42)
+
 # Simualate some data
-true_mu <- c(0.2, 0.5)
-true_sigma <- matrix(c(1.0, 0.2, 0.2, 0.8), 2, 2)
-true_lambda <- solve(true_sigma)
-true_tau <- 1 / 0.7
+true_params <- list()
+
+true_params$true_mu <- c(0.2, 0.5)
+true_params$true_sigma <- matrix(c(1.0, 0.2, 0.2, 0.8), 2, 2)
+true_params$true_lambda <- solve(true_params$true_sigma)
+true_params$true_tau <- 1 / 0.7
 
 # Number of groups
 n_g <- 20
@@ -28,17 +32,41 @@ n_per_group <- 1000
 y_vec <- list()
 y_g_vec <- list()
 x_vec <- list()
-true_mu_g_vec <- list()
+true_params$true_mu_g_vec <- list()
 for (g in 1:n_g) {
-  true_mu_g_vec[[g]] <- rmvnorm(1, mean=true_mu, sigma=true_sigma)
+  true_params$true_mu_g_vec[[g]] <-
+    as.numeric(rmvnorm(1, mean=true_params$true_mu, sigma=true_params$true_sigma))
   x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
-  y_vec[[g]] <- rnorm(x_vec[[g]] %*% true_mu, 1 / sqrt(true_tau))
+  y_vec[[g]] <-
+    rnorm(x_vec[[g]] %*% true_params$true_mu_g_vec[[g]],
+          1 / sqrt(true_params$true_tau))
   y_g_vec[[g]] <- rep(g, n_per_group)
 }
 
 y <- do.call(c, y_vec)
 y_g <- do.call(c, y_g_vec)
 x <- do.call(rbind, x_vec)
+
+# The dimension of the explanatory variables.
+k <- ncol(x)
+
+##########################
+# Prior parameters
+
+pp <- list()
+pp[["k"]] <- k
+pp[["mu_mean"]] <- rep(0, k)
+pp[["mu_info"]] <- matrix(c(0.03, 0., 0, 0.02), k, k)
+pp[["lambda_eta"]] <- 15.01
+pp[["lambda_alpha"]] <- 20.01
+pp[["lambda_beta"]] <- 20.01
+pp[["tau_alpha"]] <- 2.01
+pp[["tau_beta"]] <- 2.01
+
+# Optimization parameters stored in the prior:
+pp[["lambda_diag_min"]] <- 1e-10
+pp[["lambda_n_min"]] <- k + 0.5
+
 
 ######################################
 # STAN
@@ -61,9 +89,9 @@ if (file.exists(model_file_rdata)) {
 }
 
 # Stan data.
-stan_dat <- list(NG = vp$n_g,
+stan_dat <- list(NG = n_g,
                  N = length(y),
-                 K = vp$k,
+                 K = ncol(x),
                  y_group = y_g,
                  y = y,
                  x = x,
@@ -103,4 +131,6 @@ mcmc_time <- Sys.time() - mcmc_time
 stan_sim_perturb <- sampling(model, data = stan_dat_perturbed, seed = seed,
                              chains = chains, iter = iters, control = control)
 save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
-     stan_dat, stan_dat_perturbed, file=stan_draws_file)
+     stan_dat, stan_dat_perturbed, true_params, pp,
+     file=stan_draws_file)
+
