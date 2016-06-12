@@ -48,6 +48,9 @@ prior_encoder <- GetPriorParameterEncoder(pp)
 # Model and prior parameters together:
 model_encoder <- GetModelParameterEncoder(vp, pp)
 
+lambda_ind <-
+  c(encoder$lambda_v_par + 1:(vp$k * (vp$k + 1) / 2 ),
+    encoder$lambda_n_par + 1)
 
 ##########
 # Fit it with VB
@@ -88,10 +91,6 @@ lrvb_time <- Sys.time() - lrvb_time
 moment_ind <- model_encoder$variational_offset + 1:model_encoder$variational_dim
 prior_ind <- model_encoder$prior_offset + 1:(model_encoder$prior_dim)
 
-lambda_ind <-
-  c(model_encoder$lambda_v_par + 1:(vp$k * (vp$k + 1) / 2 ),
-    model_encoder$lambda_n_par + 1)
-
 k_ud <- vp$k * (vp$k + 1) / 2
 
 mu_info_ind <- prior_encoder$mu_info_offset + 1:k_ud
@@ -111,11 +110,6 @@ GetSensitivityDataframe <- function(offset, metric) {
   return(prior_sens_this_df)
 }
 
-# This will be compared to MCMC:
-prior_sens_lambda_11_df <-
-  GetSensitivityDataframe(prior_encoder$mu_info_offset + 1, "lambda_11_sens")
-
-# Get a few to graph:
 prior_sens_df <- data.frame()
 for (k in 1:k_ud) {
   prior_sens_df <- rbind(prior_sens_df, GetSensitivityDataframe(prior_encoder$mu_info_offset + k,
@@ -156,30 +150,28 @@ mcmc_sample <- extract(stan_sim)
 mcmc_sample_perturb <- extract(stan_sim_perturb)
 
 result <- GetResultDataframe(mcmc_sample, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
-result_perturb <- GetResultDataframe(mcmc_sample_perturb, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
 
-result_perturb <- filter(result_perturb, method=="mcmc")
-result_perturb$method <- "mcmc_perturbed"
+# VB sensitivity for comparison:
+prior_sens_lambda_11_df <-
+  GetSensitivityDataframe(prior_encoder$mu_info_offset + 1, "lambda_11_sens") %>%
+  mutate(diff = value * perturb_epsilon)
+
+result_perturb <- GetResultDataframe(mcmc_sample_perturb, vb_fit$vp, lrvb_cov, mfvb_cov, encoder) %>%
+  filter(method=="mcmc") %>% mutate(method="mcmc_perturbed")
 result_perturb_diff <-
   rbind(filter(result, method=="mcmc"), result_perturb) %>%
   filter(metric == "mean") %>% dplyr::select(-matches("metric")) %>%
   dcast(param + component + group ~ method) %>%
-  mutate(diff = mcmc_perturbed - mcmc) %>%
-  mutate(value = diff / perturb_epsilon, metric="lambda_11_sens", method="mcmc") %>%
-  dplyr::select(-mcmc, -mcmc_perturbed, -diff) %>%
+  mutate(diff = mcmc_perturbed - mcmc, value = diff / perturb_epsilon) %>%
+  mutate(metric="lambda_11_sens", method="mcmc") %>%
+  dplyr::select(-mcmc, -mcmc_perturbed) %>%
   rbind(prior_sens_lambda_11_df) %>%
-  dcast(param + component + group + metric ~ method) %>%
+  dcast(param + component + group + metric ~ method, value.var="diff") %>%
   filter(!is.na(mcmc))
 
 
-ggplot(filter(result, metric == "mean") %>%
+ggplot(filter(result, metric == "mean", param == "lambda") %>%
   dcast(param + component + group ~ method)) +
-  geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
-
-ggplot(filter(result, metric == "mean", param != "lambda") %>%
-         dcast(param + component + group ~ method)) +
   geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
   geom_abline(aes(slope=1, intercept=0)) +
   expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
