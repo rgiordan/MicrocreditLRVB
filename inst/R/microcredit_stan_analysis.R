@@ -10,23 +10,24 @@ library(MicroCreditLRVB)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
-analysis_name <- "simulated_data"
+analysis_name <- "simulated_data2"
 
 set.seed(42)
 
 # Simualate some data
 true_params <- list()
 
-true_params$true_mu <- c(0.2, 0.5)
-true_params$true_sigma <- matrix(c(1.0, 0.2, 0.2, 0.8), 2, 2)
+# Set parameters similar to the microcredit data.
+true_params$true_mu <- c(20, 3)
+true_params$true_sigma <- matrix(c(12.6, 1.5, 1.5, 1.23), 2, 2)
 true_params$true_lambda <- solve(true_params$true_sigma)
-true_params$true_tau <- 1 / 0.7
+true_params$true_tau <- 1e-4
 
 # Number of groups
-n_g <- 20
+n_g <- 7
 
 # Number of data points per group
-n_per_group <- 1000
+n_per_group <- 100
 
 # Generate sample data
 y_vec <- list()
@@ -122,7 +123,7 @@ stan_dat <- list(NG = n_g,
                  tau_prior_alpha = pp$tau_alpha,
                  tau_prior_beta = pp$tau_beta)
 
-perturb_epsilon <- 0.01
+perturb_epsilon <- 0.1
 stan_dat_perturbed <- stan_dat
 mu_prior_info_perturb <- pp$mu_info
 mu_prior_info_perturb[1,1] <- mu_prior_info_perturb[1,1] + perturb_epsilon

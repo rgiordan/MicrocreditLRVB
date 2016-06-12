@@ -8,7 +8,7 @@ library(mvtnorm)
 library(MicroCreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data"
+analysis_name <- "simulated_data2"
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 

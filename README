@@ -1,4 +1,4 @@
-This R package has a number of dependencies that must be installed and
+This R package has a number of C++ dependencies that must be installed and
 built before it can be installed.
 
 First, it requires an environment variable called GIT_REPO_LOC to be
@@ -7,11 +7,24 @@ put the line
 
 export GIT_REPO_LOC="$HOME/git_repos/"
 
-Install stan and stan math to the git repo location.
+Install stan, stan math, and LinearResponseVariationalBayes.cpp to the git
+repo location.
 
-You will also need the R packages Rcpp and RcppEigen and devtools.
+https://github.com/stan-dev/stan
+https://github.com/stan-dev/math
+https://github.com/rgiordan/LinearResponseVariationalBayes.cpp
 
-Change to the subdirectory MicrocreditLRVB/inst/microcredit_cpp/src and
+Follow the instructions to build the libraries in
+LinearResponseVariationalBayes.cpp.
+
+You will also need the R packages Rcpp and RcppEigen and devtools.  In R:
+
+install.packages("devtools")
+install.packages("Rcpp")
+install.packages("RcppEigen")
+
+Next you must install the C++ libraries in this repository.  Check out this
+repository, change to the subdirectory MicrocreditLRVB/inst/microcredit_cpp/src and
 run cmake then make install:
 
 cd $GIT_REPO_LOC/MicrocreditLRVB/inst/microcredit_cpp/src
@@ -21,3 +34,9 @@ sudo make install
 Then install the R package:
 cd $GIT_REPO_LOC
 R -e 'library(devtools); install_local("MicrocreditLRVB")'
+
+To run the example, first run the stan code:
+inst/R/microcredit_stan_analysis.R
+
+This is slow, and will save a re-usable datafile.  Then run the LRVB part:
+inst/R/microcredit_data_analysis.R
