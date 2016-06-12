@@ -7,8 +7,8 @@
 # include <stan/math.hpp>
 # include <stan/math/mix/mat/functor/hessian.hpp>
 
-# include "variational_parameters.h"
-# include "exponential_families.h"
+// # include "variational_parameters.h"
+// # include "exponential_families.h"
 # include "microcredit_model.h"
 
 # include "differentiate_jacobian.h"

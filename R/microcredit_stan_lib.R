@@ -1,30 +1,32 @@
-
-# library(RcppEigen)
-# library(Rcpp)
 library(Matrix) # Needed for Matrix::diag :(
-# library(MASS)
-# library(optimx)
-# library(trust)
-
-
-# For now...
-# working_dir <- file.path(Sys.getenv("GIT_REPO_LOC"), "microcredit_vb/stan")
-# setwd(working_dir)
-
-# # # Test the Jacobian is transposed.
-# # # https://github.com/stan-dev/math/issues/230
-# This needs to go in a testing folder.
-# jac_test <- TestJacobian()
-# if (any(dim(jac_test$jac) != dim(jac_test$A))) {
-#   print("Stan has transposed the Jacobian, as expected.")
-# } else {
-#   stop("This code expects the Stan Jacobian bug (#230) _not_ to be fixed, but it has been fixed.")
-# }
-#
 
 
 #################################################
 # Fitting:
+
+InitializeVariationalParameters <- function(x, y, y_g, lambda_diag_min=1e-10) {
+  # Initial parameters from data
+  vp <- list()
+  vp$k <- ncol(x)
+  vp$n_g <- max(y_g)
+  vp$e_mu <- summary(lm(y ~ x - 1))$coefficients[,"Estimate"]
+  vp$e_mu2 <- vp$e_mu %*% t(vp$e_mu) + 10 * diag(vp$k)
+  for (g in 1:vp$n_g) {
+    stopifnot(sum(y_g == g) > 1)
+    g_reg <- summary(lm(y ~ x - 1, subset=y_g == g))
+    mu_g <- g_reg$coefficients[,"Estimate"]
+    vp$e_mu_g_vec[[g]] <- mu_g
+    vp$e_mu2_g_vec[[g]] <- mu_g %*% t(mu_g) + 10 * diag(vp$k)
+    vp$e_tau_vec[[g]] <- 1 / g_reg$sigma ^ 2
+    vp$e_log_tau_vec[[g]] <- log(vp$e_tau_vec[[g]]) - 10
+  }
+  mu_g_mat <- Reduce(rbind, vp$e_mu_g_vec)
+  vp$lambda_n_par <- vp$k + 1
+  vp$lambda_v_par <- solve(cov(mu_g_mat)) / vp$lambda_n_par + lambda_diag_min * diag(vp$k)
+  
+  return(vp)
+}
+
 
 MVNMeansFromGradient <- function(e_mu_grad, e_mu2_grad) {
   result <- list()
@@ -39,24 +41,6 @@ MVNMeansFromGradient <- function(e_mu_grad, e_mu2_grad) {
   result$e_mu2 <- result$cov_mu + result$e_mu %*% t(result$e_mu)
   return(result)
 }
-
-## Now using natural parameters instead.
-# WishartMeansFromGradient <- function(e_lambda_grad, e_log_det_lambda_grad) {
-#   k <- nrow(e_lambda_grad)
-#   stopifnot(ncol(e_lambda_grad) == k)
-#   result <- list()
-#   result$n_par <- 2 * e_log_det_lambda_grad + 1 + k
-#   # off diagonals * 0.5 because of double counting
-#   scale_matrix <- diag(0.5, k) + matrix(0.5, k, k)
-#   result$w_inv_par <- -2 * scale_matrix * e_lambda_grad
-#   stopifnot(min(eigen(result$w_inv_par)$values) > 0)
-#   result$v_par <- solve(result$w_inv_par)
-#   result$e_lambda <- result$n_par * result$v_par
-#   result$e_log_det_lambda <-
-#     r_mulitvariate_digamma(0.5 * result$n_par, k) + k * log(2) -
-#     det(result$w_inv_par, log=TRUE) # NOTE: I think the log argument doesn't work
-#   return(result)
-# }
 
 GammaMeansFromGradient <- function(e_tau_grad, e_log_tau_grad) {
   result <- list()
