@@ -8,7 +8,7 @@ library(mvtnorm)
 library(MicroCreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data2"
+analysis_name <- "simulated_data3"
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
@@ -152,40 +152,48 @@ mcmc_sample_perturb <- extract(stan_sim_perturb)
 result <- GetResultDataframe(mcmc_sample, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
 
 # VB sensitivity for comparison:
-prior_sens_lambda_11_df <-
-  GetSensitivityDataframe(prior_encoder$mu_info_offset + 1, "lambda_11_sens") %>%
+prior_sens_lambda_offdiag_df <-
+  GetSensitivityDataframe(prior_encoder$mu_info_offset + 1, "lambda_12_sens") %>%
   mutate(diff = value * perturb_epsilon)
 
-result_perturb <- GetResultDataframe(mcmc_sample_perturb, vb_fit$vp, lrvb_cov, mfvb_cov, encoder) %>%
+result_perturb <-
+  GetResultDataframe(mcmc_sample_perturb, vb_fit$vp, lrvb_cov, mfvb_cov, encoder) %>%
   filter(method=="mcmc") %>% mutate(method="mcmc_perturbed")
+
 result_perturb_diff <-
   rbind(filter(result, method=="mcmc"), result_perturb) %>%
   filter(metric == "mean") %>% dplyr::select(-matches("metric")) %>%
   dcast(param + component + group ~ method) %>%
   mutate(diff = mcmc_perturbed - mcmc, value = diff / perturb_epsilon) %>%
-  mutate(metric="lambda_11_sens", method="mcmc") %>%
+  mutate(metric="lambda_12_sens", method="mcmc") %>%
   dplyr::select(-mcmc, -mcmc_perturbed) %>%
-  rbind(prior_sens_lambda_11_df) %>%
+  rbind(prior_sens_lambda_offdiag_df) %>%
   dcast(param + component + group + metric ~ method, value.var="diff") %>%
   filter(!is.na(mcmc))
 
 
-ggplot(filter(result, metric == "mean", param == "lambda") %>%
+ggplot(filter(result, metric == "mean") %>%
   dcast(param + component + group ~ method)) +
   geom_point(aes(x=mcmc, y=mfvb, color=param), size=3) +
   geom_abline(aes(slope=1, intercept=0)) +
-  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
+  expand_limits(x=0, y=0) + expand_limits(x=1, y=1) +
+  xlab("MCMC") + ylab("VB") +
+  ggtitle("Comparison of means")
 
-ggplot(filter(result, metric == "sd", param == "lambda") %>%
+ggplot(filter(result, metric == "sd") %>%
      dcast(param + component + group ~ method)) +
   geom_point(aes(x=mcmc, y=mfvb, color="mfvb"), size=3) +
   geom_point(aes(x=mcmc, y=lrvb, color="lrvb"), size=3) +
   geom_abline(aes(slope=1, intercept=0)) +
-  expand_limits(x=0, y=0) + expand_limits(x=1, y=1)
+  expand_limits(x=0, y=0) + expand_limits(x=1, y=1) +
+  xlab("MCMC") + ylab("VB") +
+  ggtitle("Comparison of means")
 
+# Note: make sure that the sensitivity is enough to be detected by
+# the sampling error in MCMC.
 ggplot(result_perturb_diff) +
   geom_point(aes(x=mcmc, y=lrvb, color=param), size=2) +
-  geom_abline(aes(slope=1, intercept=0))
-
-
+  geom_abline(aes(slope=1, intercept=0)) +
+  xlab("MCMC") + ylab("VB") +
+  ggtitle("Comparison of sensitivity")
 

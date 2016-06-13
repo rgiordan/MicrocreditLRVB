@@ -1,6 +1,31 @@
 library(Matrix) # Needed for Matrix::diag :(
 
 
+# Generate sample data
+SimulateData <- function(true_params, n_g, n_per_group) {
+  y_vec <- list()
+  y_g_vec <- list()
+  x_vec <- list()
+  true_params$true_mu_g_vec <- list()
+  for (g in 1:n_g) {
+    true_params$true_mu_g_vec[[g]] <-
+      as.numeric(rmvnorm(1, mean=true_params$true_mu, sigma=true_params$true_sigma))
+    x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
+    y_vec[[g]] <-
+      rnorm(n_per_group,
+            x_vec[[g]] %*% true_params$true_mu_g_vec[[g]],
+            1 / sqrt(true_params$true_tau))
+    y_g_vec[[g]] <- rep(g, n_per_group)
+  }
+  
+  y <- do.call(c, y_vec)
+  y_g <- do.call(c, y_g_vec)
+  x <- do.call(rbind, x_vec)
+
+  return(list(y=y, y_g=y_g, x=x))  
+}
+
+
 #################################################
 # Fitting:
 

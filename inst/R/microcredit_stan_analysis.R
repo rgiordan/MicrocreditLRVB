@@ -10,62 +10,9 @@ library(MicroCreditLRVB)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
-analysis_name <- "simulated_data2"
+analysis_name <- "simulated_data3"
 
 set.seed(42)
-
-# Simualate some data
-true_params <- list()
-
-# Set parameters similar to the microcredit data.
-true_params$true_mu <- c(20, 3)
-true_params$true_sigma <- matrix(c(12.6, 1.5, 1.5, 1.23), 2, 2)
-true_params$true_lambda <- solve(true_params$true_sigma)
-true_params$true_tau <- 1e-4
-
-# Number of groups
-n_g <- 7
-
-# Number of data points per group
-n_per_group <- 100
-
-# Generate sample data
-y_vec <- list()
-y_g_vec <- list()
-x_vec <- list()
-true_params$true_mu_g_vec <- list()
-for (g in 1:n_g) {
-  true_params$true_mu_g_vec[[g]] <-
-    as.numeric(rmvnorm(1, mean=true_params$true_mu, sigma=true_params$true_sigma))
-  x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
-  y_vec[[g]] <-
-    rnorm(n_per_group,
-          x_vec[[g]] %*% true_params$true_mu_g_vec[[g]],
-          1 / sqrt(true_params$true_tau))
-  y_g_vec[[g]] <- rep(g, n_per_group)
-}
-
-y <- do.call(c, y_vec)
-y_g <- do.call(c, y_g_vec)
-x <- do.call(rbind, x_vec)
-
-# The dimension of the explanatory variables.
-k <- ncol(x)
-
-true_params$true_mu_g_vec[[g]]
-
-# Sanity checks
-mu_g_mat <- do.call(rbind, true_params$true_mu_g_vec)
-solve(cov(mu_g_mat))
-true_params$true_lambda
-
-g <- 1
-g_reg <- lm(y ~ x1 + x2 - 1,
-            data.frame(y=y_vec[[g]], x1=x_vec[[g]][, 1], x2=x_vec[[g]][, 2]))
-summary(g_reg)
-true_params$true_mu_g_vec[[g]]
-1 / var(g_reg$residuals)
-true_params$true_tau
 
 ##########################
 # Prior parameters
@@ -83,6 +30,47 @@ pp[["tau_beta"]] <- 2.01
 # Optimization parameters stored in the prior:
 pp[["lambda_diag_min"]] <- 1e-10
 pp[["lambda_n_min"]] <- k + 0.5
+
+#############################
+# Simualate some data
+true_params <- list()
+
+# Set parameters similar to the microcredit data.  Note that the true mean is
+# an unlikely value relative to the prior.  This will result in a non-robsut
+# posterior.
+true_params$true_mu <- c(15, 15)
+true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
+true_params$true_lambda <- solve(true_params$true_sigma)
+true_params$true_tau <- 1e-4
+
+# Number of groups
+n_g <- 7
+
+# Number of data points per group
+n_per_group <- 100
+
+sim_data <- SimulateData(true_params, n_g, n_per_group)
+x <- sim_data$x
+y_g <- sim_data$y_g
+y <- sim_data$y
+
+
+
+# The dimension of the explanatory variables.
+k <- ncol(x)
+
+# Sanity checks
+mu_g_mat <- do.call(rbind, true_params$true_mu_g_vec)
+solve(cov(mu_g_mat))
+true_params$true_lambda
+
+g <- 1
+g_reg <- lm(y ~ x1 + x2 - 1,
+            data.frame(y=y_vec[[g]], x1=x_vec[[g]][, 1], x2=x_vec[[g]][, 2]))
+summary(g_reg)
+true_params$true_mu_g_vec[[g]]
+1 / var(g_reg$residuals)
+true_params$true_tau
 
 
 ######################################
@@ -123,16 +111,17 @@ stan_dat <- list(NG = n_g,
                  tau_prior_alpha = pp$tau_alpha,
                  tau_prior_beta = pp$tau_beta)
 
-perturb_epsilon <- 0.1
+perturb_epsilon <- 0.01
 stan_dat_perturbed <- stan_dat
 mu_prior_info_perturb <- pp$mu_info
-mu_prior_info_perturb[1,1] <- mu_prior_info_perturb[1,1] + perturb_epsilon
+mu_prior_info_perturb[1,2] <- mu_prior_info_perturb[2,1] <-
+  mu_prior_info_perturb[1,2] + perturb_epsilon
 stan_dat_perturbed$mu_prior_sigma <- solve(mu_prior_info_perturb)
 stan_dat$mu_prior_sigma
 
 # some knobs we can tweak
 chains <- 1
-iters <- 20000
+iters <- 10000
 control <- list(adapt_t0 = 10,       # default = 10
                 stepsize = 1,        # default = 1
                 max_treedepth = 6)   # default = 10
