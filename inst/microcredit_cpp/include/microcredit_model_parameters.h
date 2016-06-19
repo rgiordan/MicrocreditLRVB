@@ -123,17 +123,18 @@ public:
   int k;      // The dimension of the means
 
   // mu ~ MNV(mu_mean, mu_info^-1)
-  VectorParameter<T> mu_mean;
-  PosDefMatrixParameter<T> mu_info;
+  // VectorParameter<T> mu_mean;
+  // PosDefMatrixParameter<T> mu_info;
+  MultivatiateNormal<T> mu;
 
   // lambda ~ LKJ(eta), scale ~ Gamma(alpha, beta)
-  ScalarParameter<T> lambda_eta;
-  ScalarParameter<T> lambda_alpha;
-  ScalarParameter<T> lambda_beta;
+  T lambda_eta;
+  T lambda_alpha;
+  T lambda_beta;
 
   // tau ~ Gamma(alpha, beta)
-  ScalarParameter<T> tau_alpha;
-  ScalarParameter<T> tau_beta;
+  T tau_alpha;
+  T tau_beta;
 
   // Optimization parameters for lambda
   T lambda_diag_min;
@@ -142,15 +143,16 @@ public:
 
   // Methods:
   PriorParameters(int k): k(k) {
-    mu_mean = VectorParameter<T>(k, "mu_mean");
-    mu_info = PosDefMatrixParameter<T>(k, "mu_info");
+    mu = MultivatiateNormal<T>(k);
+    // mu_mean = VectorXT<T>(k, "mu_mean");
+    // mu_info = PosDefMatrixParameter<T>(k, "mu_info");
 
-    lambda_eta = ScalarParameter<T>("lambda_eta");
-    lambda_alpha = ScalarParameter<T>("lambda_alpha");
-    lambda_beta = ScalarParameter<T>("lambda_beta");
+    lambda_eta = T("lambda_eta");
+    lambda_alpha = T("lambda_alpha");
+    lambda_beta = T("lambda_beta");
 
-    tau_alpha = ScalarParameter<T>("tau_alpha");
-    tau_beta = ScalarParameter<T>("tau_beta");
+    tau_alpha = T("tau_alpha");
+    tau_beta = T("tau_beta");
 
     lambda_diag_min = 0.0;
     lambda_n_min = k + 0.01;
