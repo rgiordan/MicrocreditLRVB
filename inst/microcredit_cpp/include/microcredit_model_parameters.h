@@ -32,7 +32,7 @@ public:
   int k;      // The dimension of the means
 
 
-  MultivatiateNormal<T> mu;
+  MultivariateNormal<T> mu;
 
   // VectorParameter<T> e_mu;    // The vector of E(mu)
   // PosDefMatrixParameter<T> e_mu2;   // E(mu mu^T)
@@ -48,13 +48,13 @@ public:
   // vector<ScalarParameter<T>> e_log_tau_vec;  // E(log(tau))
 
   // Vectors of the per-group means.
-  vector<MultivatiateNormal<T>> mu_g_vec;
+  vector<MultivariateNormal<T>> mu_g_vec;
   // vector<VectorParameter<T>> e_mu_g_vec;  // E(mu_k)
   // vector<PosDefMatrixParameter<T>> e_mu2_g_vec; // E(mu_k mu_k^T)
 
   // Methods:
   VariationalParameters(int k, int n_g): k(k), n_g(n_g) {
-    mu = MultivatiateNormal<T>(k);
+    mu = MultivariateNormal<T>(k);
     // e_mu = VectorParameter<T>(k, "e_mu");
     // e_mu2 = PosDefMatrixParameter<T>(k, "e_mu2");
 
@@ -71,7 +71,7 @@ public:
     tau_vec.resize(n_g);
 
     for (int g = 0; g < n_g; g++) {
-      mu_g_vec[g] = MultivatiateNormal<T>(k);
+      mu_g_vec[g] = MultivariateNormal<T>(k);
       tau_vec[g] = Gamma<T>();
     }
   };
@@ -125,7 +125,8 @@ public:
   // mu ~ MNV(mu_mean, mu_info^-1)
   // VectorParameter<T> mu_mean;
   // PosDefMatrixParameter<T> mu_info;
-  MultivatiateNormal<T> mu;
+  VectorXT<T> mu_mean;
+  PosDefMatrixParameter<T> mu_info;
 
   // lambda ~ LKJ(eta), scale ~ Gamma(alpha, beta)
   T lambda_eta;
@@ -143,16 +144,15 @@ public:
 
   // Methods:
   PriorParameters(int k): k(k) {
-    mu = MultivatiateNormal<T>(k);
-    // mu_mean = VectorXT<T>(k, "mu_mean");
-    // mu_info = PosDefMatrixParameter<T>(k, "mu_info");
+    mu_mean = VectorXT<T>(k);
+    mu_info = PosDefMatrixParameter<T>(k);
 
-    lambda_eta = T("lambda_eta");
-    lambda_alpha = T("lambda_alpha");
-    lambda_beta = T("lambda_beta");
+    lambda_eta = 1;
+    lambda_alpha = 1;
+    lambda_beta = 1;
 
-    tau_alpha = T("tau_alpha");
-    tau_beta = T("tau_beta");
+    tau_alpha = 1;
+    tau_beta = 1;
 
     lambda_diag_min = 0.0;
     lambda_n_min = k + 0.01;

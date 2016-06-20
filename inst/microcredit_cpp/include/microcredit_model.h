@@ -41,23 +41,24 @@ using fvar = stan::math::fvar<var>;
 
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
-  MatrixXT<T> e_lambda = vp.lambda_v_par.get() * vp.lambda_n_par.get();
-  T e_log_det_lambda = GetELogDetWishart(
-    vp.lambda_v_par.get(), vp.lambda_n_par.get());
+  // TODO: Make a Wishart method to do this.
+  vp.lambda.e = vp.lambda.v.mat * vp.lambda.n;
+  vp.lambda.e_log_det = GetELogDetWishart(vp.lambda.v.mat, vp.lambda.n);
 
-  T e_lambda_e_mu2_trace = (e_lambda * vp.e_mu2.get()).trace();
-  MatrixXT<T> e_mu_t = vp.e_mu.get().transpose();
-  MatrixXT<T> e_mu = vp.e_mu.get();
+  // T e_lambda_e_mu2_trace = (e_lambda * vp.e_mu2.get()).trace();
+  // MatrixXT<T> e_mu_t = vp.e_mu.get().transpose();
+  // MatrixXT<T> e_mu = vp.e_mu.get();
 
   T log_lik = 0.0;
   for (int g = 0; g < vp.n_g; g++) {
-    MatrixXT<T> e_mu_g = vp.e_mu_g_vec[g].get();
-    MatrixXT<T> mu_g_mu_outer = e_mu_g * e_mu_t;
-    MatrixXT<T> mu_mu_g_outer = e_mu * (e_mu_g.transpose());
-    log_lik +=
-      -0.5 * ((e_lambda * vp.e_mu2_g_vec[g].get()).trace() -
-              (e_lambda * (mu_g_mu_outer + mu_mu_g_outer)).trace() +
-              e_lambda_e_mu2_trace) + 0.5 * e_log_det_lambda;
+    // MatrixXT<T> e_mu_g = vp.e_mu_g_vec[g].get();
+    // MatrixXT<T> mu_g_mu_outer = e_mu_g * e_mu_t;
+    // MatrixXT<T> mu_mu_g_outer = e_mu * (e_mu_g.transpose());
+    // log_lik +=
+    //   -0.5 * ((e_lambda * vp.e_mu2_g_vec[g].get()).trace() -
+    //           (e_lambda * (mu_g_mu_outer + mu_mu_g_outer)).trace() +
+    //           e_lambda_e_mu2_trace) + 0.5 * e_log_det_lambda;
+    log_lik += vp.mu_g_vec[g].ExpectedLogLikelihood(vp.mu, vp.lambda);
   }
 
   return log_lik;
@@ -68,17 +69,21 @@ template <typename T>
 T GetObservationLogLikelihood(
     MicroCreditData const &data, VariationalParameters<T> const &vp) {
 
+  UnivariateNormal<T> y_obs_mean;
+
   T log_lik = 0.0;
   for (int n = 0; n < data.n; n++) {
+    UnivariateNormal<T> y_obs(data.y(n));
+
     VectorXT<T> x_row = data.x.row(n).template cast<T>();
     int g = data.y_g(n) - 1; // The group that this observation belongs to.
-    T row_mean = x_row.dot(vp.e_mu_g_vec[g].get());
-    T row_mean2 = x_row.dot(vp.e_mu2_g_vec[g].get() * x_row);
-    T e_tau = vp.e_tau_vec[g].get();
-    T e_log_tau = vp.e_log_tau_vec[g].get();
-    log_lik += -0.5 * e_tau * (
-        pow(data.y(n), 2) - 2 * data.y(n) * row_mean + row_mean2) +
-        0.5 * e_log_tau;
+    y_obs_mean.e = x_row.dot(vp.mu_g_vec[g].e);
+    y_obs_mean.e2 = x_row.dot(vp.mu_g_vec[g].e_outer.mat * x_row);
+
+    log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, vp.tau_vec[g]);
+    // log_lik += -0.5 * e_tau * (
+    //     pow(data.y(n), 2) - 2 * data.y(n) * row_mean + row_mean2) +
+    //     0.5 * e_log_tau;
   }
   return log_lik;
 };
@@ -99,31 +104,31 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
   T log_lik = 0.0;
 
   // Mu:
-  VectorXT<T> vp_e_mu = vp.e_mu.get().template cast<T>();
+  VectorXT<T> vp_e_mu = vp.mu.e.template cast<T>();
   VectorXT<T> pp_mu_mean = pp.mu_mean.get().template cast<T>();
 
   MatrixXT<T> mu_mu_outer =
     vp_e_mu * pp_mu_mean.transpose() + pp_mu_mean * vp_e_mu.transpose();
   MatrixXT<T> mu_info = pp.mu_info.get().template cast<T>();
-  MatrixXT<T> vp_e_mu2 = vp.e_mu2.get().template cast<T>();
+  MatrixXT<T> vp_e_mu2 = vp.e_mu.e_outer.mat.template cast<T>();
   MatrixXT<T> pp_mu_mu_outer = pp_mu_mean * pp_mu_mean.transpose();
   log_lik += -0.5 * (mu_info * (vp_e_mu2 - mu_mu_outer + pp_mu_mu_outer)).trace();
 
   // Tau:
   for (int g = 0; g < vp.n_g; g++) {
-    T tau_alpha = pp.tau_alpha.get();
-    T tau_beta = pp.tau_beta.get();
-    T e_tau = vp.e_tau_vec[g].get();
-    T e_log_tau = vp.e_log_tau_vec[g].get();
+    T tau_alpha = pp.tau_alpha;
+    T tau_beta = pp.tau_beta;
+    T e_tau = vp.tau_vec[g].e;
+    T e_log_tau = vp.tau_vec[g].e_log;
     log_lik += (tau_alpha - 1) * e_log_tau - tau_beta * e_tau;
   }
 
   // Lambda.  Note that in the variable names Sigma = Lambda ^ (-1)
-  MatrixXT<T> v_inv = vp.lambda_v_par.get().inverse();
-  T n_par = vp.lambda_n_par.get();
+  MatrixXT<T> v_inv = vp.lambda.v.mat.inverse();
+  T n_par = vp.lambda.n;
   T e_log_sigma_term = digamma(0.5 * (n_par - pp.k + 1));
   T e_s_term = exp(lgamma(0.5 * (n_par - pp.k)) - lgamma(0.5 * (n_par - pp.k + 1)));
-  T e_log_det_lambda = GetELogDetWishart(vp.lambda_v_par.get(), n_par);
+  T e_log_det_lambda = GetELogDetWishart(vp.lambda.v.mat.get(), n_par);
   T e_log_det_r = -1 * e_log_det_lambda;
   T diag_prior = 0.0;
 
@@ -177,16 +182,16 @@ public:
       unconstrained_wishart(unconstrained_wishart)  {
 
     // If this is not the case we can leave the domain of the digamma function.
-    if (lambda_n_min <= vp.lambda_v_par.size) {
+    if (lambda_n_min <= vp.lambda.v.size) {
       throw std::runtime_error("n_min must be greater than the dimension");
     }
 
     dim = 0; // Accumulate the total number of parameters.
 
     // This order defines the order in the vector.
-    e_mu_offset = dim; dim += vp.e_mu.size;
-    e_mu2_offset = dim; dim += vp.e_mu2.size_ud;
-    lambda_v_par_offset = dim; dim += vp.lambda_v_par.size_ud;
+    e_mu_offset = dim; dim += vp.mu.dim;
+    e_mu2_offset = dim; dim += vp.mu.e_outer.size_ud;
+    lambda_v_par_offset = dim; dim += vp.lambda.v.size_ud;
     lambda_n_par_offset = dim; dim += 1;
 
     e_tau_offset.resize(vp.n_g);
@@ -197,8 +202,8 @@ public:
     for (int g = 0; g < vp.n_g; g++) {
       e_tau_offset[g] = dim; dim += 1;
       e_log_tau_offset[g] = dim; dim += 1;
-      e_mu_g_offset[g] = dim; dim += vp.e_mu_g_vec[g].size;
-      e_mu2_g_offset[g] = dim; dim += vp.e_mu2_g_vec[g].size_ud;
+      e_mu_g_offset[g] = dim; dim += vp.mu_g_vec[g].dim;
+      e_mu2_g_offset[g] = dim; dim += vp.mu_g_vec[g].e_outer.size_ud;
     }
   }
 
@@ -222,30 +227,30 @@ public:
     theta_sub = theta.segment(e_mu2_offset, vp.e_mu2.size_ud);
     vp.e_mu2.set_vec(theta_sub);
 
-    theta_sub = theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud);
+    theta_sub = theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud);
     if (unconstrained_wishart) {
       T lambda_n_min_cast = lambda_n_min;
       T lambda_diag_min_cast = lambda_diag_min;
 
-      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud);
-      vp.lambda_v_par.set_unconstrained_vec(theta_sub, lambda_diag_min_cast);
+      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud);
+      vp.lambda.v.set_unconstrained_vec(theta_sub, lambda_diag_min_cast);
 
       T n_par_free = theta(lambda_n_par_offset);
-      vp.lambda_n_par.set(exp(n_par_free) + lambda_n_min_cast);
+      vp.lambda.n = exp(n_par_free) + lambda_n_min_cast;
     } else {
-      vp.lambda_v_par.set_vec(theta_sub);
-      vp.lambda_n_par.set(theta(lambda_n_par_offset));
+      vp.lambda.v.set_vec(theta_sub);
+      vp.lambda.n = theta(lambda_n_par_offset);
     }
 
     for (int g = 0; g < vp.n_g; g++) {
-      vp.e_tau_vec[g].set(theta(e_tau_offset[g]));
-      vp.e_log_tau_vec[g].set(theta(e_log_tau_offset[g]));
+      vp.tau_vec[g] = theta(e_tau_offset[g]);
+      vp.e_log_tau_vec[g] = theta(e_log_tau_offset[g]);
 
-      theta_sub = theta.segment(e_mu_g_offset[g], vp.e_mu_g_vec[g].size);
-      vp.e_mu_g_vec[g].set(theta_sub);
+      theta_sub = theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].size);
+      vp.mu_g_vec[g].e = theta_sub;
 
-      theta_sub = theta.segment(e_mu2_g_offset[g], vp.e_mu2_g_vec[g].size_ud);
-      vp.e_mu2_g_vec[g].set_vec(theta_sub);
+      theta_sub = theta.segment(e_mu2_g_offset[g], vp.mu_g_vec[g].e_outer.size_ud);
+      vp.mu_g_vec[g].e_outer.set_vec(theta_sub);
     }
   };
 
@@ -262,24 +267,23 @@ public:
       T lambda_n_min_cast = lambda_n_min;
       T lambda_diag_min_cast = lambda_diag_min;
       VectorXT<T> lambda_v_par_free =
-        vp.lambda_v_par.get_unconstrained_vec(lambda_diag_min_cast);
-      theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud) =
+        vp.lambda.v.get_unconstrained_vec(lambda_diag_min_cast);
+      theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud) =
         lambda_v_par_free;
-      theta(lambda_n_par_offset) = log(vp.lambda_n_par.get() - lambda_n_min_cast);
+      theta(lambda_n_par_offset) = log(vp.lambda.n - lambda_n_min_cast);
     } else {
-      theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud) =
-        vp.lambda_v_par.get_vec();
-      theta(lambda_n_par_offset) = vp.lambda_n_par.get();
+      theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud) =
+        vp.lambda.v.get_vec();
+      theta(lambda_n_par_offset) = vp.lambda.n;
     }
 
     for (int g = 0; g < vp.n_g; g++) {
-      theta(e_tau_offset[g]) = vp.e_tau_vec[g].get();
-      theta(e_log_tau_offset[g]) = vp.e_log_tau_vec[g].get();
+      theta(e_tau_offset[g]) = vp.tau_vec[g].e;
+      theta(e_log_tau_offset[g]) = vp.tau_vec[g].e_log;
 
-      theta.segment(e_mu_g_offset[g], vp.e_mu_g_vec[g].size) =
-        vp.e_mu_g_vec[g].get();
-      theta.segment(e_mu2_g_offset[g], vp.e_mu2_g_vec[g].size_ud) =
-        vp.e_mu2_g_vec[g].get_vec();
+      theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].dim) = vp.mu_g_vec[g].e;
+      theta.segment(e_mu2_g_offset[g], vp.mu_g_vec[g].size_ud) =
+        vp.mu_g_vec[g].e_outer.get_vec();
     }
     return theta;
   };
@@ -305,14 +309,14 @@ public:
       unconstrained(unconstrained) {
 
     // If this is not the case we can leave the domain of the digamma function.
-    if (unconstrained && (lambda_n_min <= vp.lambda_v_par.size)) {
+    if (unconstrained && (lambda_n_min <= vp.lambda.v.size)) {
       throw std::runtime_error("n_min must be greater than the dimension");
     }
 
     dim = 0; // Accumulate the total number of parameters.
 
     // This order defines the order in the vector.
-    lambda_v_par_offset = dim; dim += vp.lambda_v_par.size_ud;
+    lambda_v_par_offset = dim; dim += vp.lambda.v.size_ud;
     lambda_n_par_offset = dim; dim += 1;
   }
 
@@ -331,17 +335,17 @@ public:
       T lambda_n_min_cast = lambda_n_min;
       T lambda_diag_min_cast = lambda_diag_min;
 
-      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud);
-      vp.lambda_v_par.set_unconstrained_vec(theta_sub, lambda_diag_min_cast);
+      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud);
+      vp.lambda.v.set_unconstrained_vec(theta_sub, lambda_diag_min_cast);
 
       T n_par_free = theta(lambda_n_par_offset);
-      vp.lambda_n_par.set(exp(n_par_free) + lambda_n_min_cast);
+      vp.lambda.n = exp(n_par_free) + lambda_n_min_cast;
     } else {
-      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud);
-      vp.lambda_v_par.set_vec(theta_sub);
+      theta_sub = theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud);
+      vp.lambda.v.set_vec(theta_sub);
 
       T n_par = theta(lambda_n_par_offset);
-      vp.lambda_n_par.set(n_par);
+      vp.lambda.n = n_par;
     }
   };
 
@@ -354,14 +358,14 @@ public:
       T lambda_n_min_cast = lambda_n_min;
       T lambda_diag_min_cast = lambda_diag_min;
       VectorXT<T> lambda_v_par_free =
-        vp.lambda_v_par.get_unconstrained_vec(lambda_diag_min_cast);
-      theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud) =
+        vp.lambda.v.get_unconstrained_vec(lambda_diag_min_cast);
+      theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud) =
         lambda_v_par_free;
-      theta(lambda_n_par_offset) = log(vp.lambda_n_par.get() - lambda_n_min_cast);
+      theta(lambda_n_par_offset) = log(vp.lambda.n - lambda_n_min_cast);
     } else {
-      theta.segment(lambda_v_par_offset, vp.lambda_v_par.size_ud) =
-        vp.lambda_v_par.get_vec();
-      theta(lambda_n_par_offset) = vp.lambda_n_par.get();
+      theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud) =
+        vp.lambda.v.get_vec();
+      theta(lambda_n_par_offset) = vp.lambda.n;
     }
     return theta;
   };
@@ -389,7 +393,7 @@ public:
     dim = 0; // Accumulate the total number of parameters.
 
     // This order defines the order in the vector.
-    mu_mean_offset = dim; dim += pp.mu_mean.size;
+    mu_mean_offset = dim; dim += pp.mu_mean.size();
     mu_info_offset = dim; dim += pp.mu_info.size_ud;
     lambda_eta_offset = dim; dim += 1;
     lambda_alpha_offset = dim; dim += 1;
@@ -410,18 +414,18 @@ public:
     // This seems to be necessary to resolve eigen results into parameters
     // that the set() template can recognize.
     VectorXT<T> theta_sub;
-    theta_sub = theta.segment(mu_mean_offset, pp.mu_mean.size);
-    pp.mu_mean.set(theta_sub);
+    theta_sub = theta.segment(mu_mean_offset, pp.mu_mean.size());
+    pp.mu_mean = theta_sub;
 
     theta_sub = theta.segment(mu_info_offset, pp.mu_info.size_ud);
     pp.mu_info.set_vec(theta_sub);
 
-    pp.lambda_eta.set(theta(lambda_eta_offset));
-    pp.lambda_alpha.set(theta(lambda_alpha_offset));
-    pp.lambda_beta.set(theta(lambda_beta_offset));
+    pp.lambda_eta = theta(lambda_eta_offset);
+    pp.lambda_alpha = theta(lambda_alpha_offset);
+    pp.lambda_beta = theta(lambda_beta_offset);
 
-    pp.tau_alpha.set(theta(tau_alpha_offset));
-    pp.tau_beta.set(theta(tau_beta_offset));
+    pp.tau_alpha = theta(tau_alpha_offset);
+    pp.tau_beta = theta(tau_beta_offset);
   };
 
 
@@ -429,7 +433,7 @@ public:
   VectorXT<T> get_parameter_vector(PriorParameters<T> const &pp) const {
 
     VectorXT<T> theta(dim);
-    theta.segment(mu_mean_offset, pp.mu_mean.size) = pp.mu_mean.get();
+    theta.segment(mu_mean_offset, pp.mu_mean.size()) = pp.mu_mean;
     theta.segment(mu_info_offset, pp.mu_info.size_ud) = pp.mu_info.get_vec();
 
     theta(lambda_eta_offset) = pp.lambda_eta.get();
@@ -569,8 +573,8 @@ struct MicroCreditWishartElbo {
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda_v_par.get();
-    T lambda_n_par = vp.lambda_n_par.get();
+    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
+    T lambda_n_par = vp.lambda.n;
     return
       GetHierarchyLogLikelihood(vp) +
       GetPriorLogLikelihood(vp, pp) +
@@ -596,8 +600,8 @@ struct MicroCreditWishartEntropy {
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda_v_par.get();
-    T lambda_n_par = vp.lambda_n_par.get();
+    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
+    T lambda_n_par = vp.lambda.n.mat;
     return GetWishartEntropy(lambda_v_par, lambda_n_par);
   }
 };
@@ -620,8 +624,8 @@ struct MicroCreditWishartLogLikelihood {
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda_v_par.get();
-    T lambda_n_par = vp.lambda_n_par.get();
+    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
+    T lambda_n_par = vp.lambda.n;
     return
       GetHierarchyLogLikelihood(vp) + GetPriorLogLikelihood(vp, pp);
   }
@@ -644,16 +648,16 @@ struct WishartMomentParameterization {
     VariationalParameters<T> moment_vp(base_vp);
     encoder.set_parameters_from_vector(theta, vp);
 
-    MatrixXT<T> v_par = vp.lambda_v_par.get();
-    T n_par = vp.lambda_n_par.get();
+    MatrixXT<T> v_par = vp.lambda.v.mat;
+    T n_par = vp.lambda.n;
 
     // TODO: we're just putting the moment parameters in the natural
     // parameter slots.  Any reason not to make e_lambda a member of the class?
     MatrixXT<T> e_lambda = v_par * n_par;
-    moment_vp.lambda_v_par.set(e_lambda);
+    moment_vp.lambda.v.set(e_lambda);
 
     T e_log_det_lambda = GetELogDetWishart(v_par, n_par);
-    moment_vp.lambda_n_par.set(e_log_det_lambda);
+    moment_vp.lambda.n = e_log_det_lambda;
 
     // This needs to be a non-transforming encoder.
     WishartParameterEncoder non_transforming_encoder(
