@@ -156,7 +156,7 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
   for (int g = 0; g < vp.n_g; g++) {
     e_tau_vec_list[g] = vp.tau_vec[g].e;
     e_log_tau_vec_list[g] = vp.tau_vec[g].e_log;
-    e_mu_g_vec_list[g] = vp.mu_g_vec[g].e;
+    e_mu_g_vec_list[g] = vp.mu_g_vec[g].e_vec;
     e_mu2_g_vec_list[g] = vp.mu_g_vec[g].e_outer.mat;
   }
 

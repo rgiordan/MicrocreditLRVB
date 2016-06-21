@@ -6,6 +6,7 @@
 # include <boost/math/tools/promotion.hpp>
 
 // Special functions for the Hessian.
+#include "stan_lrvb_headers.h"
 #include <stan/math/fwd/scal/fun/exp.hpp>
 #include <stan/math/fwd/scal/fun/log.hpp>
 #include <stan/math/fwd/scal/fun/abs.hpp>
@@ -42,9 +43,13 @@ using fvar = stan::math::fvar<var>;
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
   // TODO: Make a Wishart method to do this.
-  vp.lambda.e = vp.lambda.v.mat * vp.lambda.n;
-  vp.lambda.e_log_det = GetELogDetWishart(vp.lambda.v.mat, vp.lambda.n);
 
+  // Can't do this because vp is constant.
+  // vp.lambda.e = vp.lambda.v.mat * vp.lambda.n;
+  // vp.lambda.e_log_det = GetELogDetWishart(vp.lambda.v.mat, vp.lambda.n);
+
+  // TODO: maybe make this part of the variational parameters.
+  WishartMoments<T> lambda_moments(vp.lambda);
   // T e_lambda_e_mu2_trace = (e_lambda * vp.e_mu2.get()).trace();
   // MatrixXT<T> e_mu_t = vp.e_mu.get().transpose();
   // MatrixXT<T> e_mu = vp.e_mu.get();
@@ -58,7 +63,7 @@ T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
     //   -0.5 * ((e_lambda * vp.e_mu2_g_vec[g].get()).trace() -
     //           (e_lambda * (mu_g_mu_outer + mu_mu_g_outer)).trace() +
     //           e_lambda_e_mu2_trace) + 0.5 * e_log_det_lambda;
-    log_lik += vp.mu_g_vec[g].ExpectedLogLikelihood(vp.mu, vp.lambda);
+    log_lik += vp.mu_g_vec[g].ExpectedLogLikelihood(vp.mu, lambda_moments);
   }
 
   return log_lik;
