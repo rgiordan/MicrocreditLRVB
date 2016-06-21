@@ -140,11 +140,11 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
   r_list["k"] = vp.k;
   r_list["n_g"] = vp.n_g;
 
-  r_list["e_mu"] = vp.e_mu.get();
-  r_list["e_mu2"] = vp.e_mu2.get();
+  r_list["e_mu"] = vp.mu.e;
+  r_list["e_mu2"] = vp.mu.e_outer.mat;
 
-  r_list["lambda_v_par"] = vp.lambda_v_par.get();
-  r_list["lambda_n_par"] = vp.lambda_n_par.get();
+  r_list["lambda_v_par"] = vp.lambda.v.mat;
+  r_list["lambda_n_par"] = vp.lambda.n;
 
   // TODO: size checking
   // I'm not sure why, but this initializiation seems to make a list
@@ -154,10 +154,10 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
   Rcpp::List e_tau_vec_list(vp.n_g);
   Rcpp::List e_log_tau_vec_list(vp.n_g);
   for (int g = 0; g < vp.n_g; g++) {
-    e_tau_vec_list[g] = vp.e_tau_vec[g].get();
-    e_log_tau_vec_list[g] = vp.e_log_tau_vec[g].get();
-    e_mu_g_vec_list[g] = vp.e_mu_g_vec[g].get();
-    e_mu2_g_vec_list[g] = vp.e_mu2_g_vec[g].get();
+    e_tau_vec_list[g] = vp.tau_vec[g].e;
+    e_log_tau_vec_list[g] = vp.tau_vec[g].e_log;
+    e_mu_g_vec_list[g] = vp.mu_g_vec[g].e;
+    e_mu2_g_vec_list[g] = vp.mu_g_vec[g].e_outer.mat;
   }
 
   r_list["e_tau_vec"] = e_tau_vec_list;
@@ -173,11 +173,11 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
 template <typename T>
 void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
 
-  vp.e_mu.set(Rcpp::as<VectorXd>(r_list["e_mu"]));
-  vp.e_mu2.set(Rcpp::as<MatrixXd>(r_list["e_mu2"]));
+  vp.mu.e = Rcpp::as<VectorXd>(r_list["e_mu"]);
+  vp.mu.e_outer.mat = Rcpp::as<MatrixXd>(r_list["e_mu2"];
 
-  vp.lambda_v_par.set(Rcpp::as<MatrixXd>(r_list["lambda_v_par"]));
-  vp.lambda_n_par.set(Rcpp::as<double>(r_list["lambda_n_par"]));
+  vp.lambda.v.mat = Rcpp::as<MatrixXd>(r_list["lambda_v_par"]);
+  vp.lambda.n = Rcpp::as<double>(r_list["lambda_n_par"]);
 
   Rcpp::List e_mu_g_vec_list = r_list["e_mu_g_vec"];
   Rcpp::List e_mu2_g_vec_list = r_list["e_mu2_g_vec"];
@@ -192,10 +192,10 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
   }
 
   for (int g = 0; g < n_g; g++) {
-    vp.e_tau_vec[g].set(Rcpp::as<double>(e_tau_vec_list[g]));
-    vp.e_log_tau_vec[g].set(Rcpp::as<double>(e_log_tau_vec_list[g]));
-    vp.e_mu_g_vec[g].set(Rcpp::as<VectorXd>(e_mu_g_vec_list[g]));
-    vp.e_mu2_g_vec[g].set(Rcpp::as<MatrixXd>(e_mu2_g_vec_list[g]));
+    vp.tau_vec[g].e = Rcpp::as<double>(e_tau_vec_list[g]);
+    vp.tau_vec[g].e_log = Rcpp::as<double>(e_log_tau_vec_list[g]);
+    vp.mu_g_vec[g].e = Rcpp::as<VectorXd>(e_mu_g_vec_list[g]);
+    vp.mu_g_vec[g].e_outer.mat = Rcpp::as<MatrixXd>(e_mu2_g_vec_list[g]);
   }
 };
 
