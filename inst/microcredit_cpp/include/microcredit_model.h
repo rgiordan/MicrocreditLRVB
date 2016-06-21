@@ -77,7 +77,7 @@ T GetObservationLogLikelihood(
 
     VectorXT<T> x_row = data.x.row(n).template cast<T>();
     int g = data.y_g(n) - 1; // The group that this observation belongs to.
-    y_obs_mean.e = x_row.dot(vp.mu_g_vec[g].e);
+    y_obs_mean.e = x_row.dot(vp.mu_g_vec[g].e_vec);
     y_obs_mean.e2 = x_row.dot(vp.mu_g_vec[g].e_outer.mat * x_row);
 
     log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, vp.tau_vec[g]);
@@ -104,13 +104,13 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
   T log_lik = 0.0;
 
   // Mu:
-  VectorXT<T> vp_e_mu = vp.mu.e.template cast<T>();
-  VectorXT<T> pp_mu_mean = pp.mu_mean.get().template cast<T>();
+  VectorXT<T> vp_e_mu = vp.mu.e_vec.template cast<T>();
+  VectorXT<T> pp_mu_mean = pp.mu_mean.template cast<T>();
 
   MatrixXT<T> mu_mu_outer =
     vp_e_mu * pp_mu_mean.transpose() + pp_mu_mean * vp_e_mu.transpose();
-  MatrixXT<T> mu_info = pp.mu_info.get().template cast<T>();
-  MatrixXT<T> vp_e_mu2 = vp.e_mu.e_outer.mat.template cast<T>();
+  MatrixXT<T> mu_info = pp.mu_info.mat.template cast<T>();
+  MatrixXT<T> vp_e_mu2 = vp.mu.e_outer.mat.template cast<T>();
   MatrixXT<T> pp_mu_mu_outer = pp_mu_mean * pp_mu_mean.transpose();
   log_lik += -0.5 * (mu_info * (vp_e_mu2 - mu_mu_outer + pp_mu_mu_outer)).trace();
 
@@ -128,7 +128,7 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
   T n_par = vp.lambda.n;
   T e_log_sigma_term = digamma(0.5 * (n_par - pp.k + 1));
   T e_s_term = exp(lgamma(0.5 * (n_par - pp.k)) - lgamma(0.5 * (n_par - pp.k + 1)));
-  T e_log_det_lambda = GetELogDetWishart(vp.lambda.v.mat.get(), n_par);
+  T e_log_det_lambda = GetELogDetWishart(vp.lambda.v.mat, n_par);
   T e_log_det_r = -1 * e_log_det_lambda;
   T diag_prior = 0.0;
 
@@ -138,10 +138,10 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
     e_s = sqrt(0.5 * v_inv(k, k)) * e_s_term;
     e_log_s = 0.5 * e_log_sigma_diag;
     e_log_det_r -= e_log_sigma_diag;
-    diag_prior += (pp.lambda_alpha.get() - 1) * e_log_s -
-                   pp.lambda_beta.get() * e_s;
+    diag_prior += (pp.lambda_alpha - 1) * e_log_s -
+                   pp.lambda_beta * e_s;
   }
-  T lkj_prior = (pp.lambda_eta.get() - 1) * e_log_det_r;
+  T lkj_prior = (pp.lambda_eta - 1) * e_log_det_r;
 
   log_lik += lkj_prior + diag_prior;
 
@@ -221,11 +221,11 @@ public:
     // TODO: why is this?
 
     VectorXT<T> theta_sub;
-    theta_sub = theta.segment(e_mu_offset, vp.e_mu.size);
-    vp.e_mu.set(theta_sub);
+    theta_sub = theta.segment(e_mu_offset, vp.mu.dim);
+    vp.mu.e_vec = theta_sub;
 
-    theta_sub = theta.segment(e_mu2_offset, vp.e_mu2.size_ud);
-    vp.e_mu2.set_vec(theta_sub);
+    theta_sub = theta.segment(e_mu2_offset, vp.mu.e_outer.size_ud);
+    vp.mu.e_outer.set_vec(theta_sub);
 
     theta_sub = theta.segment(lambda_v_par_offset, vp.lambda.v.size_ud);
     if (unconstrained_wishart) {
@@ -243,11 +243,11 @@ public:
     }
 
     for (int g = 0; g < vp.n_g; g++) {
-      vp.tau_vec[g] = theta(e_tau_offset[g]);
-      vp.e_log_tau_vec[g] = theta(e_log_tau_offset[g]);
+      vp.tau_vec[g].e = theta(e_tau_offset[g]);
+      vp.tau_vec[g].e_log = theta(e_log_tau_offset[g]);
 
-      theta_sub = theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].size);
-      vp.mu_g_vec[g].e = theta_sub;
+      theta_sub = theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].dim);
+      vp.mu_g_vec[g].e_vec = theta_sub;
 
       theta_sub = theta.segment(e_mu2_g_offset[g], vp.mu_g_vec[g].e_outer.size_ud);
       vp.mu_g_vec[g].e_outer.set_vec(theta_sub);
@@ -260,8 +260,8 @@ public:
       VariationalParameters<T> const &vp) const {
 
     VectorXT<T> theta(dim);
-    theta.segment(e_mu_offset, vp.e_mu.size) = vp.e_mu.get();
-    theta.segment(e_mu2_offset, vp.e_mu2.size_ud) = vp.e_mu2.get_vec();
+    theta.segment(e_mu_offset, vp.mu.dim) = vp.mu.e_vec;
+    theta.segment(e_mu2_offset, vp.mu.e_outer.size_ud) = vp.mu.e_outer.get_vec();
 
     if (unconstrained_wishart) {
       T lambda_n_min_cast = lambda_n_min;
@@ -281,8 +281,8 @@ public:
       theta(e_tau_offset[g]) = vp.tau_vec[g].e;
       theta(e_log_tau_offset[g]) = vp.tau_vec[g].e_log;
 
-      theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].dim) = vp.mu_g_vec[g].e;
-      theta.segment(e_mu2_g_offset[g], vp.mu_g_vec[g].size_ud) =
+      theta.segment(e_mu_g_offset[g], vp.mu_g_vec[g].dim) = vp.mu_g_vec[g].e_vec;
+      theta.segment(e_mu2_g_offset[g], vp.mu_g_vec[g].e_outer.size_ud) =
         vp.mu_g_vec[g].e_outer.get_vec();
     }
     return theta;
@@ -436,12 +436,12 @@ public:
     theta.segment(mu_mean_offset, pp.mu_mean.size()) = pp.mu_mean;
     theta.segment(mu_info_offset, pp.mu_info.size_ud) = pp.mu_info.get_vec();
 
-    theta(lambda_eta_offset) = pp.lambda_eta.get();
-    theta(lambda_alpha_offset) = pp.lambda_alpha.get();
-    theta(lambda_beta_offset) = pp.lambda_beta.get();
+    theta(lambda_eta_offset) = pp.lambda_eta;
+    theta(lambda_alpha_offset) = pp.lambda_alpha;
+    theta(lambda_beta_offset) = pp.lambda_beta;
 
-    theta(tau_alpha_offset) = pp.tau_alpha.get();
-    theta(tau_beta_offset) = pp.tau_beta.get();
+    theta(tau_alpha_offset) = pp.tau_alpha;
+    theta(tau_beta_offset) = pp.tau_beta;
 
     return theta;
   };
@@ -601,7 +601,7 @@ struct MicroCreditWishartEntropy {
     VariationalParameters<T> vp(base_vp);
     lambda_encoder.set_parameters_from_vector(theta, vp);
     MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
-    T lambda_n_par = vp.lambda.n.mat;
+    T lambda_n_par = vp.lambda.n;
     return GetWishartEntropy(lambda_v_par, lambda_n_par);
   }
 };

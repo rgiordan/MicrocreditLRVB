@@ -140,7 +140,7 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
   r_list["k"] = vp.k;
   r_list["n_g"] = vp.n_g;
 
-  r_list["e_mu"] = vp.mu.e;
+  r_list["e_mu"] = vp.mu.e_vec;
   r_list["e_mu2"] = vp.mu.e_outer.mat;
 
   r_list["lambda_v_par"] = vp.lambda.v.mat;
@@ -173,8 +173,8 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
 template <typename T>
 void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
 
-  vp.mu.e = Rcpp::as<VectorXd>(r_list["e_mu"]);
-  vp.mu.e_outer.mat = Rcpp::as<MatrixXd>(r_list["e_mu2"];
+  vp.mu.e_vec = Rcpp::as<VectorXd>(r_list["e_mu"]);
+  vp.mu.e_outer.mat = Rcpp::as<MatrixXd>(r_list["e_mu2"]);
 
   vp.lambda.v.mat = Rcpp::as<MatrixXd>(r_list["lambda_v_par"]);
   vp.lambda.n = Rcpp::as<double>(r_list["lambda_n_par"]);
@@ -194,7 +194,7 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
   for (int g = 0; g < n_g; g++) {
     vp.tau_vec[g].e = Rcpp::as<double>(e_tau_vec_list[g]);
     vp.tau_vec[g].e_log = Rcpp::as<double>(e_log_tau_vec_list[g]);
-    vp.mu_g_vec[g].e = Rcpp::as<VectorXd>(e_mu_g_vec_list[g]);
+    vp.mu_g_vec[g].e_vec = Rcpp::as<VectorXd>(e_mu_g_vec_list[g]);
     vp.mu_g_vec[g].e_outer.mat = Rcpp::as<MatrixXd>(e_mu2_g_vec_list[g]);
   }
 };
@@ -204,15 +204,15 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
 template <typename T>
 void convert_from_list(Rcpp::List r_list, PriorParameters<T> &pp) {
 
-  pp.mu_mean.set(Rcpp::as<VectorXd>(r_list["mu_mean"]));
-  pp.mu_info.set(Rcpp::as<MatrixXd>(r_list["mu_info"]));
+  pp.mu_mean = Rcpp::as<VectorXd>(r_list["mu_mean"]);
+  pp.mu_info.mat = Rcpp::as<MatrixXd>(r_list["mu_info"]);
 
-  pp.lambda_eta.set(Rcpp::as<double>(r_list["lambda_eta"]));
-  pp.lambda_alpha.set(Rcpp::as<double>(r_list["lambda_alpha"]));
-  pp.lambda_beta.set(Rcpp::as<double>(r_list["lambda_beta"]));
+  pp.lambda_eta = Rcpp::as<double>(r_list["lambda_eta"]);
+  pp.lambda_alpha = Rcpp::as<double>(r_list["lambda_alpha"]);
+  pp.lambda_beta = Rcpp::as<double>(r_list["lambda_beta"]);
 
-  pp.tau_alpha.set(Rcpp::as<double>(r_list["tau_alpha"]));
-  pp.tau_beta.set(Rcpp::as<double>(r_list["tau_beta"]));
+  pp.tau_alpha = Rcpp::as<double>(r_list["tau_alpha"]);
+  pp.tau_beta = Rcpp::as<double>(r_list["tau_beta"]);
 
   pp.lambda_diag_min = Rcpp::as<double>(r_list["lambda_diag_min"]);
   pp.lambda_n_min = Rcpp::as<double>(r_list["lambda_n_min"]);
