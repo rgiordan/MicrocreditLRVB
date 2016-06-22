@@ -42,27 +42,10 @@ using fvar = stan::math::fvar<var>;
 
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
-  // TODO: Make a Wishart method to do this.
-
-  // Can't do this because vp is constant.
-  // vp.lambda.e = vp.lambda.v.mat * vp.lambda.n;
-  // vp.lambda.e_log_det = GetELogDetWishart(vp.lambda.v.mat, vp.lambda.n);
-
   // TODO: maybe make this part of the variational parameters.
   WishartMoments<T> lambda_moments(vp.lambda);
-  // T e_lambda_e_mu2_trace = (e_lambda * vp.e_mu2.get()).trace();
-  // MatrixXT<T> e_mu_t = vp.e_mu.get().transpose();
-  // MatrixXT<T> e_mu = vp.e_mu.get();
-
   T log_lik = 0.0;
   for (int g = 0; g < vp.n_g; g++) {
-    // MatrixXT<T> e_mu_g = vp.e_mu_g_vec[g].get();
-    // MatrixXT<T> mu_g_mu_outer = e_mu_g * e_mu_t;
-    // MatrixXT<T> mu_mu_g_outer = e_mu * (e_mu_g.transpose());
-    // log_lik +=
-    //   -0.5 * ((e_lambda * vp.e_mu2_g_vec[g].get()).trace() -
-    //           (e_lambda * (mu_g_mu_outer + mu_mu_g_outer)).trace() +
-    //           e_lambda_e_mu2_trace) + 0.5 * e_log_det_lambda;
     log_lik += vp.mu_g_vec[g].ExpectedLogLikelihood(vp.mu, lambda_moments);
   }
 
@@ -86,17 +69,10 @@ T GetObservationLogLikelihood(
     y_obs_mean.e2 = x_row.dot(vp.mu_g_vec[g].e_outer.mat * x_row);
 
     log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, vp.tau_vec[g]);
-    // log_lik += -0.5 * e_tau * (
-    //     pow(data.y(n), 2) - 2 * data.y(n) * row_mean + row_mean2) +
-    //     0.5 * e_log_tau;
   }
   return log_lik;
 };
 
-
-// template <typename Tlik, typename Tprior>
-// typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
-//     VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp);
 
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
@@ -532,6 +508,7 @@ struct MicroCreditLogLikelihood {
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     vp_encoder.set_parameters_from_vector(theta, vp);
+
     return
       GetObservationLogLikelihood(data, vp) +
       GetHierarchyLogLikelihood(vp) +

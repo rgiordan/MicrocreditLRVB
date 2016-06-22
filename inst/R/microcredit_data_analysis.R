@@ -55,6 +55,13 @@ lambda_ind <-
 ##########
 # Fit it with VB
 
+# Debugging
+n_g <- vp$n_g
+# pb <- txtProgressBar(0, num_iters, style=3)
+steps_list <- list()
+model_grads <- ModelGradient(x, y, y_g, vp, pp, FALSE, TRUE)
+
+
 max_iters <- 500
 vb_tol <- 1e-12
 vb_time <- Sys.time()
@@ -187,7 +194,7 @@ ggplot(filter(result, metric == "sd") %>%
   geom_abline(aes(slope=1, intercept=0)) +
   expand_limits(x=0, y=0) + expand_limits(x=1, y=1) +
   xlab("MCMC") + ylab("VB") +
-  ggtitle("Comparison of means")
+  ggtitle("Comparison of standard deviations")
 
 # Note: make sure that the sensitivity is enough to be detected by
 # the sampling error in MCMC.
