@@ -55,13 +55,6 @@ lambda_ind <-
 ##########
 # Fit it with VB
 
-# Debugging
-n_g <- vp$n_g
-# pb <- txtProgressBar(0, num_iters, style=3)
-steps_list <- list()
-model_grads <- ModelGradient(x, y, y_g, vp, pp, FALSE, TRUE)
-
-
 max_iters <- 500
 vb_tol <- 1e-12
 vb_time <- Sys.time()
