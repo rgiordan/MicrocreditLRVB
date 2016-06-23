@@ -85,15 +85,10 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
   T log_lik = 0.0;
 
   // Mu:
-  VectorXT<T> vp_e_mu = vp.mu.e_vec.template cast<T>();
+  MultivariateNormal<T> vp_mu(vp.mu);
   VectorXT<T> pp_mu_mean = pp.mu_mean.template cast<T>();
-
-  MatrixXT<T> mu_mu_outer =
-    vp_e_mu * pp_mu_mean.transpose() + pp_mu_mean * vp_e_mu.transpose();
-  MatrixXT<T> mu_info = pp.mu_info.mat.template cast<T>();
-  MatrixXT<T> vp_e_mu2 = vp.mu.e_outer.mat.template cast<T>();
-  MatrixXT<T> pp_mu_mu_outer = pp_mu_mean * pp_mu_mean.transpose();
-  log_lik += -0.5 * (mu_info * (vp_e_mu2 - mu_mu_outer + pp_mu_mu_outer)).trace();
+  MatrixXT<T> pp_mu_info = pp.mu_info.mat.template cast<T>();
+  log_lik += vp_mu.ExpectedLogLikelihood(pp_mu_mean, pp_mu_info);
 
   // Tau:
   for (int g = 0; g < vp.n_g; g++) {
