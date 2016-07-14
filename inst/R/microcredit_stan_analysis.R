@@ -140,3 +140,7 @@ save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
      stan_dat, stan_dat_perturbed, true_params, pp,
      file=stan_draws_file)
 
+
+stan_sim <- sampling(model, data = stan_dat, seed = seed, algorithm="ADVI",
+                     chains = chains, iter = iters, control = control)
+
