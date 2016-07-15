@@ -17,8 +17,8 @@ r_GetELogDetWishart <- function(v_par_r, n_par_r) {
     .Call('MicrocreditLRVB_r_GetELogDetWishart', PACKAGE = 'MicrocreditLRVB', v_par_r, n_par_r)
 }
 
-ModelGradient <- function(x, y, y_g, r_vp, r_pp, calculate_hessian, unconstrained) {
-    .Call('MicrocreditLRVB_ModelGradient', PACKAGE = 'MicrocreditLRVB', x, y, y_g, r_vp, r_pp, calculate_hessian, unconstrained)
+ModelGradient <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained) {
+    .Call('MicrocreditLRVB_ModelGradient', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained)
 }
 
 EncodeLambda <- function(r_vp, k, n_g, lambda_diag_min, n_min) {

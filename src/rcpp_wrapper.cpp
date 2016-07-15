@@ -174,10 +174,20 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
   Rcpp::List e_log_tau_vec_list = r_list["e_log_tau_vec"];
   int n_g = e_mu_g_vec_list.size();
   if (e_mu2_g_vec_list.size() != n_g) {
-    throw std::runtime_error("e_mu2_g_vec_list does not have n_g elements");
+    std::ostringstream error_msg;
+    error_msg <<
+        "e_mu2_g_vec_list does not have n_g elements.  " <<
+        "List size is " << e_mu2_g_vec_list.size() << ".  " <<
+        "n_g = " << n_g << "\n";
+    throw std::runtime_error(error_msg.str());
   }
   if (vp.n_g != n_g) {
-    throw std::runtime_error("e_mu_g_vec_list does not have n_g elements");
+      std::ostringstream error_msg;
+      error_msg <<
+          "vp.n_g does not match n_g (which is from e_mu_g_vec_list.size()).  " <<
+          "vp.n_g = " << vp.n_g << ".  " <<
+          "n_g = " << n_g << "\n";
+    throw std::runtime_error(error_msg.str());
   }
 
   for (int g = 0; g < n_g; g++) {
@@ -208,12 +218,18 @@ void convert_from_list(Rcpp::List r_list, PriorParameters<T> &pp) {
 };
 
 
+// r_y_g should be one-indexed group indicators.
 // [[Rcpp::export]]
 Rcpp::List ModelGradient(
-    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> r_x,
+    const Eigen::Map<Eigen::VectorXd> r_y,
+    const Eigen::Map<Eigen::VectorXi> r_y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp,
     const bool calculate_hessian, const bool unconstrained) {
 
+  Eigen::MatrixXd x = r_x;
+  Eigen::VectorXd y = r_y;
+  Eigen::VectorXi y_g = r_y_g;
   MicroCreditData data(x, y, y_g);
   VariationalParameters<double> base_vp(data.k, data.n_g);
   PriorParameters<double> pp(data.k);
@@ -295,7 +311,8 @@ Rcpp::List DecodeParameters(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaGradient(
-    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y,
+    const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);
@@ -327,7 +344,8 @@ Rcpp::List LambdaGradient(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaEntropyDerivs(
-    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y,
+    const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);
@@ -359,7 +377,8 @@ Rcpp::List LambdaEntropyDerivs(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaLikelihoodMomentDerivs(
-    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y,
+    const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);

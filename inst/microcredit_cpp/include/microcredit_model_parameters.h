@@ -158,7 +158,7 @@ public:
 struct MicroCreditData {
 
   VectorXd y;           // The observations.
-  VectorXi y_g;         // The zero-indexed group indices.
+  VectorXi y_g;         // The one-indexed group indices.
   MatrixXd x;           // The explanatory variables.
 
   int n;                // The number of observations.
@@ -174,16 +174,16 @@ struct MicroCreditData {
     int min_g_index, max_g_index;
     int min_g = y_g.minCoeff(&min_g_index);
     int max_g = y_g.maxCoeff(&max_g_index);
-    if (min_g < 0) {
-        ostringstream error_msg;
+    if (min_g < 1) {
+        std::ostringstream error_msg;
         error_msg <<
-          "Error -- y_g must have integers between 0 and (n_groups - 1). " <<
+          "Error -- y_g must have integers between 1 and n_groups. " <<
           "Got min(y_g) = "  << min_g << " and max(y_g)  = " << max_g;
       throw std::runtime_error(error_msg.str());
     }
 
     n = y.size();
-    n_g = max_g + 1;
+    n_g = max_g;
     k = x.cols();
   };
 

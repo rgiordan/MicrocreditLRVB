@@ -52,8 +52,6 @@ lambda_ind <-
 ##########
 # Fit it with VB
 
-# y_g_old  <- y_g
-# y_g <- as.integer(y_g_old - 1)
 
 max_iters <- 500
 vb_tol <- 1e-12
@@ -61,18 +59,6 @@ vb_time <- Sys.time()
 vb_fit <- FitModel(x, y, y_g, vp, pp,
                    num_iters=max_iters, rel_tol=vb_tol, fit_lambda=TRUE, verbose=TRUE)
 vb_time <- Sys.time() - vb_time
-
-
-# Debugging
-src <- "
-y_g = Eigen::
-int min_g_index, max_g_index;
-int min_g = y_g.minCoeff(&min_g_index);
-int max_g = y_g.maxCoeff(&max_g_index);
-
-"
-fun <- cxxfunction(signature(a = "list"), src, plugin = "Rcpp")
-
 
 # Linear response covariance:
 lrvb_time <- Sys.time()
