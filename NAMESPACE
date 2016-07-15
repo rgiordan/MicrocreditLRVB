@@ -1,4 +1,4 @@
-useDynLib(MicroCreditLRVB)
+useDynLib(MicrocreditLRVB)
 exportPattern("^[[:alpha:]]+")
 importFrom(Rcpp, evalCpp)
 import(Matrix)

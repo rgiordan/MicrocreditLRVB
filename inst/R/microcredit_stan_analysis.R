@@ -5,7 +5,7 @@ library(rstan)
 library(Matrix)
 library(mvtnorm)
 
-library(MicroCreditLRVB)
+library(MicrocreditLRVB)
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -16,6 +16,9 @@ set.seed(42)
 
 ##########################
 # Prior parameters
+
+# The dimension of the regressors.
+k <- 2
 
 pp <- list()
 pp[["k"]] <- k
@@ -53,24 +56,12 @@ sim_data <- SimulateData(true_params, n_g, n_per_group)
 x <- sim_data$x
 y_g <- sim_data$y_g
 y <- sim_data$y
-
-
-
-# The dimension of the explanatory variables.
-k <- ncol(x)
+true_params$true_mu_g_vec <- sim_data$true_mu_g_vec
 
 # Sanity checks
 mu_g_mat <- do.call(rbind, true_params$true_mu_g_vec)
-solve(cov(mu_g_mat))
-true_params$true_lambda
-
-g <- 1
-g_reg <- lm(y ~ x1 + x2 - 1,
-            data.frame(y=y_vec[[g]], x1=x_vec[[g]][, 1], x2=x_vec[[g]][, 2]))
-summary(g_reg)
-true_params$true_mu_g_vec[[g]]
-1 / var(g_reg$residuals)
-true_params$true_tau
+cov(mu_g_mat)
+solve(true_params$true_lambda)
 
 
 ######################################
@@ -119,7 +110,8 @@ mu_prior_info_perturb[1,2] <- mu_prior_info_perturb[2,1] <-
 stan_dat_perturbed$mu_prior_sigma <- solve(mu_prior_info_perturb)
 stan_dat$mu_prior_sigma
 
-# some knobs we can tweak
+# Some knobs we can tweak.  Note that we need many iterations to accurately assess
+# the prior sensitivity in the MCMC noise.
 chains <- 1
 iters <- 10000
 control <- list(adapt_t0 = 10,       # default = 10
@@ -136,11 +128,15 @@ stan_sim <- sampling(model, data = stan_dat, seed = seed,
 mcmc_time <- Sys.time() - mcmc_time
 stan_sim_perturb <- sampling(model, data = stan_dat_perturbed, seed = seed,
                              chains = chains, iter = iters, control = control)
+
+stan_advi <- vb(model, data = stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
+stan_advi_perturb <- vb(model, data = stan_dat,  algorithm="meanfield", output_samples=iters)
+stan_advi_full <- vb(model, data = stan_dat_perturbed,  algorithm="fullrank", output_samples=iters)
+stan_advi_full_perturb <- vb(model, data = stan_dat,  algorithm="meanfield", output_samples=iters)
+
 save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
      stan_dat, stan_dat_perturbed, true_params, pp,
+     stan_advi, stan_advi_perturb, stan_advi_full, stan_advi_full_perturb,
      file=stan_draws_file)
 
-
-stan_sim <- sampling(model, data = stan_dat, seed = seed, algorithm="ADVI",
-                     chains = chains, iter = iters, control = control)
 

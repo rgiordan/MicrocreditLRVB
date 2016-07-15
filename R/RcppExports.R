@@ -2,74 +2,74 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 get_upper_diagonal_index <- function(i, j) {
-    .Call('MicroCreditLRVB_get_upper_diagonal_index', PACKAGE = 'MicroCreditLRVB', i, j)
+    .Call('MicrocreditLRVB_get_upper_diagonal_index', PACKAGE = 'MicrocreditLRVB', i, j)
 }
 
 r_mulitvariate_digamma <- function(x, p) {
-    .Call('MicroCreditLRVB_r_mulitvariate_digamma', PACKAGE = 'MicroCreditLRVB', x, p)
+    .Call('MicrocreditLRVB_r_mulitvariate_digamma', PACKAGE = 'MicrocreditLRVB', x, p)
 }
 
 GetWishartEntropy <- function(v_par_r, n_par_r) {
-    .Call('MicroCreditLRVB_GetWishartEntropy', PACKAGE = 'MicroCreditLRVB', v_par_r, n_par_r)
+    .Call('MicrocreditLRVB_GetWishartEntropy', PACKAGE = 'MicrocreditLRVB', v_par_r, n_par_r)
 }
 
 r_GetELogDetWishart <- function(v_par_r, n_par_r) {
-    .Call('MicroCreditLRVB_r_GetELogDetWishart', PACKAGE = 'MicroCreditLRVB', v_par_r, n_par_r)
+    .Call('MicrocreditLRVB_r_GetELogDetWishart', PACKAGE = 'MicrocreditLRVB', v_par_r, n_par_r)
 }
 
 ModelGradient <- function(x, y, y_g, r_vp, r_pp, calculate_hessian, unconstrained) {
-    .Call('MicroCreditLRVB_ModelGradient', PACKAGE = 'MicroCreditLRVB', x, y, y_g, r_vp, r_pp, calculate_hessian, unconstrained)
+    .Call('MicrocreditLRVB_ModelGradient', PACKAGE = 'MicrocreditLRVB', x, y, y_g, r_vp, r_pp, calculate_hessian, unconstrained)
 }
 
 EncodeLambda <- function(r_vp, k, n_g, lambda_diag_min, n_min) {
-    .Call('MicroCreditLRVB_EncodeLambda', PACKAGE = 'MicroCreditLRVB', r_vp, k, n_g, lambda_diag_min, n_min)
+    .Call('MicrocreditLRVB_EncodeLambda', PACKAGE = 'MicrocreditLRVB', r_vp, k, n_g, lambda_diag_min, n_min)
 }
 
 DecodeLambda <- function(theta, k, n_g, lambda_diag_min, n_min) {
-    .Call('MicroCreditLRVB_DecodeLambda', PACKAGE = 'MicroCreditLRVB', theta, k, n_g, lambda_diag_min, n_min)
+    .Call('MicrocreditLRVB_DecodeLambda', PACKAGE = 'MicrocreditLRVB', theta, k, n_g, lambda_diag_min, n_min)
 }
 
 DecodeParameters <- function(theta, r_vp, r_pp, unconstrained_wishart) {
-    .Call('MicroCreditLRVB_DecodeParameters', PACKAGE = 'MicroCreditLRVB', theta, r_vp, r_pp, unconstrained_wishart)
+    .Call('MicrocreditLRVB_DecodeParameters', PACKAGE = 'MicrocreditLRVB', theta, r_vp, r_pp, unconstrained_wishart)
 }
 
 LambdaGradient <- function(x, y, y_g, r_vp, r_pp, unconstrained) {
-    .Call('MicroCreditLRVB_LambdaGradient', PACKAGE = 'MicroCreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
+    .Call('MicrocreditLRVB_LambdaGradient', PACKAGE = 'MicrocreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
 }
 
 LambdaEntropyDerivs <- function(x, y, y_g, r_vp, r_pp, unconstrained) {
-    .Call('MicroCreditLRVB_LambdaEntropyDerivs', PACKAGE = 'MicroCreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
+    .Call('MicrocreditLRVB_LambdaEntropyDerivs', PACKAGE = 'MicrocreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
 }
 
 LambdaLikelihoodMomentDerivs <- function(x, y, y_g, r_vp, r_pp, unconstrained) {
-    .Call('MicroCreditLRVB_LambdaLikelihoodMomentDerivs', PACKAGE = 'MicroCreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
+    .Call('MicrocreditLRVB_LambdaLikelihoodMomentDerivs', PACKAGE = 'MicrocreditLRVB', x, y, y_g, r_vp, r_pp, unconstrained)
 }
 
 WishartMomentParameterizationJacobian <- function(r_vp, r_pp, unconstrained) {
-    .Call('MicroCreditLRVB_WishartMomentParameterizationJacobian', PACKAGE = 'MicroCreditLRVB', r_vp, r_pp, unconstrained)
+    .Call('MicrocreditLRVB_WishartMomentParameterizationJacobian', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp, unconstrained)
 }
 
 TestJacobian <- function() {
-    .Call('MicroCreditLRVB_TestJacobian', PACKAGE = 'MicroCreditLRVB')
+    .Call('MicrocreditLRVB_TestJacobian', PACKAGE = 'MicrocreditLRVB')
 }
 
 PriorSensitivity <- function(r_vp, r_pp) {
-    .Call('MicroCreditLRVB_PriorSensitivity', PACKAGE = 'MicroCreditLRVB', r_vp, r_pp)
+    .Call('MicrocreditLRVB_PriorSensitivity', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp)
 }
 
 GetParameterEncoder <- function(r_vp, r_pp) {
-    .Call('MicroCreditLRVB_GetParameterEncoder', PACKAGE = 'MicroCreditLRVB', r_vp, r_pp)
+    .Call('MicrocreditLRVB_GetParameterEncoder', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp)
 }
 
 GetPriorParameterEncoder <- function(r_pp) {
-    .Call('MicroCreditLRVB_GetPriorParameterEncoder', PACKAGE = 'MicroCreditLRVB', r_pp)
+    .Call('MicrocreditLRVB_GetPriorParameterEncoder', PACKAGE = 'MicrocreditLRVB', r_pp)
 }
 
 GetModelParameterEncoder <- function(r_vp, r_pp) {
-    .Call('MicroCreditLRVB_GetModelParameterEncoder', PACKAGE = 'MicroCreditLRVB', r_vp, r_pp)
+    .Call('MicrocreditLRVB_GetModelParameterEncoder', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp)
 }
 
 GetVariationalCovariance <- function(vp_params, r_pp) {
-    .Call('MicroCreditLRVB_GetVariationalCovariance', PACKAGE = 'MicroCreditLRVB', vp_params, r_pp)
+    .Call('MicrocreditLRVB_GetVariationalCovariance', PACKAGE = 'MicrocreditLRVB', vp_params, r_pp)
 }
 

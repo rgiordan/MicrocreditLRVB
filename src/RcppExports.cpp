@@ -8,7 +8,7 @@ using namespace Rcpp;
 
 // get_upper_diagonal_index
 int get_upper_diagonal_index(int i, int j);
-RcppExport SEXP MicroCreditLRVB_get_upper_diagonal_index(SEXP iSEXP, SEXP jSEXP) {
+RcppExport SEXP MicrocreditLRVB_get_upper_diagonal_index(SEXP iSEXP, SEXP jSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -20,7 +20,7 @@ END_RCPP
 }
 // r_mulitvariate_digamma
 double r_mulitvariate_digamma(double x, int p);
-RcppExport SEXP MicroCreditLRVB_r_mulitvariate_digamma(SEXP xSEXP, SEXP pSEXP) {
+RcppExport SEXP MicrocreditLRVB_r_mulitvariate_digamma(SEXP xSEXP, SEXP pSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -32,7 +32,7 @@ END_RCPP
 }
 // GetWishartEntropy
 double GetWishartEntropy(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r);
-RcppExport SEXP MicroCreditLRVB_GetWishartEntropy(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
+RcppExport SEXP MicrocreditLRVB_GetWishartEntropy(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -44,7 +44,7 @@ END_RCPP
 }
 // r_GetELogDetWishart
 double r_GetELogDetWishart(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r);
-RcppExport SEXP MicroCreditLRVB_r_GetELogDetWishart(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
+RcppExport SEXP MicrocreditLRVB_r_GetELogDetWishart(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -56,7 +56,7 @@ END_RCPP
 }
 // ModelGradient
 Rcpp::List ModelGradient(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_hessian, const bool unconstrained);
-RcppExport SEXP MicroCreditLRVB_ModelGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
+RcppExport SEXP MicrocreditLRVB_ModelGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -73,7 +73,7 @@ END_RCPP
 }
 // EncodeLambda
 Eigen::VectorXd EncodeLambda(const Rcpp::List r_vp, int k, int n_g, double lambda_diag_min, double n_min);
-RcppExport SEXP MicroCreditLRVB_EncodeLambda(SEXP r_vpSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
+RcppExport SEXP MicrocreditLRVB_EncodeLambda(SEXP r_vpSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -88,7 +88,7 @@ END_RCPP
 }
 // DecodeLambda
 Rcpp::List DecodeLambda(const Eigen::VectorXd theta, int k, int n_g, double lambda_diag_min, double n_min);
-RcppExport SEXP MicroCreditLRVB_DecodeLambda(SEXP thetaSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
+RcppExport SEXP MicrocreditLRVB_DecodeLambda(SEXP thetaSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -103,7 +103,7 @@ END_RCPP
 }
 // DecodeParameters
 Rcpp::List DecodeParameters(const Eigen::VectorXd theta, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained_wishart);
-RcppExport SEXP MicroCreditLRVB_DecodeParameters(SEXP thetaSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrained_wishartSEXP) {
+RcppExport SEXP MicrocreditLRVB_DecodeParameters(SEXP thetaSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrained_wishartSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -117,7 +117,7 @@ END_RCPP
 }
 // LambdaGradient
 Rcpp::List LambdaGradient(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
-RcppExport SEXP MicroCreditLRVB_LambdaGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
+RcppExport SEXP MicrocreditLRVB_LambdaGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -133,7 +133,7 @@ END_RCPP
 }
 // LambdaEntropyDerivs
 Rcpp::List LambdaEntropyDerivs(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
-RcppExport SEXP MicroCreditLRVB_LambdaEntropyDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
+RcppExport SEXP MicrocreditLRVB_LambdaEntropyDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -149,7 +149,7 @@ END_RCPP
 }
 // LambdaLikelihoodMomentDerivs
 Rcpp::List LambdaLikelihoodMomentDerivs(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
-RcppExport SEXP MicroCreditLRVB_LambdaLikelihoodMomentDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
+RcppExport SEXP MicrocreditLRVB_LambdaLikelihoodMomentDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -165,7 +165,7 @@ END_RCPP
 }
 // WishartMomentParameterizationJacobian
 Rcpp::List WishartMomentParameterizationJacobian(const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
-RcppExport SEXP MicroCreditLRVB_WishartMomentParameterizationJacobian(SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
+RcppExport SEXP MicrocreditLRVB_WishartMomentParameterizationJacobian(SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -178,7 +178,7 @@ END_RCPP
 }
 // TestJacobian
 Rcpp::List TestJacobian();
-RcppExport SEXP MicroCreditLRVB_TestJacobian() {
+RcppExport SEXP MicrocreditLRVB_TestJacobian() {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -188,7 +188,7 @@ END_RCPP
 }
 // PriorSensitivity
 Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp);
-RcppExport SEXP MicroCreditLRVB_PriorSensitivity(SEXP r_vpSEXP, SEXP r_ppSEXP) {
+RcppExport SEXP MicrocreditLRVB_PriorSensitivity(SEXP r_vpSEXP, SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -200,7 +200,7 @@ END_RCPP
 }
 // GetParameterEncoder
 Rcpp::List GetParameterEncoder(const Rcpp::List r_vp, const Rcpp::List r_pp);
-RcppExport SEXP MicroCreditLRVB_GetParameterEncoder(SEXP r_vpSEXP, SEXP r_ppSEXP) {
+RcppExport SEXP MicrocreditLRVB_GetParameterEncoder(SEXP r_vpSEXP, SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -212,7 +212,7 @@ END_RCPP
 }
 // GetPriorParameterEncoder
 Rcpp::List GetPriorParameterEncoder(const Rcpp::List r_pp);
-RcppExport SEXP MicroCreditLRVB_GetPriorParameterEncoder(SEXP r_ppSEXP) {
+RcppExport SEXP MicrocreditLRVB_GetPriorParameterEncoder(SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -223,7 +223,7 @@ END_RCPP
 }
 // GetModelParameterEncoder
 Rcpp::List GetModelParameterEncoder(const Rcpp::List r_vp, const Rcpp::List r_pp);
-RcppExport SEXP MicroCreditLRVB_GetModelParameterEncoder(SEXP r_vpSEXP, SEXP r_ppSEXP) {
+RcppExport SEXP MicrocreditLRVB_GetModelParameterEncoder(SEXP r_vpSEXP, SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -235,7 +235,7 @@ END_RCPP
 }
 // GetVariationalCovariance
 Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List vp_params, const Rcpp::List r_pp);
-RcppExport SEXP MicroCreditLRVB_GetVariationalCovariance(SEXP vp_paramsSEXP, SEXP r_ppSEXP) {
+RcppExport SEXP MicrocreditLRVB_GetVariationalCovariance(SEXP vp_paramsSEXP, SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;

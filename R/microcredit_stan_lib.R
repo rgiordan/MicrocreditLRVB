@@ -6,23 +6,23 @@ SimulateData <- function(true_params, n_g, n_per_group) {
   y_vec <- list()
   y_g_vec <- list()
   x_vec <- list()
-  true_params$true_mu_g_vec <- list()
+  true_mu_g_vec <- list()
   for (g in 1:n_g) {
-    true_params$true_mu_g_vec[[g]] <-
-      as.numeric(rmvnorm(1, mean=true_params$true_mu, sigma=true_params$true_sigma))
+    true_mu_g_vec[[g]] <-
+      as.numeric(rmvnorm(1, mean=true_params$true_mu,
+                         sigma=true_params$true_sigma))
     x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
     y_vec[[g]] <-
-      rnorm(n_per_group,
-            x_vec[[g]] %*% true_params$true_mu_g_vec[[g]],
+      rnorm(n_per_group, x_vec[[g]] %*% true_mu_g_vec[[g]],
             1 / sqrt(true_params$true_tau))
     y_g_vec[[g]] <- rep(g, n_per_group)
   }
-  
+
   y <- do.call(c, y_vec)
   y_g <- do.call(c, y_g_vec)
   x <- do.call(rbind, x_vec)
 
-  return(list(y=y, y_g=y_g, x=x))  
+  return(list(y=y, y_g=y_g, x=x, true_mu_g_vec=true_mu_g_vec))
 }
 
 
@@ -48,7 +48,7 @@ InitializeVariationalParameters <- function(x, y, y_g, lambda_diag_min=1e-10) {
   mu_g_mat <- Reduce(rbind, vp$e_mu_g_vec)
   vp$lambda_n_par <- vp$k + 1
   vp$lambda_v_par <- solve(cov(mu_g_mat)) / vp$lambda_n_par + lambda_diag_min * diag(vp$k)
-  
+
   return(vp)
 }
 
@@ -305,29 +305,6 @@ SampleParams <- function(k, n_g, sigma_scale = 1) {
   }
 
   return(true_params)
-}
-
-
-SimulateData <- function(n_per_g, true_params) {
-  k <- true_params$k
-  n_g <- true_params$n_g
-  n <- n_g * n_per_g
-  data <- list()
-  data$n <- n
-  x <- matrix(runif(n * k), n, k)
-  y_g <- rep(1:n_g, each=n_per_g)
-  y <- rep(0, n)
-  for (row in 1:n) {
-    row_g <- y_g[row]
-    y[row] <- rnorm(1, t(x[row, ]) %*% true_params$mu_g_vec[[row_g]],
-                    sd = 1 / sqrt(true_params$tau_vec[[row_g]]))
-  }
-
-  data$x <- x
-  data$y_g <- y_g
-  data$y <- y
-
-  return(data)
 }
 
 
