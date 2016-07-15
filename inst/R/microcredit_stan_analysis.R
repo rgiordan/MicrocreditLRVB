@@ -10,7 +10,7 @@ library(MicrocreditLRVB)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
-analysis_name <- "simulated_data4"
+analysis_name <- "simulated_data5"
 
 set.seed(42)
 
@@ -47,7 +47,7 @@ true_params$true_lambda <- solve(true_params$true_sigma)
 true_params$true_tau <- 1e-4
 
 # Number of groups
-n_g <- 20
+n_g <- 7
 
 # Number of data points per group
 n_per_group <- 100

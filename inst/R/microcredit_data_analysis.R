@@ -8,18 +8,20 @@ library(mvtnorm)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data"
+analysis_name <- "simulated_data5"
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
 stan_draws_file <-
   file.path(project_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
 print(paste("Loading draws from ", stan_draws_file))
-load(stan_draws_file)
 
-x <- stan_dat$x
-y <- stan_dat$y
-y_g <- stan_dat$y_group
+stan_results <- environment()
+load(stan_draws_file, envir=stan_results)
+
+x <- stan_results$stan_dat$x
+y <- stan_results$stan_dat$y
+y_g <- stan_results$stan_dat$y_group
 
 ##################
 
@@ -144,8 +146,8 @@ prior_sens_df <- inner_join(prior_sens_df, lrvb_sd_df, by=c("param", "component"
 ###################
 # Put the results in a tidy format and graph
 
-mcmc_sample <- extract(stan_sim)
-mcmc_sample_perturb <- extract(stan_sim_perturb)
+mcmc_sample <- extract(stan_results$stan_sim)
+mcmc_sample_perturb <- extract(stan_results$stan_sim_perturb)
 
 result <- GetResultDataframe(mcmc_sample, vb_fit$vp, lrvb_cov, mfvb_cov, encoder)
 
