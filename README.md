@@ -1,5 +1,10 @@
 #MicrocreditLRVB
 
+**Warning: this package is currently in a state of transition and
+may not be working correctly.  I'm not keeping it up-to-date
+since I presume not a lot of people are looking at it.
+Please email the author if you're interested in running the examples.**
+
 This is an R package, but it has a number of C++ dependencies that
 must be installed and built before it can be installed, including one
 in the `inst` directory of this repo.
