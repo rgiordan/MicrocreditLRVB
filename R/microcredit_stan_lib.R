@@ -15,7 +15,8 @@ SimulateData <- function(true_params, n_g, n_per_group) {
     y_vec[[g]] <-
       rnorm(n_per_group, x_vec[[g]] %*% true_mu_g_vec[[g]],
             1 / sqrt(true_params$true_tau))
-    y_g_vec[[g]] <- rep(g, n_per_group)
+    # C++ uses zero indexing
+    y_g_vec[[g]] <- rep(g - 1, n_per_group)
   }
 
   y <- do.call(c, y_vec)

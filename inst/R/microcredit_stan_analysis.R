@@ -10,7 +10,7 @@ library(MicrocreditLRVB)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
-analysis_name <- "simulated_data3"
+analysis_name <- "simulated_data"
 
 set.seed(42)
 
