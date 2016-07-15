@@ -1,18 +1,20 @@
 ## -*- mode: makefile; -*-
 
+# Make sure that you have checked out version 0.0.0 of
+# LinearResponseVariationalBayes.cpp.
 PKG_CXXFLAGS=\
 -I../inst/microcredit_cpp/include \
--I $(GIT_REPO_LOC)/LinearResponseVariationalBayes.cpp/include \
 -I /home/rgiordan/R/x86_64-pc-linux-gnu-library/3.2/RcppEigen/include \
+-I $(GIT_REPO_LOC)/LinearResponseVariationalBayes.cpp/include/ \
 -I $(GIT_REPO_LOC)/math/ \
--I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/boost/math/special_functions \
--I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/boost/math/tools \
--I $(GIT_REPO_LOC)/math/lib/boost_1.58.0/
+-I $(GIT_REPO_LOC)/math/lib/boost_1.60.0/boost/math/special_functions \
+-I $(GIT_REPO_LOC)/math/lib/boost_1.60.0/boost/math/tools \
+-I $(GIT_REPO_LOC)/math/lib/boost_1.60.0/
 
+# Note that we need the 0 version of libLinearResponseVariationalBayes
 PKG_LIBS= $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) \
--L../inst/lib/LinearResponseVariationalBayes.cpp/src
 -lMicrocreditModelLRVB \
--lLinearResponseVariationalBayes \
+-l:libLinearResponseVariationalBayes.so.0
 
 PKG_CPPFLAGS= -Wno-deprecated -fPIC
 

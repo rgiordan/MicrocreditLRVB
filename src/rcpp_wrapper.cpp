@@ -14,17 +14,6 @@
 # include "differentiate_jacobian.h"
 # include "transform_hessian.h"
 
-using Eigen::Map;
-
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
-using Eigen::MatrixXi;
-using Eigen::VectorXi;
-
-using Eigen::Matrix;
-using Eigen::Dynamic;
-using Eigen::SparseMatrix;
-
 typedef Eigen::Triplet<double> Triplet; // For populating sparse matrices
 
 // Export get_ud_index for the construction of covariance matrices.
@@ -43,16 +32,16 @@ double r_mulitvariate_digamma(double x, int p) {
 
 // For testing
 // [[Rcpp::export]]
-double GetWishartEntropy(const Map<MatrixXd> v_par_r, const double n_par_r) {
-  MatrixXd v_par = v_par_r;
+double GetWishartEntropy(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r) {
+  Eigen::MatrixXd v_par = v_par_r;
   return GetWishartEntropy(v_par, n_par_r);
 }
 
 
 // For testing
 // [[Rcpp::export]]
-double r_GetELogDetWishart(const Map<MatrixXd> v_par_r, const double n_par_r) {
-  MatrixXd v_par = v_par_r;
+double r_GetELogDetWishart(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r) {
+  Eigen::MatrixXd v_par = v_par_r;
   return GetELogDetWishart(v_par, n_par_r);
 }
 
@@ -173,10 +162,10 @@ template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
 template <typename T>
 void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
 
-  vp.mu.e_vec = Rcpp::as<VectorXd>(r_list["e_mu"]);
-  vp.mu.e_outer.mat = Rcpp::as<MatrixXd>(r_list["e_mu2"]);
+  vp.mu.e_vec = Rcpp::as<Eigen::VectorXd>(r_list["e_mu"]);
+  vp.mu.e_outer.mat = Rcpp::as<Eigen::MatrixXd>(r_list["e_mu2"]);
 
-  vp.lambda.v.mat = Rcpp::as<MatrixXd>(r_list["lambda_v_par"]);
+  vp.lambda.v.mat = Rcpp::as<Eigen::MatrixXd>(r_list["lambda_v_par"]);
   vp.lambda.n = Rcpp::as<double>(r_list["lambda_n_par"]);
 
   Rcpp::List e_mu_g_vec_list = r_list["e_mu_g_vec"];
@@ -194,8 +183,8 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
   for (int g = 0; g < n_g; g++) {
     vp.tau_vec[g].e = Rcpp::as<double>(e_tau_vec_list[g]);
     vp.tau_vec[g].e_log = Rcpp::as<double>(e_log_tau_vec_list[g]);
-    vp.mu_g_vec[g].e_vec = Rcpp::as<VectorXd>(e_mu_g_vec_list[g]);
-    vp.mu_g_vec[g].e_outer.mat = Rcpp::as<MatrixXd>(e_mu2_g_vec_list[g]);
+    vp.mu_g_vec[g].e_vec = Rcpp::as<Eigen::VectorXd>(e_mu_g_vec_list[g]);
+    vp.mu_g_vec[g].e_outer.mat = Rcpp::as<Eigen::MatrixXd>(e_mu2_g_vec_list[g]);
   }
 };
 
@@ -204,8 +193,8 @@ void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
 template <typename T>
 void convert_from_list(Rcpp::List r_list, PriorParameters<T> &pp) {
 
-  pp.mu_mean = Rcpp::as<VectorXd>(r_list["mu_mean"]);
-  pp.mu_info.mat = Rcpp::as<MatrixXd>(r_list["mu_info"]);
+  pp.mu_mean = Rcpp::as<Eigen::VectorXd>(r_list["mu_mean"]);
+  pp.mu_info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
 
   pp.lambda_eta = Rcpp::as<double>(r_list["lambda_eta"]);
   pp.lambda_alpha = Rcpp::as<double>(r_list["lambda_alpha"]);
@@ -221,7 +210,7 @@ void convert_from_list(Rcpp::List r_list, PriorParameters<T> &pp) {
 
 // [[Rcpp::export]]
 Rcpp::List ModelGradient(
-    const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp,
     const bool calculate_hessian, const bool unconstrained) {
 
@@ -233,12 +222,12 @@ Rcpp::List ModelGradient(
   VariationalParameterEncoder vp_encoder(
     base_vp, pp.lambda_diag_min, pp.lambda_n_min, unconstrained);
 
-  VectorXd theta = vp_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd theta = vp_encoder.get_parameter_vector(base_vp);
   MicroCreditLogLikelihood LogLik(data, base_vp, pp, vp_encoder);
 
   double log_lik;
-  VectorXd dll_dtheta(vp_encoder.dim);
-  MatrixXd dll2_dtheta2(vp_encoder.dim, vp_encoder.dim);
+  Eigen::VectorXd dll_dtheta(vp_encoder.dim);
+  Eigen::MatrixXd dll2_dtheta2(vp_encoder.dim, vp_encoder.dim);
 
   stan::math::set_zero_all_adjoints();
   if (calculate_hessian) {
@@ -262,19 +251,19 @@ Rcpp::List ModelGradient(
 
 
 // [[Rcpp::export]]
-VectorXd EncodeLambda(const Rcpp::List r_vp, int k, int n_g,
+Eigen::VectorXd EncodeLambda(const Rcpp::List r_vp, int k, int n_g,
                       double lambda_diag_min, double n_min) {
   // n_g is not used.
   VariationalParameters<double> base_vp(k, n_g);
   convert_from_list(r_vp, base_vp);
   WishartParameterEncoder lambda_encoder(base_vp, lambda_diag_min, n_min, true);
-  VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
   return theta;
 }
 
 
 // [[Rcpp::export]]
-Rcpp::List DecodeLambda(const VectorXd theta, int k, int n_g,
+Rcpp::List DecodeLambda(const Eigen::VectorXd theta, int k, int n_g,
                         double lambda_diag_min, double n_min) {
   // n_g is not used.
   VariationalParameters<double> base_vp(k, n_g);
@@ -288,7 +277,7 @@ Rcpp::List DecodeLambda(const VectorXd theta, int k, int n_g,
 // Convert a parameter vector to a list using an encoder.
 // [[Rcpp::export]]
 Rcpp::List DecodeParameters(
-    const VectorXd theta, const Rcpp::List r_vp, const Rcpp::List r_pp,
+    const Eigen::VectorXd theta, const Rcpp::List r_vp, const Rcpp::List r_pp,
     const bool unconstrained_wishart) {
 
   int k = r_vp["k"];
@@ -306,7 +295,7 @@ Rcpp::List DecodeParameters(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaGradient(
-    const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);
@@ -321,9 +310,9 @@ Rcpp::List LambdaGradient(
 
   Rcpp::List ret;
   double elbo;
-  VectorXd de_dtheta(lambda_encoder.dim);
-  MatrixXd de2_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
-  VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd de_dtheta(lambda_encoder.dim);
+  Eigen::MatrixXd de2_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
+  Eigen::VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
   MicroCreditWishartElbo LambdaElbo(data, base_vp, pp, lambda_encoder);
   stan::math::set_zero_all_adjoints();
   stan::math::hessian(LambdaElbo, theta, elbo, de_dtheta, de2_dtheta2);
@@ -338,7 +327,7 @@ Rcpp::List LambdaGradient(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaEntropyDerivs(
-    const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);
@@ -353,9 +342,9 @@ Rcpp::List LambdaEntropyDerivs(
 
   Rcpp::List ret;
   double entropy;
-  VectorXd de_dtheta(lambda_encoder.dim);
-  MatrixXd de2_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
-  VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd de_dtheta(lambda_encoder.dim);
+  Eigen::MatrixXd de2_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
+  Eigen::VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
   MicroCreditWishartEntropy LambdaEntropy(data, base_vp, pp, lambda_encoder);
   stan::math::set_zero_all_adjoints();
   stan::math::hessian(LambdaEntropy, theta, entropy, de_dtheta, de2_dtheta2);
@@ -370,7 +359,7 @@ Rcpp::List LambdaEntropyDerivs(
 
 // [[Rcpp::export]]
 Rcpp::List LambdaLikelihoodMomentDerivs(
-    const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g,
+    const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained) {
 
   MicroCreditData data(x, y, y_g);
@@ -389,22 +378,22 @@ Rcpp::List LambdaLikelihoodMomentDerivs(
 
   double loglik;
 
-  VectorXd dl_dtheta(lambda_encoder.dim);
-  MatrixXd d2l_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
+  Eigen::VectorXd dl_dtheta(lambda_encoder.dim);
+  Eigen::MatrixXd d2l_dtheta2(lambda_encoder.dim, lambda_encoder.dim);
 
-  VectorXd moments(lambda_encoder.dim);
-  MatrixXd dmoment_dtheta_t(lambda_encoder.dim, lambda_encoder.dim);
+  Eigen::VectorXd moments(lambda_encoder.dim);
+  Eigen::MatrixXd dmoment_dtheta_t(lambda_encoder.dim, lambda_encoder.dim);
 
-  VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd theta = lambda_encoder.get_parameter_vector(base_vp);
 
   stan::math::jacobian(LambdaMoments, theta, moments, dmoment_dtheta_t);
-  MatrixXd dmoment_dtheta = dmoment_dtheta_t.transpose();
+  Eigen::MatrixXd dmoment_dtheta = dmoment_dtheta_t.transpose();
   stan::math::hessian(LambdaLogLik, theta, loglik, dl_dtheta, d2l_dtheta2);
-  vector<MatrixXd> d2moment_dtheta2_vec =
+  vector<Eigen::MatrixXd> d2moment_dtheta2_vec =
     GetJacobianHessians(LambdaMoments, theta);
-  MatrixXd d2l_dm2 = transform_hessian(dmoment_dtheta, d2moment_dtheta2_vec,
+  Eigen::MatrixXd d2l_dm2 = transform_hessian(dmoment_dtheta, d2moment_dtheta2_vec,
     dl_dtheta, d2l_dtheta2);
-  VectorXd dl_dm = dmoment_dtheta.transpose().colPivHouseholderQr().solve(dl_dtheta);
+  Eigen::VectorXd dl_dm = dmoment_dtheta.transpose().colPivHouseholderQr().solve(dl_dtheta);
 
   ret["loglik"] = loglik;
   ret["theta"] = theta;
@@ -438,9 +427,9 @@ Rcpp::List WishartMomentParameterizationJacobian(
                                          pp.lambda_n_min, unconstrained);
   WishartMomentParameterization LambdaMoments(base_vp, lambda_encoder);
 
-  VectorXd moments(lambda_encoder.dim);
-  MatrixXd dmoment_dparams(lambda_encoder.dim, lambda_encoder.dim);
-  VectorXd params = lambda_encoder.get_parameter_vector(base_vp);
+  Eigen::VectorXd moments(lambda_encoder.dim);
+  Eigen::MatrixXd dmoment_dparams(lambda_encoder.dim, lambda_encoder.dim);
+  Eigen::VectorXd params = lambda_encoder.get_parameter_vector(base_vp);
 
   stan::math::set_zero_all_adjoints();
   stan::math::jacobian(LambdaMoments, params, moments, dmoment_dparams);
@@ -456,8 +445,8 @@ Rcpp::List WishartMomentParameterizationJacobian(
 
 
 struct TestJacobianObjective {
-  MatrixXd A;
-  TestJacobianObjective(const MatrixXd A): A(A) {};
+  Eigen::MatrixXd A;
+  TestJacobianObjective(const Eigen::MatrixXd A): A(A) {};
   template <typename T> VectorXT<T> operator()(VectorXT<T> const &theta) const {
     MatrixXT<T> A_T = A.template cast<T>();
     VectorXT<T> prod = A_T * theta;
@@ -470,16 +459,16 @@ struct TestJacobianObjective {
 // [[Rcpp::export]]
 Rcpp::List TestJacobian() {
 
-  MatrixXd A(2, 3);
+  Eigen::MatrixXd A(2, 3);
   A << 1, 2, 3, 4, 5, 6;
 
   TestJacobianObjective obj = TestJacobianObjective(A);
 
-  VectorXd theta(3);
+  Eigen::VectorXd theta(3);
   theta << 1, 2, 3;
 
-  VectorXd val(2);
-  MatrixXd jac(3, 3); // Make it too large on purpose to avoid segfaults.
+  Eigen::VectorXd val(2);
+  Eigen::MatrixXd jac(3, 3); // Make it too large on purpose to avoid segfaults.
   stan::math::set_zero_all_adjoints();
   stan::math::jacobian(obj, theta, val, jac);
 
@@ -512,9 +501,9 @@ Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp) {
   ModelParameterEncoder encoder(vp_encoder, pp_encoder);
 
   double prior_val;
-  VectorXd prior_grad(encoder.dim);
-  MatrixXd prior_hess(encoder.dim, encoder.dim);
-  VectorXd theta = encoder.get_parameter_vector(vp, pp);
+  Eigen::VectorXd prior_grad(encoder.dim);
+  Eigen::MatrixXd prior_hess(encoder.dim, encoder.dim);
+  Eigen::VectorXd theta = encoder.get_parameter_vector(vp, pp);
   MicroCreditLogPrior LogPrior(vp, pp, encoder);
 
   stan::math::set_zero_all_adjoints();
@@ -580,7 +569,7 @@ Rcpp::List GetModelParameterEncoder(const Rcpp::List r_vp, const Rcpp::List r_pp
 // the covariance needs the natural parameters.
 
 // [[Rcpp::export]]
-SparseMatrix<double> GetVariationalCovariance(
+Eigen::SparseMatrix<double> GetVariationalCovariance(
     const Rcpp::List vp_params, const Rcpp::List r_pp) {
 
   // Get an encoder.
@@ -596,15 +585,15 @@ SparseMatrix<double> GetVariationalCovariance(
   std::vector<Triplet> terms;
   std::vector<Triplet> all_terms;
 
-  const Map<VectorXd> e_mu = vp_params["e_mu"];
-  const Map<MatrixXd> e_mu2 = vp_params["e_mu2"];
+  const Eigen::Map<Eigen::VectorXd> e_mu = vp_params["e_mu"];
+  const Eigen::Map<Eigen::MatrixXd> e_mu2 = vp_params["e_mu2"];
 
   terms = get_mvn_covariance_terms(
     e_mu, e_mu2, vp_encoder.e_mu_offset, vp_encoder.e_mu2_offset);
   all_terms.insert(all_terms.end(), terms.begin(), terms.end());
 
   // Lambda natural parameters
-  const Map<MatrixXd> v_par = vp_params["lambda_v_par"];
+  const Eigen::Map<Eigen::MatrixXd> v_par = vp_params["lambda_v_par"];
   const double n_par = vp_params["lambda_n_par"];
   terms = get_wishart_covariance_terms(
     v_par, n_par, vp_encoder.lambda_v_par_offset, vp_encoder.lambda_n_par_offset);
@@ -630,15 +619,15 @@ SparseMatrix<double> GetVariationalCovariance(
     all_terms.insert(all_terms.end(), terms.begin(), terms.end());
 
     // mu_g:
-    const Map<VectorXd> e_mu_g = e_mu_g_vec_list[g];
-    const Map<MatrixXd> e_mu2_g = e_mu2_g_vec_list[g];
+    const Eigen::Map<Eigen::VectorXd> e_mu_g = e_mu_g_vec_list[g];
+    const Eigen::Map<Eigen::MatrixXd> e_mu2_g = e_mu2_g_vec_list[g];
     terms = get_mvn_covariance_terms(
       e_mu_g, e_mu2_g, vp_encoder.e_mu_g_offset[g], vp_encoder.e_mu2_g_offset[g]);
     all_terms.insert(all_terms.end(), terms.begin(), terms.end());
   }
 
   // Construct a sparse matrix.
-  SparseMatrix<double> theta_cov(vp_encoder.dim, vp_encoder.dim);
+  Eigen::SparseMatrix<double> theta_cov(vp_encoder.dim, vp_encoder.dim);
   theta_cov.setFromTriplets(all_terms.begin(), all_terms.end());
   theta_cov.makeCompressed();
 

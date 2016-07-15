@@ -4,19 +4,6 @@
 #include <RcppEigen.h>
 #include <Rcpp.h>
 
-using Eigen::Map;
-
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
-using Eigen::MatrixXi;
-using Eigen::VectorXi;
-
-using Eigen::Matrix;
-using Eigen::Dynamic;
-using Eigen::SparseMatrix;
-
-typedef Eigen::Triplet<double> Triplet; // For populating sparse matrices
-
 using namespace Rcpp;
 
 // get_upper_diagonal_index
@@ -44,38 +31,38 @@ BEGIN_RCPP
 END_RCPP
 }
 // GetWishartEntropy
-double GetWishartEntropy(const Map<MatrixXd> v_par_r, const double n_par_r);
+double GetWishartEntropy(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r);
 RcppExport SEXP MicroCreditLRVB_GetWishartEntropy(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type v_par_r(v_par_rSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type v_par_r(v_par_rSEXP);
     Rcpp::traits::input_parameter< const double >::type n_par_r(n_par_rSEXP);
     __result = Rcpp::wrap(GetWishartEntropy(v_par_r, n_par_r));
     return __result;
 END_RCPP
 }
 // r_GetELogDetWishart
-double r_GetELogDetWishart(const Map<MatrixXd> v_par_r, const double n_par_r);
+double r_GetELogDetWishart(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r);
 RcppExport SEXP MicroCreditLRVB_r_GetELogDetWishart(SEXP v_par_rSEXP, SEXP n_par_rSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type v_par_r(v_par_rSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type v_par_r(v_par_rSEXP);
     Rcpp::traits::input_parameter< const double >::type n_par_r(n_par_rSEXP);
     __result = Rcpp::wrap(r_GetELogDetWishart(v_par_r, n_par_r));
     return __result;
 END_RCPP
 }
 // ModelGradient
-Rcpp::List ModelGradient(const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_hessian, const bool unconstrained);
+Rcpp::List ModelGradient(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_hessian, const bool unconstrained);
 RcppExport SEXP MicroCreditLRVB_ModelGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXd> >::type y(ySEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXi> >::type y_g(y_gSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type y_g(y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
@@ -85,7 +72,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // EncodeLambda
-VectorXd EncodeLambda(const Rcpp::List r_vp, int k, int n_g, double lambda_diag_min, double n_min);
+Eigen::VectorXd EncodeLambda(const Rcpp::List r_vp, int k, int n_g, double lambda_diag_min, double n_min);
 RcppExport SEXP MicroCreditLRVB_EncodeLambda(SEXP r_vpSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
@@ -100,12 +87,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // DecodeLambda
-Rcpp::List DecodeLambda(const VectorXd theta, int k, int n_g, double lambda_diag_min, double n_min);
+Rcpp::List DecodeLambda(const Eigen::VectorXd theta, int k, int n_g, double lambda_diag_min, double n_min);
 RcppExport SEXP MicroCreditLRVB_DecodeLambda(SEXP thetaSEXP, SEXP kSEXP, SEXP n_gSEXP, SEXP lambda_diag_minSEXP, SEXP n_minSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const VectorXd >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
     Rcpp::traits::input_parameter< int >::type n_g(n_gSEXP);
     Rcpp::traits::input_parameter< double >::type lambda_diag_min(lambda_diag_minSEXP);
@@ -115,12 +102,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // DecodeParameters
-Rcpp::List DecodeParameters(const VectorXd theta, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained_wishart);
+Rcpp::List DecodeParameters(const Eigen::VectorXd theta, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained_wishart);
 RcppExport SEXP MicroCreditLRVB_DecodeParameters(SEXP thetaSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrained_wishartSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const VectorXd >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained_wishart(unconstrained_wishartSEXP);
@@ -129,14 +116,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // LambdaGradient
-Rcpp::List LambdaGradient(const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
+Rcpp::List LambdaGradient(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
 RcppExport SEXP MicroCreditLRVB_LambdaGradient(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXd> >::type y(ySEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXi> >::type y_g(y_gSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type y_g(y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
@@ -145,14 +132,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // LambdaEntropyDerivs
-Rcpp::List LambdaEntropyDerivs(const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
+Rcpp::List LambdaEntropyDerivs(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
 RcppExport SEXP MicroCreditLRVB_LambdaEntropyDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXd> >::type y(ySEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXi> >::type y_g(y_gSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type y_g(y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
@@ -161,14 +148,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // LambdaLikelihoodMomentDerivs
-Rcpp::List LambdaLikelihoodMomentDerivs(const Map<MatrixXd> x, const Map<VectorXd> y, const Map<VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
+Rcpp::List LambdaLikelihoodMomentDerivs(const Eigen::Map<Eigen::MatrixXd> x, const Eigen::Map<Eigen::VectorXd> y, const Eigen::Map<Eigen::VectorXi> y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool unconstrained);
 RcppExport SEXP MicroCreditLRVB_LambdaLikelihoodMomentDerivs(SEXP xSEXP, SEXP ySEXP, SEXP y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Map<MatrixXd> >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXd> >::type y(ySEXP);
-    Rcpp::traits::input_parameter< const Map<VectorXi> >::type y_g(y_gSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type y_g(y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
@@ -247,7 +234,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // GetVariationalCovariance
-SparseMatrix<double> GetVariationalCovariance(const Rcpp::List vp_params, const Rcpp::List r_pp);
+Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List vp_params, const Rcpp::List r_pp);
 RcppExport SEXP MicroCreditLRVB_GetVariationalCovariance(SEXP vp_paramsSEXP, SEXP r_ppSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;

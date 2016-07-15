@@ -1,23 +1,20 @@
-cmake_minimum_required(VERSION 2.8)
-cmake_policy(VERSION 2.8.0)
-set(CMAKE_BUILD_TYPE Release)
-project(MicrocreditModelLRVB)
-
-set(GIT_REPO_LOC $ENV{GIT_REPO_LOC})
-
 add_definitions(-std=c++11)
 add_definitions(-fPIC)
 add_definitions(-Wno-deprecated)
 
 include_directories(../include/)
+
+# Make sure this is the v0.0.0 version of the headers!
 include_directories(${GIT_REPO_LOC}/LinearResponseVariationalBayes.cpp/include/)
 include_directories(${GIT_REPO_LOC}/stan/)
 include_directories(${GIT_REPO_LOC}/math/)
-include_directories(${GIT_REPO_LOC}/math/lib/eigen_3.2.4/)
-include_directories(${GIT_REPO_LOC}/math/lib/boost_1.58.0/)
+include_directories(${GIT_REPO_LOC}/math/lib/eigen_3.2.8/)
+include_directories(${GIT_REPO_LOC}/math/lib/boost_1.60.0/)
 
 set(CC_SOURCES microcredit_model.cpp)
 add_library(MicrocreditModelLRVB SHARED ${CC_SOURCES})
 
-# Run `sudo make install` to install.
-install(TARGETS MicrocreditModelLRVB DESTINATION /usr/lib)
+# Note that we need the 0 version of libLinearResponseVariationalBayes
+target_link_libraries(MicrocreditModelLRVB libLinearResponseVariationalBayes.so.0)
+
+install(TARGETS MicrocreditModelLRVB DESTINATION /usr/local/lib)
