@@ -6,14 +6,14 @@ SimulateData <- function(true_params, n_g, n_per_group) {
   y_vec <- list()
   y_g_vec <- list()
   x_vec <- list()
-  true_mu_g_vec <- list()
+  true_mu_g <- list()
   for (g in 1:n_g) {
-    true_mu_g_vec[[g]] <-
+    true_mu_g[[g]] <-
       as.numeric(rmvnorm(1, mean=true_params$true_mu,
                          sigma=true_params$true_sigma))
     x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
     y_vec[[g]] <-
-      rnorm(n_per_group, x_vec[[g]] %*% true_mu_g_vec[[g]],
+      rnorm(n_per_group, x_vec[[g]] %*% true_mu_g[[g]],
             1 / sqrt(true_params$true_tau))
     # C++ uses zero indexing
     y_g_vec[[g]] <- rep(g, n_per_group)
@@ -23,7 +23,7 @@ SimulateData <- function(true_params, n_g, n_per_group) {
   y_g <- do.call(c, y_g_vec)
   x <- do.call(rbind, x_vec)
 
-  return(list(y=y, y_g=y_g, x=x, true_mu_g_vec=true_mu_g_vec))
+  return(list(y=y, y_g=y_g, x=x, true_mu_g=true_mu_g))
 }
 
 
@@ -41,12 +41,12 @@ InitializeVariationalParameters <- function(x, y, y_g, lambda_diag_min=1e-10) {
     stopifnot(sum(y_g == g) > 1)
     g_reg <- summary(lm(y ~ x - 1, subset=y_g == g))
     mu_g <- g_reg$coefficients[,"Estimate"]
-    vp$e_mu_g_vec[[g]] <- mu_g
+    vp$e_mu_g[[g]] <- mu_g
     vp$e_mu2_g_vec[[g]] <- mu_g %*% t(mu_g) + 10 * diag(vp$k)
-    vp$e_tau_vec[[g]] <- 1 / g_reg$sigma ^ 2
-    vp$e_log_tau_vec[[g]] <- log(vp$e_tau_vec[[g]]) - 10
+    vp$e_tau[[g]] <- 1 / g_reg$sigma ^ 2
+    vp$e_log_tau[[g]] <- log(vp$e_tau[[g]]) - 10
   }
-  mu_g_mat <- Reduce(rbind, vp$e_mu_g_vec)
+  mu_g_mat <- Reduce(rbind, vp$e_mu_g)
   vp$lambda_n_par <- vp$k + 1
   vp$lambda_v_par <- solve(cov(mu_g_mat)) / vp$lambda_n_par + lambda_diag_min * diag(vp$k)
 
@@ -126,9 +126,9 @@ FitModel <- function(x, y, y_g, vp, pp, num_iters=100, fit_lambda=TRUE, rel_tol=
     # At this point model_grads was executed at the end of the loop (or before
     # the start of the loop) to check for convergence
     for (g in 1:n_g) {
-      mu_g_update <- MVNMeansFromGradient(model_grads$e_mu_g_vec[[g]],
+      mu_g_update <- MVNMeansFromGradient(model_grads$e_mu_g[[g]],
                                           model_grads$e_mu2_g_vec[[g]])
-      vp$e_mu_g_vec[[g]] <- mu_g_update$e_mu
+      vp$e_mu_g[[g]] <- mu_g_update$e_mu
       vp$e_mu2_g_vec[[g]] <- mu_g_update$e_mu2
     }
 
@@ -140,9 +140,9 @@ FitModel <- function(x, y, y_g, vp, pp, num_iters=100, fit_lambda=TRUE, rel_tol=
     model_grads <- ModelGradient(x, y, y_g, vp, pp, FALSE, TRUE)
     for (g in 1:n_g) {
       tau_update <- GammaMeansFromGradient(
-        model_grads$e_tau_vec[[g]], model_grads$e_log_tau_vec[[g]])
-      vp$e_tau_vec[[g]] <- tau_update$e_tau
-      vp$e_log_tau_vec[[g]] <- tau_update$e_log_tau
+        model_grads$e_tau[[g]], model_grads$e_log_tau[[g]])
+      vp$e_tau[[g]] <- tau_update$e_tau
+      vp$e_log_tau[[g]] <- tau_update$e_log_tau
 
       # Alpha and beta are used for the covariance and are easiset to get from
       # the variational updates
@@ -196,12 +196,12 @@ ConvertParameterListToDataframe <- function(vp, metric) {
   }
 
   for (g in 1:vp$n_g) { for (k in 1:vp$k) {
-    result <- rbind(result, GetVBResultRow("mu_g", k, value=vp$e_mu_g_vec[[g]][k],
+    result <- rbind(result, GetVBResultRow("mu_g", k, value=vp$e_mu_g[[g]][k],
                                            metric=metric, group=g))
   }}
 
   for (g in 1:vp$n_g) {
-    result <- rbind(result, GetVBResultRow("log_tau", 1, value=vp$e_log_tau_vec[[g]],
+    result <- rbind(result, GetVBResultRow("log_tau", 1, value=vp$e_log_tau[[g]],
                                            metric=metric, group=g))
   }
 
@@ -240,9 +240,9 @@ GetResultDataframe <- function(mcmc_sample, vp, lrvb_cov, mfvb_cov, encoder) {
     draws <- mcmc_sample$mu1[, g, k]
     result <- rbind(result, GetMCMCResultRow(param, k, FUN=mean, metric="mean", draws, group=g))
     result <- rbind(result, GetMCMCResultRow(param, k, FUN=sd, metric="sd", draws, group=g))
-    result <- rbind(result, GetVBResultRow(param, k, value=vp$e_mu_g_vec[[g]][k],
+    result <- rbind(result, GetVBResultRow(param, k, value=vp$e_mu_g[[g]][k],
                                            metric="mean", group=g))
-    index <- encoder$e_mu_g_vec[[g]] + k
+    index <- encoder$e_mu_g[[g]] + k
     mfvb_sd <- sqrt(diag(mfvb_cov)[index])
     lrvb_sd <- sqrt(diag(lrvb_cov)[index])
     result <- rbind(result, GetVBResultRow(param, k, value=mfvb_sd, metric="sd", group=g))
@@ -255,9 +255,9 @@ GetResultDataframe <- function(mcmc_sample, vp, lrvb_cov, mfvb_cov, encoder) {
     draws <- -2 * log(mcmc_sample$sigma_y[, g])
     result <- rbind(result, GetMCMCResultRow(param, k, FUN=mean, metric="mean", draws, group=g))
     result <- rbind(result, GetMCMCResultRow(param, k, FUN=sd, metric="sd", draws, group=g))
-    result <- rbind(result, GetVBResultRow(param, k, value=vp$e_log_tau_vec[[g]],
+    result <- rbind(result, GetVBResultRow(param, k, value=vp$e_log_tau[[g]],
                                            metric="mean", group=g))
-    index <- encoder$e_log_tau_vec[[g]] + 1
+    index <- encoder$e_log_tau[[g]] + 1
     mfvb_sd <- sqrt(diag(mfvb_cov)[index])
     lrvb_sd <- sqrt(diag(lrvb_cov)[index])
     result <- rbind(result, GetVBResultRow(param, k, value=mfvb_sd, metric="sd", group=g))
@@ -298,11 +298,11 @@ SampleParams <- function(k, n_g, sigma_scale = 1) {
   true_params$mu <- as.double(1:k)
   true_params$sigma <- sigma_scale * (diag(k) + matrix(0.1, k, k))
   true_params$lambda <- solve(true_params$sigma)
-  true_params$tau_vec <- list()
-  true_params$mu_g_vec <- list()
+  true_params$tau <- list()
+  true_params$mu_g <- list()
   for (g in 1:n_g) {
-    true_params$tau_vec[[g]] <- 1.5 + g / n_g
-    true_params$mu_g_vec[[g]] <- mvrnorm(n=1, mu=true_params$mu, Sigma=true_params$sigma)
+    true_params$tau[[g]] <- 1.5 + g / n_g
+    true_params$mu_g[[g]] <- mvrnorm(n=1, mu=true_params$mu, Sigma=true_params$sigma)
   }
 
   return(true_params)
@@ -317,15 +317,15 @@ SetVPFromTrueParams <- function(true_params) {
   vp <- list()
   vp$e_mu = true_params$mu
   vp$e_mu2 = second_moment_start(true_params$mu)
-  vp$e_tau_vec <- list()
-  vp$e_log_tau_vec <- list()
-  vp$e_mu_g_vec <- list()
+  vp$e_tau <- list()
+  vp$e_log_tau <- list()
+  vp$e_mu_g <- list()
   vp$e_mu2_g_vec <- list()
   for (g in 1:n_g) {
-    vp$e_mu_g_vec[[g]] = true_params$mu_g_vec[[g]]
-    vp$e_mu2_g_vec[[g]] = second_moment_start(true_params$mu_g_vec[[g]])
-    vp$e_tau_vec[[g]] <- true_params$tau_vec[[g]]
-    vp$e_log_tau_vec[[g]] <- log(true_params$tau_vec[[g]]) - k
+    vp$e_mu_g[[g]] = true_params$mu_g[[g]]
+    vp$e_mu2_g_vec[[g]] = second_moment_start(true_params$mu_g[[g]])
+    vp$e_tau[[g]] <- true_params$tau[[g]]
+    vp$e_log_tau[[g]] <- log(true_params$tau[[g]]) - k
   }
 
   vp$lambda_v_par <- true_params$lambda / k

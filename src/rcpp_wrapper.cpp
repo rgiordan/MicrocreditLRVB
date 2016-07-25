@@ -30,173 +30,82 @@ double r_mulitvariate_digamma(double x, int p) {
 }
 
 
-// For testing
-// [[Rcpp::export]]
-double GetWishartEntropy(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r) {
-  Eigen::MatrixXd v_par = v_par_r;
-  return GetWishartEntropy(v_par, n_par_r);
-}
 
 
-// For testing
-// [[Rcpp::export]]
-double r_GetELogDetWishart(const Eigen::Map<Eigen::MatrixXd> v_par_r, const double n_par_r) {
-  Eigen::MatrixXd v_par = v_par_r;
-  return GetELogDetWishart(v_par, n_par_r);
-}
-
-
-// Make an R list out of encoder offsets.
-void convert_to_list(
-    VariationalParameterEncoder const &vp_encoder, Rcpp::List &r_list, int offset=0) {
-
-  r_list["dim"] = vp_encoder.dim;
-
-  r_list["e_mu"] = vp_encoder.e_mu_offset + offset;
-  r_list["e_mu2"] = vp_encoder.e_mu2_offset + offset;
-
-  r_list["lambda_v_par"] = vp_encoder.lambda_v_par_offset + offset;
-  r_list["lambda_n_par"] = vp_encoder.lambda_n_par_offset + offset;
-
-  // TODO: size checking
-  // I'm not sure why, but this initializiation seems to make a list
-  // of length one longer than the argument.
-  int n_g = vp_encoder.e_mu_g_offset.size();
-  Rcpp::List e_mu_g_offset_list(n_g);
-  Rcpp::List e_mu2_g_offset_list(n_g);
-  Rcpp::List e_tau_offset_list(n_g);
-  Rcpp::List e_log_tau_offset_list(n_g);
-  for (int g = 0; g < n_g; g++) {
-    e_tau_offset_list[g] = vp_encoder.e_tau_offset[g] + offset;
-    e_log_tau_offset_list[g] = vp_encoder.e_log_tau_offset[g] + offset;
-    e_mu_g_offset_list[g] = vp_encoder.e_mu_g_offset[g] + offset;
-    e_mu2_g_offset_list[g] = vp_encoder.e_mu2_g_offset[g] + offset;
-  }
-
-  r_list["e_tau_vec"] = e_tau_offset_list;
-  r_list["e_log_tau_vec"] = e_log_tau_offset_list;
-  r_list["e_mu_g_vec"] = e_mu_g_offset_list;
-  r_list["e_mu2_g_vec"] = e_mu2_g_offset_list;
-}
-
-
-Rcpp::List convert_to_list(VariationalParameterEncoder const &vp_encoder, int offset=0) {
-  Rcpp::List r_list;
-  convert_to_list(vp_encoder, r_list, offset);
-  return r_list;
-}
-
-
-// Make an R list out of variational encoder offsets.
-void convert_to_list(
-    PriorParameterEncoder const &pp_encoder, Rcpp::List &r_list, int const offset=0) {
-
-  r_list["dim"] = pp_encoder.dim;
-
-  r_list["mu_mean_offset"] = pp_encoder.mu_mean_offset + offset;
-  r_list["mu_info_offset"] = pp_encoder.mu_info_offset + offset;
-  r_list["lambda_eta_offset"] = pp_encoder.lambda_eta_offset + offset;
-  r_list["lambda_alpha_offset"] = pp_encoder.lambda_alpha_offset + offset;
-  r_list["lambda_beta_offset"] = pp_encoder.lambda_beta_offset + offset;
-  r_list["lambda_eta_offset"] = pp_encoder.lambda_eta_offset + offset;
-  r_list["tau_alpha_offset"] = pp_encoder.tau_alpha_offset + offset;
-  r_list["tau_beta_offset"] = pp_encoder.tau_beta_offset + offset;
-}
-
-
-Rcpp::List convert_to_list(
-    PriorParameterEncoder const &pp_encoder, int const offset=0) {
+Rcpp::List ConvertParametersToList(VariationalNaturalParameters<double> const &vp) {
 
   Rcpp::List r_list;
-  convert_to_list(pp_encoder, r_list, offset);
-  return r_list;
-}
-
-
-// Make an R list out of model encoder offsets.
-Rcpp::List convert_to_list(ModelParameterEncoder const &encoder) {
-  Rcpp::List r_list;
-  convert_to_list(encoder.variational_encoder, r_list, encoder.variational_offset);
-  convert_to_list(encoder.prior_encoder, r_list, encoder.prior_offset);
-  return r_list;
-}
-
-
-// Make an R list out of variational parameters.
-template <typename T> Rcpp::List convert_to_list(VariationalParameters<T> vp) {
-  Rcpp::List r_list;
-
-  r_list["k"] = vp.k;
   r_list["n_g"] = vp.n_g;
+  r_list["k"] = vp.k;
 
-  r_list["e_mu"] = vp.mu.e_vec;
-  r_list["e_mu2"] = vp.mu.e_outer.mat;
+  // Assume this is all the same.
+  r_list["diag_min"] = vp.mu.diag_min;
 
-  r_list["lambda_v_par"] = vp.lambda.v.mat;
-  r_list["lambda_n_par"] = vp.lambda.n;
+  r_list["mu_loc"] = vp.mu.loc;
+  r_list["mu_info"] = vp.mu.info.mat;
 
-  // TODO: size checking
-  // I'm not sure why, but this initializiation seems to make a list
-  // of length one longer than the argument.
-  Rcpp::List e_mu_g_vec_list(vp.n_g);
-  Rcpp::List e_mu2_g_vec_list(vp.n_g);
-  Rcpp::List e_tau_vec_list(vp.n_g);
-  Rcpp::List e_log_tau_vec_list(vp.n_g);
-  for (int g = 0; g < vp.n_g; g++) {
-    e_tau_vec_list[g] = vp.tau_vec[g].e;
-    e_log_tau_vec_list[g] = vp.tau_vec[g].e_log;
-    e_mu_g_vec_list[g] = vp.mu_g_vec[g].e_vec;
-    e_mu2_g_vec_list[g] = vp.mu_g_vec[g].e_outer.mat;
+  r_list["lambda_v"] = vp.lambda.v.mat;
+  r_list["lambvda_n"] = vp.mu.n;
+
+  r_list["tau_alpha"] = vp.tau.alpha;
+  r_list["tau_beta"] = vp.tau.beta;
+  r_list["tau_alpha_min"] = vp.tau.alpha_min;
+  r_list["tau_beta_min"] = vp.tau.beta_min;
+
+  Rcpp::List mu_g(vp.n_groups);
+  Rcpp::List tau(vp.n_groups);
+  for (int g = 0; g < vp.n_groups; g++) {
+    Rcpp::List this_mu_g;
+    this_mu_g["loc"] = vp.mu_g[g].loc;
+    this_mu_g["info"] = vp.mu_g[g].info.mat;
+
+    Rcpp::List this_tau;
+    this_tau["alpha"] = vp.tau[g].alpha;
+    this_tau["beta"] = vp.tau[g].beta;
   }
 
-  r_list["e_tau_vec"] = e_tau_vec_list;
-  r_list["e_log_tau_vec"] = e_log_tau_vec_list;
-  r_list["e_mu_g_vec"] = e_mu_g_vec_list;
-  r_list["e_mu2_g_vec"] = e_mu2_g_vec_list;
+  r_list["mu_g"] = mu_g;
+  r_list["tau"] = tau;
 
   return r_list;
+};
+
+
+void ConvertParametersFromList(
+    VariationalNaturalParameters<double> &vp, Rcpp::List r_list) {
+
+  vp.n_obs = r_list["n_obs"];
+  vp.n_groups = r_list["n_groups"];
+  vp.k_reg = r_list["k_reg"];
+
+  vp.beta.loc = Rcpp::as<VectorXd>(r_list["beta_loc"]);
+  vp.beta.info.mat = Rcpp::as<MatrixXd>(r_list["beta_info"]);
+  vp.beta.diag_min = Rcpp::as<double>(r_list["beta_diag_min"]);
+
+  vp.mu.loc = Rcpp::as<double>(r_list["mu_loc"]);
+  vp.mu.info = Rcpp::as<double>(r_list["mu_info"]);
+  vp.mu.info_min = Rcpp::as<double>(r_list["mu_info_min"]);
+
+  vp.tau.alpha = Rcpp::as<double>(r_list["tau_alpha"]);
+  vp.tau.beta = Rcpp::as<double>(r_list["tau_beta"]);
+  vp.tau.alpha_min = Rcpp::as<double>(r_list["tau_alpha_min"]);
+  vp.tau.beta_min = Rcpp::as<double>(r_list["tau_beta_min"]);
+
+  Rcpp::List u_list = r_list["u_vec"];
+  if (vp.n_groups != u_list.size()) {
+    throw std::runtime_error("u size does not match");
+  }
+
+  double u_info_min = Rcpp::as<double>(r_list["u_info_min"]);
+  for (int g = 0; g < vp.n_groups; g++) {
+    Rcpp::List this_u = u_list[g];
+    vp.u[g].loc = Rcpp::as<double>(this_u["u_loc"]);
+    vp.u[g].info = Rcpp::as<double>(this_u["u_info"]);
+    vp.u[g].info_min = u_info_min;
+  }
 }
 
 
-// Update vp in place with the values from r_list.
-template <typename T>
-void convert_from_list(Rcpp::List const &r_list, VariationalParameters<T> &vp) {
-
-  vp.mu.e_vec = Rcpp::as<Eigen::VectorXd>(r_list["e_mu"]);
-  vp.mu.e_outer.mat = Rcpp::as<Eigen::MatrixXd>(r_list["e_mu2"]);
-
-  vp.lambda.v.mat = Rcpp::as<Eigen::MatrixXd>(r_list["lambda_v_par"]);
-  vp.lambda.n = Rcpp::as<double>(r_list["lambda_n_par"]);
-
-  Rcpp::List e_mu_g_vec_list = r_list["e_mu_g_vec"];
-  Rcpp::List e_mu2_g_vec_list = r_list["e_mu2_g_vec"];
-  Rcpp::List e_tau_vec_list = r_list["e_tau_vec"];
-  Rcpp::List e_log_tau_vec_list = r_list["e_log_tau_vec"];
-  int n_g = e_mu_g_vec_list.size();
-  if (e_mu2_g_vec_list.size() != n_g) {
-    std::ostringstream error_msg;
-    error_msg <<
-        "e_mu2_g_vec_list does not have n_g elements.  " <<
-        "List size is " << e_mu2_g_vec_list.size() << ".  " <<
-        "n_g = " << n_g << "\n";
-    throw std::runtime_error(error_msg.str());
-  }
-  if (vp.n_g != n_g) {
-      std::ostringstream error_msg;
-      error_msg <<
-          "vp.n_g does not match n_g (which is from e_mu_g_vec_list.size()).  " <<
-          "vp.n_g = " << vp.n_g << ".  " <<
-          "n_g = " << n_g << "\n";
-    throw std::runtime_error(error_msg.str());
-  }
-
-  for (int g = 0; g < n_g; g++) {
-    vp.tau_vec[g].e = Rcpp::as<double>(e_tau_vec_list[g]);
-    vp.tau_vec[g].e_log = Rcpp::as<double>(e_log_tau_vec_list[g]);
-    vp.mu_g_vec[g].e_vec = Rcpp::as<Eigen::VectorXd>(e_mu_g_vec_list[g]);
-    vp.mu_g_vec[g].e_outer.mat = Rcpp::as<Eigen::MatrixXd>(e_mu2_g_vec_list[g]);
-  }
-};
 
 
 // Update pp in place with the values from r_list.
@@ -620,13 +529,13 @@ Eigen::SparseMatrix<double> GetVariationalCovariance(
 
   Rcpp::List tau_alpha_vec_list = vp_params["tau_alpha_vec"];
   Rcpp::List tau_beta_vec_list = vp_params["tau_beta_vec"];
-  Rcpp::List e_mu_g_vec_list = vp_params["e_mu_g_vec"];
+  Rcpp::List e_mu_g_list = vp_params["e_mu_g"];
   Rcpp::List e_mu2_g_vec_list = vp_params["e_mu2_g_vec"];
   if (e_mu2_g_vec_list.size() != n_g) {
     throw std::runtime_error("e_mu2_g_vec_list does not have n_g elements");
   }
-  if (e_mu_g_vec_list.size() != n_g) {
-    throw std::runtime_error("e_mu_g_vec_list does not have n_g elements");
+  if (e_mu_g_list.size() != n_g) {
+    throw std::runtime_error("e_mu_g_list does not have n_g elements");
   }
   for (int g = 0; g < n_g; g++) {
     // Tau:
@@ -638,7 +547,7 @@ Eigen::SparseMatrix<double> GetVariationalCovariance(
     all_terms.insert(all_terms.end(), terms.begin(), terms.end());
 
     // mu_g:
-    const Eigen::Map<Eigen::VectorXd> e_mu_g = e_mu_g_vec_list[g];
+    const Eigen::Map<Eigen::VectorXd> e_mu_g = e_mu_g_list[g];
     const Eigen::Map<Eigen::MatrixXd> e_mu2_g = e_mu2_g_vec_list[g];
     terms = get_mvn_covariance_terms(
       e_mu_g, e_mu2_g, vp_encoder.e_mu_g_offset[g], vp_encoder.e_mu2_g_offset[g]);

@@ -35,29 +35,35 @@ using typename boost::math::tools::promote_args;
 using var = stan::math::var;
 using fvar = stan::math::fvar<var>;
 
-////////////////////////////////////////
-// Likelihood functions
 
+Derivatives GetElboDerivatives(
+  MicroCreditData const &data,
+  VariationalParameters<double> &vp,
+  PriorParameters<double> const &pp,
+  double const diag_min,
+  bool const unconstrained,
+  bool const calculate_hessian) {
 
-// extern template double GetHierarchyLogLikelihood(VariationalParameters<double> const &);
-// extern template var GetHierarchyLogLikelihood(VariationalParameters<var> const &);
-// extern template fvar GetHierarchyLogLikelihood(VariationalParameters<fvar> const &);
-//
+    vp.unconstrained = unconstrained;
+    vp.lambda.diag_min = diag_min;
+    vp.mu.diag_min = diag_min;
+    for (int g=0; g < vp.n_g; g++) {
+        vp.mu_g[g].diag_min = diag_min;
+    }
 
-// template <> double GetObservationLogLikelihood(
-//   MicroCreditData const &, VariationalParameters<double> const &);
-// template <> var GetObservationLogLikelihood(
-//   MicroCreditData const &, VariationalParameters<var> const &);
-// template <> fvar GetObservationLogLikelihood(
-//   MicroCreditData const &, VariationalParameters<fvar> const &);
+    MicroCreditElbo ELBO(data, vp, pp);
 
+    double val;
+    VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
+    MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
+    VectorXd theta = GetParameterVector(vp);
 
+    stan::math::set_zero_all_adjoints();
+    if (calculate_hessian) {
+        stan::math::hessian(ELBO, theta, val, grad, hess);
+    } else {
+        stan::math::gradient(ELBO, theta, val, grad);
+    }
 
-// template <> var GetPriorLogLikelihood(
-//     VariationalParameters<var> const &, PriorParameters<double> const &);
-// template <> var GetPriorLogLikelihood(
-//     VariationalParameters<var> const &, PriorParameters<var> const &);
-// template <> fvar GetPriorLogLikelihood(
-//     VariationalParameters<fvar> const &, PriorParameters<double> const &);
-// template <> fvar GetPriorLogLikelihood(
-//     VariationalParameters<fvar> const &, PriorParameters<fvar> const &);
+    return Derivatives(val, grad, hess);
+}

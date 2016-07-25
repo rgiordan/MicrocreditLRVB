@@ -56,10 +56,10 @@ sim_data <- SimulateData(true_params, n_g, n_per_group)
 x <- sim_data$x
 y_g <- sim_data$y_g
 y <- sim_data$y
-true_params$true_mu_g_vec <- sim_data$true_mu_g_vec
+true_params$true_mu_g <- sim_data$true_mu_g
 
 # Sanity checks
-mu_g_mat <- do.call(rbind, true_params$true_mu_g_vec)
+mu_g_mat <- do.call(rbind, true_params$true_mu_g)
 cov(mu_g_mat)
 solve(true_params$true_lambda)
 

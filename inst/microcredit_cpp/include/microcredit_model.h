@@ -43,7 +43,7 @@ T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
   MultivariateNormalMoments<T> mu_moments(vp.mu);
   T log_lik = 0.0;
   for (int g = 0; g < vp.n_g; g++) {
-      MultivariateNormalMoments<T> mu_g_moments(vp.mu_g_vec[g]);
+      MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
       log_lik += mu_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
   }
 
@@ -59,13 +59,15 @@ T GetObservationLogLikelihood(
 
   T log_lik = 0.0;
   for (int n = 0; n < data.n; n++) {
-    UnivariateNormalMoments<T> y_obs(data.y(n));
-
+    UnivariateNormalMoments<T> y_obs;
     VectorXT<T> x_row = data.x.row(n).template cast<T>();
+    y_obs.e = data.y(n);
+    y_obs.e2 = pow(data.y(n), 2);
+
     int g = data.y_g(n) - 1; // The group that this observation belongs to.
     // TODO: cache the moments or pass in moments.
-    GammaMoments<T> tau_moments(vp.tau_vec[g]);
-    MultivariateNormalMoments<T> mu_g_moments(vp.mu_g_vec[g]);
+    GammaMoments<T> tau_moments(vp.tau[g]);
+    MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
 
     y_obs_mean.e = x_row.dot(mu_g_moments.e_vec);
     y_obs_mean.e2 = x_row.dot(mu_g_moments.e_outer.mat * x_row);
@@ -87,15 +89,17 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
   T log_lik = 0.0;
 
   // Mu:
-  MultivariateNormalMoments<T> vp_mu(vp.mu);
+  MultivariateNormalNatural<T> vp_mu(vp.mu);
+  MultivariateNormalMoments<T> vp_mu_moments(vp_mu);
   MultivariateNormalNatural<T> pp_mu = pp.mu;
-  log_lik += vp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info);
+  log_lik += vp_mu_moments.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
 
   // Tau:
   GammaNatural<T> pp_tau(pp.tau);
   for (int g = 0; g < vp.n_g; g++) {
-    GammaMoments<T> tau_moments(vp.tau);
-    log_lik += tau_moments.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
+    GammaNatural<T> vp_tau(vp.tau[g]);
+    GammaMoments<T> vp_tau_moments(vp_tau);
+    log_lik += vp_tau_moments.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
   }
 
   // Lambda.  Note that in the variable names Sigma = Lambda ^ (-1)
@@ -130,10 +134,10 @@ GetEntropy(VariationalParameters<T> const &vp) {
     T entropy = 0;
     entropy =
         GetMultivariateNormalEntropy(vp.mu.info.mat) +
-        GetWishartEntropy(vp.lambda);
+        GetWishartEntropy(vp.lambda.v.mat, vp.lambda.n);
     for (int g = 0; g < vp.n_g; g++) {
-        entropy += GetMultivariateNormalEntropy(vp.mu_g_vec[g].info);
-        entropy += GetGammaEntropy(vp.tau_vec[g]);
+        entropy += GetMultivariateNormalEntropy(vp.mu_g[g].info.mat);
+        entropy += GetGammaEntropy(vp.tau[g].alpha, vp.tau[g].beta);
     }
     return entropy;
 }
@@ -218,6 +222,17 @@ struct MicroCreditElbo {
         GetPriorLogLikelihood(vp, pp) +
         GetEntropy(vp);
   }
+};
+
+
+
+struct Derivatives {
+  double val;
+  VectorXd grad;
+  MatrixXd hess;
+
+  Derivatives(double val, VectorXd grad, MatrixXd hess):
+  val(val), grad(grad), hess(hess) {};
 };
 
 # endif

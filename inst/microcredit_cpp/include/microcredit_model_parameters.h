@@ -77,12 +77,12 @@ private:
         lambda = WishartNatural<T>(k);
 
         // Per-observation parameters
-        mu_g_vec.resize(n_g);
-        tau_vec.resize(n_g);
+        mu_g.resize(n_g);
+        tau.resize(n_g);
 
         for (int g = 0; g < n_g; g++) {
-          mu_g_vec[g] = MultivariateNormalNatural<T>(k);
-          tau_vec[g] = GammaNatural<T>();
+          mu_g[g] = MultivariateNormalNatural<T>(k);
+          tau[g] = GammaNatural<T>();
         }
         offsets = GetOffsets(*this);
     }
@@ -101,10 +101,10 @@ public:
   WishartNatural<T> lambda;
 
   // A vector of per-group, E(tau), the observation noise precision
-  vector<GammaNatural<T>> tau_vec;
+  vector<GammaNatural<T>> tau;
 
   // Vectors of the per-group means.
-  vector<MultivariateNormalNatural<T>> mu_g_vec;
+  vector<MultivariateNormalNatural<T>> mu_g;
 
   // Methods:
   VariationalParameters(int k, int n_g, bool unconstrained):
@@ -126,8 +126,8 @@ public:
     vp.lambda = lambda;
 
     for (int g = 0; g < n_g; g++) {
-      vp.mu_g_vec[g] = mu_g_vec[g];
-      vp.tau_vec[g] = tau_vec[g];
+      vp.mu_g[g] = mu_g[g];
+      vp.tau[g] = tau[g];
     }
     return vp;
   }
@@ -263,14 +263,14 @@ VectorXT<T> GetParameterVector(VPType<T> vp) {
   theta.segment(vp.offsets.lambda, vp.lambda.encoded_size) =
     vp.lambda.encode_vector(vp.unconstrained);
 
-  for (int g = 0; g < vp.tau_vec.size(); g++) {
-    theta.segment(vp.offsets.tau_vec[g], vp.tau_vec[g].encoded_size) =
-        vp.tau_vec[g].encode_vector(vp.unconstrained);
+  for (int g = 0; g < vp.tau.size(); g++) {
+    theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size) =
+        vp.tau[g].encode_vector(vp.unconstrained);
   }
 
-  for (int g = 0; g < vp.mu_g_vec.size(); g++) {
-    theta.segment(vp.offsets.mu_g_vec[g], vp.mu_g_vec[g].encoded_size) =
-        vp.mu_g_vec[g].encode_vector(vp.unconstrained);
+  for (int g = 0; g < vp.mu_g.size(); g++) {
+    theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size) =
+        vp.mu_g[g].encode_vector(vp.unconstrained);
   }
 
   return theta;
@@ -291,14 +291,14 @@ void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
   theta_sub = theta.segment(vp.offsets.lambda, vp.lambda.encoded_size);
   vp.lambda.decode_vector(theta_sub, vp.unconstrained);
 
-  for (int g = 0; g < vp.tau_vec.size(); g++) {
-      theta_sub = theta.segment(vp.offsets.tau_vec[g], vp.tau_vec[g].encoded_size);
-      vp.tau_vec[g].decode_vector(theta_sub, vp.unconstrained);
+  for (int g = 0; g < vp.tau.size(); g++) {
+      theta_sub = theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size);
+      vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
   }
 
-  for (int g = 0; g < vp.mu_g_vec.size(); g++) {
-      theta_sub = theta.segment(vp.offsets.mu_g_vec[g], vp.mu_g_vec[g].encoded_size);
-      vp.mu_g_vec[g].decode_vector(theta_sub, vp.unconstrained);
+  for (int g = 0; g < vp.mu_g.size(); g++) {
+      theta_sub = theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size);
+      vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
   }
 }
 

@@ -4,7 +4,6 @@ add_definitions(-Wno-deprecated)
 
 include_directories(../include/)
 
-# Make sure this is the v0.0.0 version of the headers!
 include_directories(${GIT_REPO_LOC}/LinearResponseVariationalBayes.cpp/include/)
 include_directories(${GIT_REPO_LOC}/stan/)
 include_directories(${GIT_REPO_LOC}/math/)
