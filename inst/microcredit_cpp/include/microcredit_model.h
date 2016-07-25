@@ -39,7 +39,6 @@ using fvar = stan::math::fvar<var>;
 
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
-  // TODO: maybe make this part of the variational parameters.
   WishartMoments<T> lambda_moments(vp.lambda);
   MultivariateNormalMoments<T> mu_moments(vp.mu);
   T log_lik = 0.0;
@@ -56,11 +55,11 @@ template <typename T>
 T GetObservationLogLikelihood(
     MicroCreditData const &data, VariationalParameters<T> const &vp) {
 
-  UnivariateNormal<T> y_obs_mean;
+  UnivariateNormalMoments<T> y_obs_mean;
 
   T log_lik = 0.0;
   for (int n = 0; n < data.n; n++) {
-    UnivariateNormal<T> y_obs(data.y(n));
+    UnivariateNormalMoments<T> y_obs(data.y(n));
 
     VectorXT<T> x_row = data.x.row(n).template cast<T>();
     int g = data.y_g(n) - 1; // The group that this observation belongs to.
@@ -125,6 +124,22 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
 };
 
 
+
+template <typename T> T
+GetEntropy(VariationalParameters<T> const &vp) {
+    T entropy = 0;
+    entropy =
+        GetMultivariateNormalEntropy(vp.mu.info.mat) +
+        GetWishartEntropy(vp.lambda);
+    for (int g = 0; g < vp.n_g; g++) {
+        entropy += GetMultivariateNormalEntropy(vp.mu_g_vec[g].info);
+        entropy += GetGammaEntropy(vp.tau_vec[g]);
+    }
+    return entropy;
+}
+
+
+
 ///////////////////////////////////
 // Functors
 
@@ -133,18 +148,16 @@ struct MicroCreditLogLikelihood {
   MicroCreditData data;
   VariationalParameters<double> base_vp;
   PriorParameters<double> pp;
-  VariationalParameterEncoder vp_encoder;
 
   MicroCreditLogLikelihood(
       MicroCreditData const &data,
       VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp,
-      VariationalParameterEncoder const &vp_encoder):
-    data(data), base_vp(base_vp), pp(pp), vp_encoder(vp_encoder) {};
+      PriorParameters<double> const &pp):
+    data(data), base_vp(base_vp), pp(pp) {};
 
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
-    vp_encoder.set_parameters_from_vector(theta, vp);
+    SetFromVector(theta, vp);
 
     return
       GetObservationLogLikelihood(data, vp) +
@@ -158,133 +171,53 @@ struct MicroCreditLogLikelihood {
 struct MicroCreditLogPrior {
   VariationalParameters<double> base_vp;
   PriorParameters<double> base_pp;
-  ModelParameterEncoder encoder;
 
   MicroCreditLogPrior(
       VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &base_pp,
-      ModelParameterEncoder const &encoder):
-    base_vp(base_vp), base_pp(base_pp), encoder(encoder) {};
+      PriorParameters<double> const &base_pp):
+    base_vp(base_vp), base_pp(base_pp) {};
 
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     PriorParameters<T> pp(base_pp);
-    encoder.set_parameters_from_vector(theta, vp, pp);
+
+    if (theta.size() != vp.offsets.encoded_size + pp.offsets.encoded_size) {
+        throw std::runtime_error("Theta is the wrong size.");
+    }
+
+    VectorXT<T> theta_sub;
+    theta_sub = theta.segment(0, vp.offsets.encoded_size);
+    SetFromVector(theta_sub, vp);
+
+    theta_sub = theta.segment(vp.offsets.encoded_size + 1, pp.offsets.encoded_size);
+    SetFromVector(theta_sub, pp);
+
     return GetPriorLogLikelihood(vp, pp);
   }
 };
 
 
 // Likelihood + entropy for lambda only.
-struct MicroCreditWishartElbo {
+struct MicroCreditElbo {
   MicroCreditData data;
   VariationalParameters<double> base_vp;
   PriorParameters<double> pp;
-  WishartParameterEncoder lambda_encoder;
 
-  MicroCreditWishartElbo(
+  MicroCreditElbo(
       MicroCreditData const &data,
       VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp,
-      WishartParameterEncoder const &lambda_encoder):
-    data(data), base_vp(base_vp), pp(pp), lambda_encoder(lambda_encoder) {};
+      PriorParameters<double> const &pp):
+    data(data), base_vp(base_vp), pp(pp) {};
 
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
-    lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
-    T lambda_n_par = vp.lambda.n;
+    SetFromVector(theta, vp);
     return
-      GetHierarchyLogLikelihood(vp) +
-      GetPriorLogLikelihood(vp, pp) +
-      GetWishartEntropy(lambda_v_par, lambda_n_par);
+        GetObservationLogLikelihood(data, vp) +
+        GetHierarchyLogLikelihood(vp) +
+        GetPriorLogLikelihood(vp, pp) +
+        GetEntropy(vp);
   }
 };
-
-
-// entropy for lambda only, for debugging.
-struct MicroCreditWishartEntropy {
-  MicroCreditData data;
-  VariationalParameters<double> base_vp;
-  PriorParameters<double> pp;
-  WishartParameterEncoder lambda_encoder;
-
-  MicroCreditWishartEntropy(
-      MicroCreditData const &data,
-      VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp,
-      WishartParameterEncoder const &lambda_encoder):
-    data(data), base_vp(base_vp), pp(pp), lambda_encoder(lambda_encoder) {};
-
-  template <typename T> T operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
-    T lambda_n_par = vp.lambda.n;
-    return GetWishartEntropy(lambda_v_par, lambda_n_par);
-  }
-};
-
-
-// Likelihood for lambda only.
-struct MicroCreditWishartLogLikelihood {
-  MicroCreditData data;
-  VariationalParameters<double> base_vp;
-  PriorParameters<double> pp;
-  WishartParameterEncoder lambda_encoder;
-
-  MicroCreditWishartLogLikelihood(
-      MicroCreditData const &data,
-      VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp,
-      WishartParameterEncoder const &lambda_encoder):
-    data(data), base_vp(base_vp), pp(pp), lambda_encoder(lambda_encoder) {};
-
-  template <typename T> T operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    lambda_encoder.set_parameters_from_vector(theta, vp);
-    MatrixXT<T> lambda_v_par = vp.lambda.v.mat;
-    T lambda_n_par = vp.lambda.n;
-    return
-      GetHierarchyLogLikelihood(vp) + GetPriorLogLikelihood(vp, pp);
-  }
-};
-
-
-// Derivatives of the moment parameterization of the Wishart.  I think
-// this is actually not necessary, but let's do it as a proof of concept.
-struct WishartMomentParameterization {
-  VariationalParameters<double> base_vp;
-  WishartParameterEncoder encoder;
-
-  WishartMomentParameterization(
-      VariationalParameters<double> const &base_vp,
-      WishartParameterEncoder const &encoder):
-    base_vp(base_vp), encoder(encoder) {};
-
-  template <typename T> VectorXT<T> operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    VariationalParameters<T> moment_vp(base_vp);
-    encoder.set_parameters_from_vector(theta, vp);
-
-    MatrixXT<T> v_par = vp.lambda.v.mat;
-    T n_par = vp.lambda.n;
-
-    // TODO: we're just putting the moment parameters in the natural
-    // parameter slots.  Any reason not to make e_lambda a member of the class?
-    MatrixXT<T> e_lambda = v_par * n_par;
-    moment_vp.lambda.v.set(e_lambda);
-
-    T e_log_det_lambda = GetELogDetWishart(v_par, n_par);
-    moment_vp.lambda.n = e_log_det_lambda;
-
-    // This needs to be a non-transforming encoder.
-    WishartParameterEncoder non_transforming_encoder(
-      base_vp, encoder.lambda_diag_min, encoder.lambda_n_min, false);
-    return non_transforming_encoder.get_parameter_vector(moment_vp);
-  }
-};
-
-
 
 # endif

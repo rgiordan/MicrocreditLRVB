@@ -20,9 +20,8 @@ template <typename T> using MatrixXT = Eigen::Matrix<T, Dynamic, Dynamic>;
 
 using std::vector;
 
-
-/////////////////////////////////////
-// Offsets
+/////////////////////////////
+// Offset types
 
 struct Offsets {
     int mu;
@@ -40,36 +39,6 @@ struct Offsets {
         encoded_size = 0;
     }
 };
-
-
-template <typename T, template<typename> class VPType>
-Offsets GetOffsets(VPType<T> vp) {
-    Offsets offsets;
-    int encoded_size = 0;
-
-    offsets.mu = encoded_size;
-    encoded_size += vp.mu.encoded_size;
-
-    offsets.lambda = encoded_size;
-    encoded_size += vp.lambda.encoded_size;
-
-    offsets.tau.resize(vp.n_g);
-    for (int g = 0; g < vp.n_g; g++) {
-        offsets.tau[g] = encoded_size;
-        encoded_size += vp.tau[g].encoded_size;
-    }
-
-    offsets.mu_g.resize(vp.n_g);
-    for (int g = 0; g < vp.n_g; g++) {
-        offsets.mu_g[g] = encoded_size;
-        encoded_size += vp.mu_g[g].encoded_size;
-    }
-
-    offsets.encoded_size = encoded_size;
-
-    return offsets;
-};
-
 
 
 struct PriorOffsets {
@@ -92,22 +61,6 @@ struct PriorOffsets {
 };
 
 
-PriorOffsets GetPriorOffsets(PriorParameters pp) {
-    PriorOffsets offsets;
-    int encoded_size = 0;
-
-    offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
-    offsets.tau = encoded_size; encoded_size += vp.tau.encoded_size;
-    offsets.lambda_eta = encoded_size; encoded_size += 1;
-    offsets.lambda_alpha = encoded_size; encoded_size += 1;
-    offsets.lambda_beta = encoded_size; encoded_size += 1;
-
-    offsets.encoded_size = encoded_size;
-
-    return offsets;
-};
-
-
 //////////////////////////////////////
 // VariationalParameters
 //////////////////////////////////////
@@ -115,8 +68,11 @@ PriorOffsets GetPriorOffsets(PriorParameters pp) {
 template <class T>
 class VariationalParameters {
 private:
-    void Initialize(int k, int n_g, bool unconstrained):
-    k(k), n_g(n_g), unconstrained(unconstrained) {
+    void Initialize(int k, int n_g, bool unconstrained) {
+        k = k;
+        n_g = n_g;
+        unconstrained = unconstrained;
+
         mu = MultivariateNormalNatural<T>(k);
         lambda = WishartNatural<T>(k);
 
@@ -183,7 +139,8 @@ public:
 
 template <class T> class PriorParameters {
 private:
-    void Initialize(int k): k(k) {
+    void Initialize(int k) {
+        k = k;
         mu = MultivariateNormalNatural<T>(k);
 
         lambda_eta = 1;
@@ -244,6 +201,55 @@ public:
 };
 
 
+/////////////////////////////////////
+// Offsets
+
+template <typename T, template<typename> class VPType>
+Offsets GetOffsets(VPType<T> vp) {
+    Offsets offsets;
+    int encoded_size = 0;
+
+    offsets.mu = encoded_size;
+    encoded_size += vp.mu.encoded_size;
+
+    offsets.lambda = encoded_size;
+    encoded_size += vp.lambda.encoded_size;
+
+    offsets.tau.resize(vp.n_g);
+    for (int g = 0; g < vp.n_g; g++) {
+        offsets.tau[g] = encoded_size;
+        encoded_size += vp.tau[g].encoded_size;
+    }
+
+    offsets.mu_g.resize(vp.n_g);
+    for (int g = 0; g < vp.n_g; g++) {
+        offsets.mu_g[g] = encoded_size;
+        encoded_size += vp.mu_g[g].encoded_size;
+    }
+
+    offsets.encoded_size = encoded_size;
+
+    return offsets;
+};
+
+
+template <typename T> PriorOffsets GetPriorOffsets(PriorParameters<T> pp) {
+    PriorOffsets offsets;
+    int encoded_size = 0;
+
+    offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
+    offsets.tau = encoded_size; encoded_size += pp.tau.encoded_size;
+    offsets.lambda_eta = encoded_size; encoded_size += 1;
+    offsets.lambda_alpha = encoded_size; encoded_size += 1;
+    offsets.lambda_beta = encoded_size; encoded_size += 1;
+
+    offsets.encoded_size = encoded_size;
+
+    return offsets;
+};
+
+
+
 ///////////////////////////////
 // Converting to and from vectors
 
@@ -294,6 +300,40 @@ void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
       theta_sub = theta.segment(vp.offsets.mu_g_vec[g], vp.mu_g_vec[g].encoded_size);
       vp.mu_g_vec[g].decode_vector(theta_sub, vp.unconstrained);
   }
+}
+
+
+template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
+  VectorXT<T> theta(pp.offsets.encoded_size);
+
+  theta.segment(pp.offsets.mu, pp.mu.encoded_size) = pp.mu.encode_vector(false);
+  theta.segment(pp.offsets.tau, pp.tau.encoded_size) = pp.tau.encode_vector(false);
+
+  theta(pp.offsets.lambda_eta) = pp.lambda_eta;
+  theta(pp.offsets.lambda_alpha) = pp.lambda_eta;
+  theta(pp.offsets.lambda_beta) = pp.lambda_eta;
+
+  return theta;
+}
+
+
+template <typename T>
+void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
+  if (theta.size() != pp.offsets.encoded_size) {
+      throw std::runtime_error("Vector is wrong size.");
+  }
+
+  VectorXT<T> theta_sub;
+
+  theta_sub = theta.segment(pp.offsets.mu, pp.mu.encoded_size);
+  pp.mu.decode_vector(theta_sub, false);
+
+  theta_sub = theta.segment(pp.offsets.tau, pp.tau.encoded_size);
+  pp.tau.decode_vector(theta_sub, false);
+
+  pp.lambda_eta = theta(pp.offsets.lambda_eta);
+  pp.lambda_alpha = theta(pp.offsets.lambda_alpha);
+  pp.lambda_beta = theta(pp.offsets.lambda_beta);
 }
 
 //////////////////////////////
