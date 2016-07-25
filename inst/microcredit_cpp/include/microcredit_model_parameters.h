@@ -20,54 +20,151 @@ template <typename T> using MatrixXT = Eigen::Matrix<T, Dynamic, Dynamic>;
 
 using std::vector;
 
+
+/////////////////////////////////////
+// Offsets
+
+struct Offsets {
+    int mu;
+    int lambda;
+    vector<int> tau;
+    vector<int> mu_g;
+
+    int encoded_size;
+
+    Offsets() {
+        mu = 0;
+        lambda = 0;
+        tau.resize(0);
+        mu_g.resize(0);
+        encoded_size = 0;
+    }
+};
+
+
+template <typename T, template<typename> class VPType>
+Offsets GetOffsets(VPType<T> vp) {
+    Offsets offsets;
+    int encoded_size = 0;
+
+    offsets.mu = encoded_size;
+    encoded_size += vp.mu.encoded_size;
+
+    offsets.lambda = encoded_size;
+    encoded_size += vp.lambda.encoded_size;
+
+    offsets.tau.resize(vp.n_g);
+    for (int g = 0; g < vp.n_g; g++) {
+        offsets.tau[g] = encoded_size;
+        encoded_size += vp.tau[g].encoded_size;
+    }
+
+    offsets.mu_g.resize(vp.n_g);
+    for (int g = 0; g < vp.n_g; g++) {
+        offsets.mu_g[g] = encoded_size;
+        encoded_size += vp.mu_g[g].encoded_size;
+    }
+
+    offsets.encoded_size = encoded_size;
+
+    return offsets;
+};
+
+
+
+struct PriorOffsets {
+    int mu;
+    int tau;
+
+    int lambda_eta;
+    int lambda_alpha;
+    int lambda_beta;
+
+    int encoded_size;
+
+    PriorOffsets() {
+        mu = 0;
+        tau = 0;
+        lambda_eta = 0;
+        lambda_alpha = 0;
+        lambda_beta =0;
+    }
+};
+
+
+PriorOffsets GetPriorOffsets(PriorParameters pp) {
+    PriorOffsets offsets;
+    int encoded_size = 0;
+
+    offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
+    offsets.tau = encoded_size; encoded_size += vp.tau.encoded_size;
+    offsets.lambda_eta = encoded_size; encoded_size += 1;
+    offsets.lambda_alpha = encoded_size; encoded_size += 1;
+    offsets.lambda_beta = encoded_size; encoded_size += 1;
+
+    offsets.encoded_size = encoded_size;
+
+    return offsets;
+};
+
+
 //////////////////////////////////////
 // VariationalParameters
 //////////////////////////////////////
 
 template <class T>
 class VariationalParameters {
+private:
+    void Initialize(int k, int n_g, bool unconstrained):
+    k(k), n_g(n_g), unconstrained(unconstrained) {
+        mu = MultivariateNormalNatural<T>(k);
+        lambda = WishartNatural<T>(k);
+
+        // Per-observation parameters
+        mu_g_vec.resize(n_g);
+        tau_vec.resize(n_g);
+
+        for (int g = 0; g < n_g; g++) {
+          mu_g_vec[g] = MultivariateNormalNatural<T>(k);
+          tau_vec[g] = GammaNatural<T>();
+        }
+        offsets = GetOffsets(*this);
+    }
 public:
   // Parameters:
   int n_g;    // The number of groups
   int k;      // The dimension of the means
 
-  // The global mean parameter.
-  MultivariateNormal<T> mu;
+  bool unconstrained;
+  Offsets offsets;
 
-  // Unlike the other parameters, use the natural parameters for lambda.
+  // The global mean parameter.
+  MultivariateNormalNatural<T> mu;
+
+  // The precision matrix of the grou p means.
   WishartNatural<T> lambda;
 
   // A vector of per-group, E(tau), the observation noise precision
-  vector<Gamma<T>> tau_vec;
+  vector<GammaNatural<T>> tau_vec;
 
   // Vectors of the per-group means.
-  vector<MultivariateNormal<T>> mu_g_vec;
+  vector<MultivariateNormalNatural<T>> mu_g_vec;
 
   // Methods:
-  VariationalParameters(int k, int n_g): k(k), n_g(n_g) {
-    mu = MultivariateNormal<T>(k);
-    lambda = WishartNatural<T>(k);
-
-    // Per-observation parameters
-    mu_g_vec.resize(n_g);
-    tau_vec.resize(n_g);
-
-    for (int g = 0; g < n_g; g++) {
-      mu_g_vec[g] = MultivariateNormal<T>(k);
-      tau_vec[g] = Gamma<T>();
-    }
+  VariationalParameters(int k, int n_g, bool unconstrained):
+  k(k), n_g(n_g), unconstrained(unconstrained) {
+    Initialize(k, n_g, unconstrained);
   };
 
-
   VariationalParameters() {
-    VariationalParameters(1, 1);
+    Initialize(1, 1, false);
   }
-
 
   /////////////////
   template <typename Tnew>
   operator VariationalParameters<Tnew>() const {
-    VariationalParameters<Tnew> vp = VariationalParameters<Tnew>(k, n_g);
+    VariationalParameters<Tnew> vp =
+        VariationalParameters<Tnew>(k, n_g, unconstrained);
 
     vp.mu = mu;
     vp.lambda = lambda;
@@ -85,64 +182,59 @@ public:
 // Priors
 
 template <class T> class PriorParameters {
+private:
+    void Initialize(int k): k(k) {
+        mu = MultivariateNormalNatural<T>(k);
+
+        lambda_eta = 1;
+        lambda_alpha = 1;
+        lambda_beta = 1;
+
+        tau = GammaNatural<T>();
+
+        lambda_diag_min = 0.0;
+        lambda_n_min = k + 0.01;
+
+        offsets = PriorOffsets(*this);
+    }
 public:
   // Parameters:
   int k;      // The dimension of the means
+  PriorOffsets offsets;
 
-  // mu ~ MNV(mu_mean, mu_info^-1)
-  // VectorParameter<T> mu_mean;
-  // PosDefMatrixParameter<T> mu_info;
-  VectorXT<T> mu_mean;
-  PosDefMatrixParameter<T> mu_info;
+  MultivariateNormalNatural<T> mu;
+  GammaNatural<T> tau;
 
   // lambda ~ LKJ(eta), scale ~ Gamma(alpha, beta)
   T lambda_eta;
   T lambda_alpha;
   T lambda_beta;
 
-  // tau ~ Gamma(alpha, beta)
-  T tau_alpha;
-  T tau_beta;
-
   // Optimization parameters for lambda
   T lambda_diag_min;
   T lambda_n_min;
 
-
   // Methods:
   PriorParameters(int k): k(k) {
-    mu_mean = VectorXT<T>(k);
-    mu_info = PosDefMatrixParameter<T>(k);
-
-    lambda_eta = 1;
-    lambda_alpha = 1;
-    lambda_beta = 1;
-
-    tau_alpha = 1;
-    tau_beta = 1;
-
-    lambda_diag_min = 0.0;
-    lambda_n_min = k + 0.01;
+      Initialize(k);
   };
 
 
   PriorParameters() {
-    PriorParameters(1);
+      Initialize(1);
   };
 
 
   template <typename Tnew> operator PriorParameters<Tnew>() const {
     PriorParameters<Tnew> pp = PriorParameters<Tnew>(k);
 
-    pp.mu_mean = mu_mean.template cast<Tnew>();
-    pp.mu_info = mu_info;
+    pp.mu = mu;
 
     pp.lambda_eta = lambda_eta;
     pp.lambda_alpha = lambda_alpha;
     pp.lambda_beta = lambda_beta;
 
-    pp.tau_alpha = tau_alpha;
-    pp.tau_beta = tau_beta;
+    pp.tau = tau;
 
     pp.lambda_diag_min = lambda_diag_min;
     pp.lambda_n_min = lambda_n_min;
@@ -151,6 +243,58 @@ public:
   };
 };
 
+
+///////////////////////////////
+// Converting to and from vectors
+
+template <typename T, template<typename> class VPType>
+VectorXT<T> GetParameterVector(VPType<T> vp) {
+  VectorXT<T> theta(vp.offsets.encoded_size);
+
+  theta.segment(vp.offsets.mu, vp.mu.encoded_size) =
+    vp.mu.encode_vector(vp.unconstrained);
+
+  theta.segment(vp.offsets.lambda, vp.lambda.encoded_size) =
+    vp.lambda.encode_vector(vp.unconstrained);
+
+  for (int g = 0; g < vp.tau_vec.size(); g++) {
+    theta.segment(vp.offsets.tau_vec[g], vp.tau_vec[g].encoded_size) =
+        vp.tau_vec[g].encode_vector(vp.unconstrained);
+  }
+
+  for (int g = 0; g < vp.mu_g_vec.size(); g++) {
+    theta.segment(vp.offsets.mu_g_vec[g], vp.mu_g_vec[g].encoded_size) =
+        vp.mu_g_vec[g].encode_vector(vp.unconstrained);
+  }
+
+  return theta;
+}
+
+
+template <typename T, template<typename> class VPType>
+void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
+  if (theta.size() != vp.offsets.encoded_size) {
+      throw std::runtime_error("Vector is wrong size.");
+  }
+
+  VectorXT<T> theta_sub;
+
+  theta_sub = theta.segment(vp.offsets.mu, vp.mu.encoded_size);
+  vp.mu.decode_vector(theta_sub, vp.unconstrained);
+
+  theta_sub = theta.segment(vp.offsets.lambda, vp.lambda.encoded_size);
+  vp.lambda.decode_vector(theta_sub, vp.unconstrained);
+
+  for (int g = 0; g < vp.tau_vec.size(); g++) {
+      theta_sub = theta.segment(vp.offsets.tau_vec[g], vp.tau_vec[g].encoded_size);
+      vp.tau_vec[g].decode_vector(theta_sub, vp.unconstrained);
+  }
+
+  for (int g = 0; g < vp.mu_g_vec.size(); g++) {
+      theta_sub = theta.segment(vp.offsets.mu_g_vec[g], vp.mu_g_vec[g].encoded_size);
+      vp.mu_g_vec[g].decode_vector(theta_sub, vp.unconstrained);
+  }
+}
 
 //////////////////////////////
 // Model data

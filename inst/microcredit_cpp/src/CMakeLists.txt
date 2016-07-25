@@ -14,7 +14,6 @@ include_directories(${GIT_REPO_LOC}/math/lib/boost_1.60.0/)
 set(CC_SOURCES microcredit_model.cpp)
 add_library(MicrocreditModelLRVB SHARED ${CC_SOURCES})
 
-# Note that we need the 0 version of libLinearResponseVariationalBayes
-target_link_libraries(MicrocreditModelLRVB libLinearResponseVariationalBayes.so.0)
+target_link_libraries(MicrocreditModelLRVB libLinearResponseVariationalBayes.so)
 
 install(TARGETS MicrocreditModelLRVB DESTINATION /usr/local/lib)
