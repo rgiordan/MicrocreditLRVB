@@ -40,6 +40,43 @@ pp <- SetPriorsFromVP(vp)
 derivs <- GetElboDerivatives(x, y, y_g, vp, pp, TRUE, TRUE, TRUE)
 theta_init <- GetVectorFromParameters(vp, TRUE)
 
+
+GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=1e9, min_bound=0.0000001) {
+  # Get sensible extreme bounds, for example for L-BFGS-B
+  info_lower <- diag(vp_nat_lower$k_reg) * vp_nat_lower$diag_min * (1 + min_bound)
+  info_upper <- diag(vp_nat_lower$k_reg) * info_bound
+  
+  vp_nat_lower <- vp_base
+  vp_nat_lower$mu_loc[] <- -1 * loc_bound
+  vp_nat_lower$mu_info[,] <- info_lower
+  vp_nat_lower$lambda_v <- info_lower
+  vp_nat_lower$lambda_n <- min_bound 
+  for (g in 1:vp_nat_lower$n_g) {
+    vp_nat_lower$mu_g[[g]][["loc"]] <- -1 * loc_bound
+    vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
+    vp_nat_lower$tau[[g]][["alpha"]] <- vp_nat_lower$tau_alpha_min + min_bound
+    vp_nat_lower$tau[[g]][["beta"]] <- vp_nat_lower$tau_beta_min + min_bound
+  }
+
+  vp_nat_upper <- vp_base
+  vp_nat_upper$mu_loc[] <- loc_bound
+  vp_nat_upper$mu_info[,] <- info_upper
+  vp_nat_upper$lambda_v <- info_upper
+  vp_nat_upper$lambda_n <- min_bound 
+  for (g in 1:vp_nat_lower$n_g) {
+    vp_nat_upper$mu_g[[g]][["loc"]] <- loc_bound
+    vp_nat_upper$mu_g[[g]][["info"]] <- info_upper
+    vp_nat_upper$tau[[g]][["alpha"]] <- vp_nat_upper$tau_alpha_min + min_bound
+    vp_nat_upper$tau[[g]][["beta"]] <- vp_nat_upper$tau_beta_min + min_bound
+  }
+  
+  theta_lower <- GetVectorFromParameters(vp_nat_lower, TRUE)
+  theta_upper <- GetVectorFromParameters(vp_nat_upper, TRUE)
+  
+  return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
+}
+
+
 OptimVal <- function(theta) {
   this_vp <- GetParametersFromVector(vp, theta, TRUE)
   ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
@@ -65,8 +102,13 @@ OptimHess <- function(theta) {
   ret$hess
 }
 
-optim_res <- optim(theta_init, OptimVal, OptimGrad,
-                   method="BFGS", control=list(fnscale=-1))
+
+bounds <- GetVectorBounds(vp)
+
+optim_result <- optim(theta_init, OptimVal, OptimGrad, method="L-BFGS-B",
+                      lower=bounds$theta_lower, upper=bounds$theta_upper,
+                      control=list(fnscale=-1, factr=1))
+vp_opt <- GetParametersFromVector(vp, optim_result$par, TRUE)
 
 
 ##########
