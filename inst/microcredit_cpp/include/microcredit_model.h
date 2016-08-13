@@ -39,15 +39,16 @@ using fvar = stan::math::fvar<var>;
 
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
-  WishartMoments<T> lambda_moments(vp.lambda);
-  MultivariateNormalMoments<T> mu_moments(vp.mu);
-  T log_lik = 0.0;
-  for (int g = 0; g < vp.n_g; g++) {
-      MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
-      log_lik += mu_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
-  }
+    WishartMoments<T> lambda_moments(vp.lambda);
 
-  return log_lik;
+    MultivariateNormalMoments<T> mu_moments(vp.mu);
+    T log_lik = 0.0;
+    for (int g = 0; g < vp.n_g; g++) {
+        MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
+        log_lik += mu_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
+    }
+
+    return log_lik;
 };
 
 
@@ -216,11 +217,12 @@ struct MicroCreditElbo {
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     SetFromVector(theta, vp);
-    return
-        GetObservationLogLikelihood(data, vp) +
-        GetHierarchyLogLikelihood(vp) +
-        GetPriorLogLikelihood(vp, pp) +
-        GetEntropy(vp);
+    T obs_log_lik = GetObservationLogLikelihood(data, vp);
+
+    T hier_log_lik = GetHierarchyLogLikelihood(vp);
+    T prior = GetPriorLogLikelihood(vp, pp);
+    T entropy = GetEntropy(vp);
+    return obs_log_lik + hier_log_lik + prior + entropy;
   }
 };
 
@@ -238,11 +240,17 @@ struct Derivatives {
 
 // Get derivatives of the ELBO.
 Derivatives GetElboDerivatives(
-  MicroCreditData const &data,
-  VariationalParameters<double> &vp,
-  PriorParameters<double> const &pp,
-  bool const unconstrained,
-  bool const calculate_hessian);
+    MicroCreditData const &data,
+    VariationalParameters<double> &vp,
+    PriorParameters<double> const &pp,
+    bool const unconstrained,
+    bool const calculate_gradient,
+    bool const calculate_hessian);
+
+
+// This is not necessary, I think -- declaring GetElboDerivatives should do it.
+// extern template
+// double MicroCreditElbo::operator()(VectorXT<double> const &theta) const;
 
 
 // Get the covariance of the moment parameters from the natural parameters.

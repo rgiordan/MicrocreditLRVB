@@ -342,7 +342,7 @@ SetVPFromTrueParams <- function(true_params) {
 SetPriorsFromVP <- function(vp) {
   pp <- list()
   k <- vp$k
-  pp[["k"]] <- k
+  pp[["k_reg"]] <- k
   pp[["mu_loc"]] <- rep(0, k)
   pp[["mu_info"]] <- diag(k)
   pp[["lambda_eta"]] <- 5.0

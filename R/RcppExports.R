@@ -5,8 +5,20 @@ GetEmptyVariationalParameters <- function(k, n_g) {
     .Call('MicrocreditLRVB_GetEmptyVariationalParameters', PACKAGE = 'MicrocreditLRVB', k, n_g)
 }
 
-GetElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained) {
-    .Call('MicrocreditLRVB_GetElboDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained)
+GetParametersFromVector <- function(r_vp, r_theta, unconstrained) {
+    .Call('MicrocreditLRVB_GetParametersFromVector', PACKAGE = 'MicrocreditLRVB', r_vp, r_theta, unconstrained)
+}
+
+GetVectorFromParameters <- function(r_vp, unconstrained) {
+    .Call('MicrocreditLRVB_GetVectorFromParameters', PACKAGE = 'MicrocreditLRVB', r_vp, unconstrained)
+}
+
+ToAndFromParameters <- function(r_vp) {
+    .Call('MicrocreditLRVB_ToAndFromParameters', PACKAGE = 'MicrocreditLRVB', r_vp)
+}
+
+GetElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained) {
+    .Call('MicrocreditLRVB_GetElboDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
 }
 
 GetVariationalCovariance <- function(r_vp) {

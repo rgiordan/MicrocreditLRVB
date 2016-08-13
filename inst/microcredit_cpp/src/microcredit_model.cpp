@@ -41,14 +41,10 @@ Derivatives GetElboDerivatives(
   VariationalParameters<double> &vp,
   PriorParameters<double> const &pp,
   bool const unconstrained,
+  bool const calculate_gradient,
   bool const calculate_hessian) {
 
     vp.unconstrained = unconstrained;
-    // vp.lambda.diag_min = diag_min;
-    // vp.mu.diag_min = diag_min;
-    // for (int g=0; g < vp.n_g; g++) {
-    //     vp.mu_g[g].diag_min = diag_min;
-    // }
 
     MicroCreditElbo ELBO(data, vp, pp);
 
@@ -58,10 +54,15 @@ Derivatives GetElboDerivatives(
     VectorXd theta = GetParameterVector(vp);
 
     stan::math::set_zero_all_adjoints();
+
+    // Debugging
+    double foo = ELBO(theta);
     if (calculate_hessian) {
         stan::math::hessian(ELBO, theta, val, grad, hess);
-    } else {
+    } else if (calculate_gradient) {
         stan::math::gradient(ELBO, theta, val, grad);
+    } else {
+        val = ELBO(theta);
     }
 
     return Derivatives(val, grad, hess);

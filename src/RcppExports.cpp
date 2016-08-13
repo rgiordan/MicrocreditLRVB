@@ -18,9 +18,45 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetParametersFromVector
+Rcpp::List GetParametersFromVector(const Rcpp::List r_vp, const Eigen::Map<Eigen::VectorXd> r_theta, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetParametersFromVector(SEXP r_vpSEXP, SEXP r_thetaSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetParametersFromVector(r_vp, r_theta, unconstrained));
+    return __result;
+END_RCPP
+}
+// GetVectorFromParameters
+Eigen::VectorXd GetVectorFromParameters(const Rcpp::List r_vp, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetVectorFromParameters(SEXP r_vpSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetVectorFromParameters(r_vp, unconstrained));
+    return __result;
+END_RCPP
+}
+// ToAndFromParameters
+Rcpp::List ToAndFromParameters(const Rcpp::List r_vp);
+RcppExport SEXP MicrocreditLRVB_ToAndFromParameters(SEXP r_vpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    __result = Rcpp::wrap(ToAndFromParameters(r_vp));
+    return __result;
+END_RCPP
+}
 // GetElboDerivatives
-Rcpp::List GetElboDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_hessian, const bool unconstrained);
-RcppExport SEXP MicrocreditLRVB_GetElboDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
+Rcpp::List GetElboDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetElboDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -29,9 +65,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_y_g(r_y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< const bool >::type calculate_gradient(calculate_gradientSEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
-    __result = Rcpp::wrap(GetElboDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained));
+    __result = Rcpp::wrap(GetElboDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained));
     return __result;
 END_RCPP
 }

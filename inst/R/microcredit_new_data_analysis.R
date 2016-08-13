@@ -37,7 +37,37 @@ MakeSymmetric <- function(mat) {
 vp <- InitializeVariationalParameters(x, y, y_g)
 pp <- SetPriorsFromVP(vp)
 
-derivs <- GetElboDerivatives(x, y, y_g, vp, pp, FALSE, TRUE)
+derivs <- GetElboDerivatives(x, y, y_g, vp, pp, TRUE, TRUE, TRUE)
+theta_init <- GetVectorFromParameters(vp, TRUE)
+
+OptimVal <- function(theta) {
+  this_vp <- GetParametersFromVector(vp, theta, TRUE)
+  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
+                            calculate_gradient=FALSE, calculate_hessian=FALSE,
+                            unconstrained=TRUE)
+  cat(ret$val, "\n")
+  ret$val
+}
+
+OptimGrad <- function(theta) {
+  this_vp <- GetParametersFromVector(vp, theta, TRUE)
+  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
+                            calculate_gradient=TRUE, calculate_hessian=FALSE,
+                            unconstrained=TRUE)
+  ret$grad
+}
+
+OptimHess <- function(theta) {
+  this_vp <- GetParametersFromVector(vp, theta, TRUE)
+  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
+                            calculate_gradient=TRUE, calculate_hessian=TRUE,
+                            unconstrained=TRUE)
+  ret$hess
+}
+
+optim_res <- optim(theta_init, OptimVal, OptimGrad,
+                   method="BFGS", control=list(fnscale=-1))
+
 
 ##########
 # Fit it with VB

@@ -20,7 +20,7 @@ typedef Eigen::Triplet<double> Triplet; // For populating sparse matrices
 Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
     Rcpp::List r_list;
     r_list["n_g"] = vp.n_g;
-    r_list["k"] = vp.k;
+    r_list["k_reg"] = vp.k;
 
     // Assume this is all the same.
     r_list["diag_min"] = vp.mu.diag_min;
@@ -42,10 +42,12 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
         Rcpp::List this_mu_g;
         this_mu_g["loc"] = vp.mu_g[g].loc;
         this_mu_g["info"] = vp.mu_g[g].info.mat;
+        mu_g[g] = this_mu_g;
 
         Rcpp::List this_tau;
         this_tau["alpha"] = vp.tau[g].alpha;
         this_tau["beta"] = vp.tau[g].beta;
+        tau[g] = this_tau;
     }
 
     r_list["mu_g"] = mu_g;
@@ -142,6 +144,44 @@ Rcpp::List GetEmptyVariationalParameters(int k, int n_g) {
 }
 
 
+// [[Rcpp::export]]
+Rcpp::List GetParametersFromVector(
+    const Rcpp::List r_vp,
+    const Eigen::Map<Eigen::VectorXd> r_theta,
+    bool unconstrained) {
+
+  VectorXd theta = r_theta;
+  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+  if (theta.size() != vp.offsets.encoded_size) {
+    throw std::runtime_error("Theta is the wrong size");
+  }
+  vp.unconstrained = unconstrained;
+  SetFromVector(theta, vp);
+  Rcpp::List vp_list = ConvertParametersToList(vp);
+  return vp_list;
+}
+
+
+// [[Rcpp::export]]
+Eigen::VectorXd GetVectorFromParameters(
+    const Rcpp::List r_vp,
+    bool unconstrained) {
+
+  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+  vp.unconstrained = unconstrained;
+  VectorXd theta = GetParameterVector(vp);
+  return theta;
+}
+
+
+// For testing.
+// [[Rcpp::export]]
+Rcpp::List ToAndFromParameters(const Rcpp::List r_vp) {
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    return ConvertParametersToList(vp);
+}
+
+
 // r_y_g should be one-indexed group indicators.
 // [[Rcpp::export]]
 Rcpp::List GetElboDerivatives(
@@ -149,20 +189,22 @@ Rcpp::List GetElboDerivatives(
     const Eigen::Map<Eigen::VectorXd> r_y,
     const Eigen::Map<Eigen::VectorXi> r_y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp,
-    const bool calculate_hessian, const bool unconstrained) {
+    const bool calculate_gradient,
+    const bool calculate_hessian,
+    const bool unconstrained) {
 
-  Eigen::MatrixXd x = r_x;
-  Eigen::VectorXd y = r_y;
-  Eigen::VectorXi y_g = r_y_g;
-  MicroCreditData data(x, y, y_g);
-  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-  PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
+    Eigen::MatrixXd x = r_x;
+    Eigen::VectorXd y = r_y;
+    Eigen::VectorXi y_g = r_y_g;
+    MicroCreditData data(x, y, y_g);
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
 
-  Derivatives derivs =
-    GetElboDerivatives(data, vp, pp, unconstrained, calculate_hessian);
-
-  Rcpp::List ret = ConvertDerivativesToList(derivs);
-  return ret;
+    Derivatives derivs =
+        GetElboDerivatives(data, vp, pp, unconstrained,
+            calculate_gradient, calculate_hessian);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
 }
 
 
