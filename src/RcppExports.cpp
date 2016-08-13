@@ -35,18 +35,6 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// PriorSensitivity
-// Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp);
-RcppExport SEXP MicrocreditLRVB_PriorSensitivity(SEXP r_vpSEXP, SEXP r_ppSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject __result;
-    Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
-    __result = Rcpp::wrap(PriorSensitivity(r_vp, r_pp));
-    return __result;
-END_RCPP
-}
 // GetVariationalCovariance
 Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetVariationalCovariance(SEXP r_vpSEXP) {

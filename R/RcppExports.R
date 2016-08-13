@@ -9,10 +9,6 @@ GetElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, u
     .Call('MicrocreditLRVB_GetElboDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_hessian, unconstrained)
 }
 
-PriorSensitivity <- function(r_vp, r_pp) {
-    .Call('MicrocreditLRVB_PriorSensitivity', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp)
-}
-
 GetVariationalCovariance <- function(r_vp) {
     .Call('MicrocreditLRVB_GetVariationalCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }

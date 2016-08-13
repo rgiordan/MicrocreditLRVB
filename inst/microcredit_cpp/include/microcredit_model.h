@@ -235,6 +235,16 @@ struct Derivatives {
   val(val), grad(grad), hess(hess) {};
 };
 
+
+// Get derivatives of the ELBO.
+Derivatives GetElboDerivatives(
+  MicroCreditData const &data,
+  VariationalParameters<double> &vp,
+  PriorParameters<double> const &pp,
+  bool const unconstrained,
+  bool const calculate_hessian);
+
+
 // Get the covariance of the moment parameters from the natural parameters.
 SparseMatrix<double> GetCovariance(
     const VariationalParameters<double> &vp,

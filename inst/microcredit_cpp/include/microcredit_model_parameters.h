@@ -151,10 +151,7 @@ private:
 
         tau = GammaNatural<T>();
 
-        lambda_diag_min = 0.0;
-        lambda_n_min = k + 0.01;
-
-        offsets = PriorOffsets(*this);
+        offsets = PriorOffsets();
     }
 public:
   // Parameters:
@@ -168,10 +165,6 @@ public:
   T lambda_eta;
   T lambda_alpha;
   T lambda_beta;
-
-  // Optimization parameters for lambda
-  T lambda_diag_min;
-  T lambda_n_min;
 
   // Methods:
   PriorParameters(int k): k(k) {
@@ -194,9 +187,6 @@ public:
     pp.lambda_beta = lambda_beta;
 
     pp.tau = tau;
-
-    pp.lambda_diag_min = lambda_diag_min;
-    pp.lambda_n_min = lambda_n_min;
 
     return pp;
   };

@@ -29,16 +29,16 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
     r_list["mu_info"] = vp.mu.info.mat;
 
     r_list["lambda_v"] = vp.lambda.v.mat;
-    r_list["lambvda_n"] = vp.mu.n;
+    r_list["lambda_n"] = vp.lambda.n;
 
-    r_list["tau_alpha"] = vp.tau.alpha;
-    r_list["tau_beta"] = vp.tau.beta;
-    r_list["tau_alpha_min"] = vp.tau.alpha_min;
-    r_list["tau_beta_min"] = vp.tau.beta_min;
+    if (vp.n_g > 0) {
+        r_list["tau_alpha_min"] = vp.tau[0].alpha_min;
+        r_list["tau_beta_min"] = vp.tau[0].beta_min;
+    }
 
-    Rcpp::List mu_g(vp.n_groups);
-    Rcpp::List tau(vp.n_groups);
-    for (int g = 0; g < vp.n_groups; g++) {
+    Rcpp::List mu_g(vp.n_g);
+    Rcpp::List tau(vp.n_g);
+    for (int g = 0; g < vp.n_g; g++) {
         Rcpp::List this_mu_g;
         this_mu_g["loc"] = vp.mu_g[g].loc;
         this_mu_g["info"] = vp.mu_g[g].info.mat;
@@ -55,36 +55,52 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
 };
 
 
-VariationalParameters<double> ConvertParametersFromList(Rcpp::List r_list) {
+VariationalParameters<double>
+ConvertParametersFromList(Rcpp::List r_list) {
 
     int k_reg = r_list["k_reg"];
-    int n_groups = r_list["n_groups"];
-    VariationalParameters<double> vp(k_reg, n_groups);
+    int n_g = r_list["n_g"];
+    VariationalParameters<double> vp(k_reg, n_g, true);
 
-    vp.beta.loc = Rcpp::as<VectorXd>(r_list["beta_loc"]);
-    vp.beta.info.mat = Rcpp::as<MatrixXd>(r_list["beta_info"]);
-    vp.beta.diag_min = Rcpp::as<double>(r_list["beta_diag_min"]);
+    double diag_min = Rcpp::as<double>(r_list["diag_min"]);
+    vp.mu.loc = Rcpp::as<Eigen::VectorXd>(r_list["mu_loc"]);
+    vp.mu.info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
+    vp.mu.diag_min = diag_min;
 
-    vp.mu.loc = Rcpp::as<double>(r_list["mu_loc"]);
-    vp.mu.info = Rcpp::as<double>(r_list["mu_info"]);
-    vp.mu.info_min = Rcpp::as<double>(r_list["mu_info_min"]);
+    vp.lambda.v.mat = Rcpp::as<Eigen::MatrixXd>(r_list["lambda_v"]);
+    vp.lambda.n = Rcpp::as<double>(r_list["lambda_n"]);
+    vp.lambda.diag_min = diag_min;
 
-    vp.tau.alpha = Rcpp::as<double>(r_list["tau_alpha"]);
-    vp.tau.beta = Rcpp::as<double>(r_list["tau_beta"]);
-    vp.tau.alpha_min = Rcpp::as<double>(r_list["tau_alpha_min"]);
-    vp.tau.beta_min = Rcpp::as<double>(r_list["tau_beta_min"]);
-
-    Rcpp::List u_list = r_list["u_vec"];
-        if (vp.n_groups != u_list.size()) {
-        throw std::runtime_error("u size does not match");
+    double tau_alpha_min = 0;
+    double tau_beta_min = 0;
+    if (vp.n_g > 0) {
+        tau_alpha_min = Rcpp::as<double>(r_list["tau_alpha_min"]);
+        tau_beta_min = Rcpp::as<double>(r_list["tau_beta_min"]);
     }
 
-    double u_info_min = Rcpp::as<double>(r_list["u_info_min"]);
-    for (int g = 0; g < vp.n_groups; g++) {
-        Rcpp::List this_u = u_list[g];
-        vp.u[g].loc = Rcpp::as<double>(this_u["u_loc"]);
-        vp.u[g].info = Rcpp::as<double>(this_u["u_info"]);
-        vp.u[g].info_min = u_info_min;
+    Rcpp::List mu_g_list = r_list["mu_g"];
+    if (vp.n_g != mu_g_list.size()) {
+        throw std::runtime_error("mu_g size does not match");
+    }
+
+    for (int g = 0; g < vp.n_g; g++) {
+        Rcpp::List this_mu_g = mu_g_list[g];
+        vp.mu_g[g].loc = Rcpp::as<Eigen::VectorXd>(this_mu_g["loc"]);
+        vp.mu_g[g].info.mat = Rcpp::as<Eigen::MatrixXd>(this_mu_g["info"]);
+        vp.mu_g[g].diag_min = diag_min;
+    }
+
+    Rcpp::List tau_list = r_list["tau"];
+    if (vp.n_g != tau_list.size()) {
+        throw std::runtime_error("tau size does not match");
+    }
+
+    for (int g = 0; g < vp.n_g; g++) {
+        Rcpp::List this_tau = tau_list[g];
+        vp.tau[g].alpha = Rcpp::as<double>(this_tau["alpha"]);
+        vp.tau[g].beta = Rcpp::as<double>(this_tau["beta"]);
+        vp.tau[g].alpha_min = tau_alpha_min;
+        vp.tau[g].beta_min = tau_beta_min;
     }
 
     return vp;
@@ -96,18 +112,15 @@ PriorParameters<double> ConvertPriorsFromlist(Rcpp::List r_list) {
 
     int k_reg = r_list["k_reg"];
     PriorParameters<double> pp(k_reg);
-    pp.mu_mean = Rcpp::as<Eigen::VectorXd>(r_list["mu_mean"]);
-    pp.mu_info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
+    pp.mu.loc = Rcpp::as<Eigen::VectorXd>(r_list["mu_loc"]);
+    pp.mu.info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
 
     pp.lambda_eta = Rcpp::as<double>(r_list["lambda_eta"]);
     pp.lambda_alpha = Rcpp::as<double>(r_list["lambda_alpha"]);
     pp.lambda_beta = Rcpp::as<double>(r_list["lambda_beta"]);
 
-    pp.tau_alpha = Rcpp::as<double>(r_list["tau_alpha"]);
-    pp.tau_beta = Rcpp::as<double>(r_list["tau_beta"]);
-
-    pp.lambda_diag_min = Rcpp::as<double>(r_list["lambda_diag_min"]);
-    pp.lambda_n_min = Rcpp::as<double>(r_list["lambda_n_min"]);
+    pp.tau.alpha = Rcpp::as<double>(r_list["tau_alpha"]);
+    pp.tau.beta = Rcpp::as<double>(r_list["tau_beta"]);
 
     return pp;
 };
@@ -124,7 +137,7 @@ Rcpp::List ConvertDerivativesToList(Derivatives derivs) {
 
 // [[Rcpp::export]]
 Rcpp::List GetEmptyVariationalParameters(int k, int n_g) {
-    VariationalParameters<double> vp(k, n_g);
+    VariationalParameters<double> vp(k, n_g, true);
     return ConvertParametersToList(vp);
 }
 
@@ -153,7 +166,7 @@ Rcpp::List GetElboDerivatives(
 }
 
 
-// [[Rcpp::export]]
+// // [[Rcpp::export]]
 // Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp) {
 //   // TODO: Add an unconstrained flag like elsewhere
 //
