@@ -235,4 +235,10 @@ struct Derivatives {
   val(val), grad(grad), hess(hess) {};
 };
 
+// Get the covariance of the moment parameters from the natural parameters.
+SparseMatrix<double> GetCovariance(
+    const VariationalParameters<double> &vp,
+    const Offsets moment_offsets);
+
+
 # endif
