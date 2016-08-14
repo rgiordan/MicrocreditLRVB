@@ -10,7 +10,7 @@ library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
 source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data5"
+analysis_name <- "simulated_data_easy"
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
@@ -25,94 +25,40 @@ x <- stan_results$stan_dat$x
 y <- stan_results$stan_dat$y
 y_g <- stan_results$stan_dat$y_group
 
-##################
-
-MakeSymmetric <- function(mat) {
-  return(0.5 * (mat + t(mat)))
-}
 
 ################################
 # Initialize the data
 
-vp <- InitializeVariationalParameters(x, y, y_g)
-pp <- SetPriorsFromVP(vp)
-
-derivs <- GetElboDerivatives(x, y, y_g, vp, pp, TRUE, TRUE, TRUE)
-theta_init <- GetVectorFromParameters(vp, TRUE)
+vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+pp <- SetPriorsFromVP(vp_base)
 
 
-GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=1e9, min_bound=0.0000001) {
-  # Get sensible extreme bounds, for example for L-BFGS-B
-  info_lower <- diag(vp_nat_lower$k_reg) * vp_nat_lower$diag_min * (1 + min_bound)
-  info_upper <- diag(vp_nat_lower$k_reg) * info_bound
-  
-  vp_nat_lower <- vp_base
-  vp_nat_lower$mu_loc[] <- -1 * loc_bound
-  vp_nat_lower$mu_info[,] <- info_lower
-  vp_nat_lower$lambda_v <- info_lower
-  vp_nat_lower$lambda_n <- min_bound 
-  for (g in 1:vp_nat_lower$n_g) {
-    vp_nat_lower$mu_g[[g]][["loc"]] <- -1 * loc_bound
-    vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
-    vp_nat_lower$tau[[g]][["alpha"]] <- vp_nat_lower$tau_alpha_min + min_bound
-    vp_nat_lower$tau[[g]][["beta"]] <- vp_nat_lower$tau_beta_min + min_bound
-  }
-
-  vp_nat_upper <- vp_base
-  vp_nat_upper$mu_loc[] <- loc_bound
-  vp_nat_upper$mu_info[,] <- info_upper
-  vp_nat_upper$lambda_v <- info_upper
-  vp_nat_upper$lambda_n <- min_bound 
-  for (g in 1:vp_nat_lower$n_g) {
-    vp_nat_upper$mu_g[[g]][["loc"]] <- loc_bound
-    vp_nat_upper$mu_g[[g]][["info"]] <- info_upper
-    vp_nat_upper$tau[[g]][["alpha"]] <- vp_nat_upper$tau_alpha_min + min_bound
-    vp_nat_upper$tau[[g]][["beta"]] <- vp_nat_upper$tau_beta_min + min_bound
-  }
-  
-  theta_lower <- GetVectorFromParameters(vp_nat_lower, TRUE)
-  theta_upper <- GetVectorFromParameters(vp_nat_upper, TRUE)
-  
-  return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
-}
-
-
-OptimVal <- function(theta) {
-  this_vp <- GetParametersFromVector(vp, theta, TRUE)
-  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
-                            calculate_gradient=FALSE, calculate_hessian=FALSE,
-                            unconstrained=TRUE)
-  cat(ret$val, "\n")
-  ret$val
-}
-
-OptimGrad <- function(theta) {
-  this_vp <- GetParametersFromVector(vp, theta, TRUE)
-  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
-                            calculate_gradient=TRUE, calculate_hessian=FALSE,
-                            unconstrained=TRUE)
-  ret$grad
-}
-
-OptimHess <- function(theta) {
-  this_vp <- GetParametersFromVector(vp, theta, TRUE)
-  ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
-                            calculate_gradient=TRUE, calculate_hessian=TRUE,
-                            unconstrained=TRUE)
-  ret$hess
-}
-
-
-bounds <- GetVectorBounds(vp)
-
-optim_result <- optim(theta_init, OptimVal, OptimGrad, method="L-BFGS-B",
+bounds <- GetVectorBounds(vp_base)
+theta_init <- GetVectorFromParameters(vp_base, TRUE)
+opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=GetLikDerivatives)
+optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower, upper=bounds$theta_upper,
-                      control=list(fnscale=-1, factr=1))
-vp_opt <- GetParametersFromVector(vp, optim_result$par, TRUE)
+                      control=list(fnscale=-1, maxit=1000))
+# optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="Nelder-Mead",
+#                       control=list(fnscale=-1))
+
+vp_opt <- GetParametersFromVector(vp_base, optim_result$par, TRUE)
+
+
+
+opt_fns$OptimGrad(optim_result$par)
+
+hess <- opt_fns$OptimHess(optim_result$par)
+hess_eig <- eigen(hess)
+min(hess_eig$values)
+max(hess_eig$values)
+
 
 
 ##########
 # Fit it with VB
+# Test
+vp_new <- GetParametersFromVector(vp_base, GetVectorFromParameters(vp_base, TRUE), TRUE)
 
 
 max_iters <- 500

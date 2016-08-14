@@ -21,6 +21,10 @@ GetElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, 
     .Call('MicrocreditLRVB_GetElboDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
 }
 
+GetLikDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained) {
+    .Call('MicrocreditLRVB_GetLikDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
+}
+
 GetVariationalCovariance <- function(r_vp) {
     .Call('MicrocreditLRVB_GetVariationalCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }

@@ -27,33 +27,105 @@ SimulateData <- function(true_params, n_g, n_per_group) {
 }
 
 
-#################################################
-# Fitting:
 
-InitializeVariationalParameters <- function(x, y, y_g, diag_min=1e-10) {
+GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=1e9, min_bound=0.0000001) {
+  # Get sensible extreme bounds, for example for L-BFGS-B
+  info_lower <- diag(vp_base$k_reg) * vp_base$diag_min * (1 + min_bound)
+  info_upper <- diag(vp_base$k_reg) * info_bound
+  
+  vp_nat_lower <- vp_base
+  vp_nat_lower$mu_loc[] <- -1 * loc_bound
+  vp_nat_lower$mu_info[,] <- info_lower
+  vp_nat_lower$lambda_v <- info_lower
+  vp_nat_lower$lambda_n <- min_bound 
+  for (g in 1:vp_nat_lower$n_g) {
+    vp_nat_lower$mu_g[[g]][["loc"]] <- -1 * loc_bound
+    vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
+    vp_nat_lower$tau[[g]][["alpha"]] <- vp_nat_lower$tau_alpha_min + min_bound
+    vp_nat_lower$tau[[g]][["beta"]] <- vp_nat_lower$tau_beta_min + min_bound
+  }
+  
+  vp_nat_upper <- vp_base
+  vp_nat_upper$mu_loc[] <- loc_bound
+  vp_nat_upper$mu_info[,] <- info_upper
+  vp_nat_upper$lambda_v <- info_upper
+  vp_nat_upper$lambda_n <- min_bound 
+  for (g in 1:vp_nat_lower$n_g) {
+    vp_nat_upper$mu_g[[g]][["loc"]] <- loc_bound
+    vp_nat_upper$mu_g[[g]][["info"]] <- info_upper
+    vp_nat_upper$tau[[g]][["alpha"]] <- vp_nat_upper$tau_alpha_min + min_bound
+    vp_nat_upper$tau[[g]][["beta"]] <- vp_nat_upper$tau_beta_min + min_bound
+  }
+  
+  theta_lower <- GetVectorFromParameters(vp_nat_lower, TRUE)
+  theta_upper <- GetVectorFromParameters(vp_nat_upper, TRUE)
+  
+  return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
+}
+
+
+GetOptimFunctions <- function(x, y, y_g, vp_base, pp, DerivFun=GetElboDerivatives) {
+  OptimVal <- function(theta) {
+    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
+    ret <- DerivFun(x, y, y_g, this_vp, pp,
+                calculate_gradient=FALSE, calculate_hessian=FALSE,
+                unconstrained=TRUE)
+    cat(ret$val, "\n")
+    ret$val
+  }
+  
+  OptimGrad <- function(theta) {
+    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
+    ret <- DerivFun(x, y, y_g, this_vp, pp,
+                calculate_gradient=TRUE, calculate_hessian=FALSE,
+                unconstrained=TRUE)
+    cat(".")
+    ret$grad
+  }
+  
+  OptimHess <- function(theta) {
+    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
+    ret <- DerivFun(x, y, y_g, this_vp, pp,
+                calculate_gradient=TRUE, calculate_hessian=TRUE,
+                unconstrained=TRUE)
+    ret$hess
+  }
+  return(list(OptimVal=OptimVal, OptimGrad=OptimGrad, OptimHess=OptimHess))
+}
+
+
+InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
   # Initial parameters from data
   vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
+  vp$diag_min <- diag_min
+  vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
+  min_info <- diag(vp$k_reg) * diag_min
+  
   vp$mu_loc <- summary(lm(y ~ x - 1))$coefficients[,"Estimate"]
   mu_cov <- vp$mu_loc %*% t(vp$mu_loc) + 10 * diag(vp$k)
-  vp$mu_info <- solve(mu_cov)
+  vp$mu_info <- solve(mu_cov) + min_info
   mu_g_mat <- matrix(NaN, vp$n_g, vp$k)
   for (g in 1:vp$n_g) {
     stopifnot(sum(y_g == g) > 1)
     g_reg <- summary(lm(y ~ x - 1, subset=y_g == g))
     mu_g_mean <- g_reg$coefficients[,"Estimate"]
     mu_g_cov <- mu_g_mean %*% t(mu_g_mean) + 10 * diag(vp$k)
-    vp$mu_g[[g]] <- list(loc=mu_g_mean, info=solve(mu_g_cov))
+    vp$mu_g[[g]] <- list(loc=mu_g_mean, info=solve(mu_g_cov) + min_info)
 
     e_tau <- 1 / g_reg$sigma ^ 2
-    vp$tau[[g]] <- list(alpha=0.01 * e_tau, beta=0.01)
+    vp$tau[[g]] <- list(alpha=0.01 * e_tau + tau_min, beta=0.01 + tau_min)
     mu_g_mat[g, ] <- mu_g_mean
   }
   vp$lambda_n <- vp$k + 1
-  vp$lambda_v <- solve(cov(mu_g_mat)) / vp$lambda_n + diag_min * diag(vp$k)
+  vp$lambda_v <- solve(cov(mu_g_mat)) / vp$lambda_n + min_info
 
-  vp$diag_min <- diag_min
   return(vp)
 }
+
+
+#################################################
+# Fitting:
+
 
 
 MVNMeansFromGradient <- function(e_mu_grad, e_mu2_grad) {

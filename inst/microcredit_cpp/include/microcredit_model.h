@@ -56,26 +56,26 @@ template <typename T>
 T GetObservationLogLikelihood(
     MicroCreditData const &data, VariationalParameters<T> const &vp) {
 
-  UnivariateNormalMoments<T> y_obs_mean;
+    UnivariateNormalMoments<T> y_obs_mean;
 
-  T log_lik = 0.0;
-  for (int n = 0; n < data.n; n++) {
-    UnivariateNormalMoments<T> y_obs;
-    VectorXT<T> x_row = data.x.row(n).template cast<T>();
-    y_obs.e = data.y(n);
-    y_obs.e2 = pow(data.y(n), 2);
+    T log_lik = 0.0;
+    for (int n = 0; n < data.n; n++) {
+        UnivariateNormalMoments<T> y_obs;
+        VectorXT<T> x_row = data.x.row(n).template cast<T>();
+        y_obs.e = data.y(n);
+        y_obs.e2 = pow(data.y(n), 2);
 
-    int g = data.y_g(n) - 1; // The group that this observation belongs to.
-    // TODO: cache the moments or pass in moments.
-    GammaMoments<T> tau_moments(vp.tau[g]);
-    MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
+        int g = data.y_g(n) - 1; // The group that this observation belongs to.
+        // TODO: cache the moments or pass in moments.
+        GammaMoments<T> tau_moments(vp.tau[g]);
+        MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
 
-    y_obs_mean.e = x_row.dot(mu_g_moments.e_vec);
-    y_obs_mean.e2 = x_row.dot(mu_g_moments.e_outer.mat * x_row);
+        y_obs_mean.e = x_row.dot(mu_g_moments.e_vec);
+        y_obs_mean.e2 = x_row.dot(mu_g_moments.e_outer.mat * x_row);
 
-    log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, tau_moments);
-  }
-  return log_lik;
+        log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, tau_moments);
+    }
+    return log_lik;
 };
 
 
@@ -218,11 +218,33 @@ struct MicroCreditElbo {
     VariationalParameters<T> vp(base_vp);
     SetFromVector(theta, vp);
     T obs_log_lik = GetObservationLogLikelihood(data, vp);
-
     T hier_log_lik = GetHierarchyLogLikelihood(vp);
     T prior = GetPriorLogLikelihood(vp, pp);
     T entropy = GetEntropy(vp);
     return obs_log_lik + hier_log_lik + prior + entropy;
+  }
+};
+
+
+// Likelihood + entropy for lambda only.
+struct MicroCreditLikelihood {
+  MicroCreditData data;
+  VariationalParameters<double> base_vp;
+  PriorParameters<double> pp;
+
+  MicroCreditLikelihood(
+      MicroCreditData const &data,
+      VariationalParameters<double> const &base_vp,
+      PriorParameters<double> const &pp):
+    data(data), base_vp(base_vp), pp(pp) {};
+
+  template <typename T> T operator()(VectorXT<T> const &theta) const {
+    VariationalParameters<T> vp(base_vp);
+    SetFromVector(theta, vp);
+    T obs_log_lik = GetObservationLogLikelihood(data, vp);
+    T hier_log_lik = GetHierarchyLogLikelihood(vp);
+    T prior = GetPriorLogLikelihood(vp, pp);
+    return obs_log_lik + hier_log_lik + prior;
   }
 };
 
@@ -240,6 +262,16 @@ struct Derivatives {
 
 // Get derivatives of the ELBO.
 Derivatives GetElboDerivatives(
+    MicroCreditData const &data,
+    VariationalParameters<double> &vp,
+    PriorParameters<double> const &pp,
+    bool const unconstrained,
+    bool const calculate_gradient,
+    bool const calculate_hessian);
+
+
+// Get derivatives of the ELBO.
+Derivatives GetLikDerivatives(
     MicroCreditData const &data,
     VariationalParameters<double> &vp,
     PriorParameters<double> const &pp,

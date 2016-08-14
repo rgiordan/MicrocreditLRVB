@@ -55,14 +55,43 @@ Derivatives GetElboDerivatives(
 
     stan::math::set_zero_all_adjoints();
 
-    // Debugging
-    double foo = ELBO(theta);
     if (calculate_hessian) {
         stan::math::hessian(ELBO, theta, val, grad, hess);
     } else if (calculate_gradient) {
         stan::math::gradient(ELBO, theta, val, grad);
     } else {
         val = ELBO(theta);
+    }
+
+    return Derivatives(val, grad, hess);
+}
+
+
+Derivatives GetLikDerivatives(
+  MicroCreditData const &data,
+  VariationalParameters<double> &vp,
+  PriorParameters<double> const &pp,
+  bool const unconstrained,
+  bool const calculate_gradient,
+  bool const calculate_hessian) {
+
+    vp.unconstrained = unconstrained;
+
+    MicroCreditLikelihood Lik(data, vp, pp);
+
+    double val;
+    VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
+    MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
+    VectorXd theta = GetParameterVector(vp);
+
+    stan::math::set_zero_all_adjoints();
+
+    if (calculate_hessian) {
+        stan::math::hessian(Lik, theta, val, grad, hess);
+    } else if (calculate_gradient) {
+        stan::math::gradient(Lik, theta, val, grad);
+    } else {
+        val = Lik(theta);
     }
 
     return Derivatives(val, grad, hess);

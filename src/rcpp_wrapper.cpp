@@ -208,6 +208,32 @@ Rcpp::List GetElboDerivatives(
 }
 
 
+// r_y_g should be one-indexed group indicators.
+// [[Rcpp::export]]
+Rcpp::List GetLikDerivatives(
+    const Eigen::Map<Eigen::MatrixXd> r_x,
+    const Eigen::Map<Eigen::VectorXd> r_y,
+    const Eigen::Map<Eigen::VectorXi> r_y_g,
+    const Rcpp::List r_vp, const Rcpp::List r_pp,
+    const bool calculate_gradient,
+    const bool calculate_hessian,
+    const bool unconstrained) {
+
+    Eigen::MatrixXd x = r_x;
+    Eigen::VectorXd y = r_y;
+    Eigen::VectorXi y_g = r_y_g;
+    MicroCreditData data(x, y, y_g);
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
+
+    Derivatives derivs =
+        GetLikDerivatives(data, vp, pp, unconstrained,
+            calculate_gradient, calculate_hessian);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
+}
+
+
 // // [[Rcpp::export]]
 // Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp) {
 //   // TODO: Add an unconstrained flag like elsewhere

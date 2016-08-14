@@ -72,6 +72,24 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetLikDerivatives
+Rcpp::List GetLikDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetLikDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type r_x(r_xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_y(r_ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_y_g(r_y_gSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< const bool >::type calculate_gradient(calculate_gradientSEXP);
+    Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
+    Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetLikDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained));
+    return __result;
+END_RCPP
+}
 // GetVariationalCovariance
 Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetVariationalCovariance(SEXP r_vpSEXP) {

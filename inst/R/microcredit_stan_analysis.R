@@ -10,7 +10,7 @@ library(MicrocreditLRVB)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
-analysis_name <- "simulated_data5"
+analysis_name <- "simulated_data_easy"
 
 set.seed(42)
 
@@ -23,7 +23,7 @@ k <- 2
 pp <- list()
 pp[["k"]] <- k
 pp[["mu_mean"]] <- rep(0, k)
-pp[["mu_info"]] <- matrix(c(0.03, 0., 0, 0.02), k, k)
+pp[["mu_info"]] <- matrix(c(0.02, 0., 0, 0.02), k, k)
 pp[["lambda_eta"]] <- 15.01
 pp[["lambda_alpha"]] <- 20.01
 pp[["lambda_beta"]] <- 20.01
@@ -39,15 +39,15 @@ pp[["lambda_n_min"]] <- k + 0.5
 true_params <- list()
 
 # Set parameters similar to the microcredit data.  Note that the true mean is
-# an unlikely value relative to the prior.  This will result in a non-robsut
+# an unlikely value relative to the prior.  This will result in a non-robust
 # posterior.
-true_params$true_mu <- c(15, 15)
+true_params$true_mu <- c(0, 1)
 true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
 true_params$true_lambda <- solve(true_params$true_sigma)
-true_params$true_tau <- 1e-4
+true_params$true_tau <- 1e-2
 
 # Number of groups
-n_g <- 7
+n_g <- 30
 
 # Number of data points per group
 n_per_group <- 100
@@ -113,10 +113,7 @@ stan_dat$mu_prior_sigma
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 10000
-control <- list(adapt_t0 = 10,       # default = 10
-                stepsize = 1,        # default = 1
-                max_treedepth = 6)   # default = 10
+iters <- 5000
 seed <- 42
 
 # Note: this takes a while.
