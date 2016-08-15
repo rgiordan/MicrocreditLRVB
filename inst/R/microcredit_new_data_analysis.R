@@ -25,42 +25,85 @@ x <- stan_results$stan_dat$x
 y <- stan_results$stan_dat$y
 y_g <- stan_results$stan_dat$y_group
 
+#############################
+# Check conversion
+
+vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+SummarizeVpNat(vp_base)
+theta_init <- GetVectorFromParameters(vp_base, TRUE)
+vp_check <- GetParametersFromVector(vp_base, theta_init, TRUE)
+SummarizeVpNat(vp_check)
 
 ################################
 # Initialize the data
 
-#vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
-vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
-pp <- SetPriorsFromVP(vp_base)
 
+vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+theta_init <- GetVectorFromParameters(vp_base, TRUE)
+pp <- SetPriorsFromVP(vp_base)
+vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
+
+if (FALSE) {
+  vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
+  vp_mask$mu_loc[]  <- 1
+  vp_mask$mu_info[]  <- 1
+  vp_mask$lambda_v[]  <- 1
+  vp_mask$lambda_n[]  <- 1
+  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+}
+
+if (FALSE) {
+  vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
+  for (g in 1:(vp_base$n_g)) {
+    vp_mask$mu_g[[g]][["loc"]][]  <- 1
+    vp_mask$mu_g[[g]][["info"]][]  <- 1
+  }
+  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+}
+
+mask <- rep(TRUE, length(theta_init))
 
 DerivFun <- function(x, y, y_g, base_vp, pp,
                      calculate_gradient, calculate_hessian,
                      unconstrained) {
   GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
-                           calculate_gradient=calculate_gradient, calculate_hessian=calculate_hessian,
-                           include_obs=TRUE, include_hier=TRUE, include_prior=TRUE, include_entropy=TRUE,
+                           calculate_gradient=calculate_gradient,
+                           calculate_hessian=calculate_hessian,
+                           include_obs=TRUE, include_hier=FALSE,
+                           include_prior=FALSE, include_entropy=FALSE,
                            unconstrained=TRUE)
 }
 
-vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
 
-bounds <- GetVectorBounds(vp_base)
-theta_init <- GetVectorFromParameters(vp_base, TRUE)
-opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun)
-opt_fns$OptimVal(theta_init)
-opt_fns$OptimGrad(theta_init)
+bounds <- GetVectorBounds(vp_base, loc_bound=20, info_bound=10)
+GetParametersFromVector(vp_base, theta_init, TRUE)
+opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
+opt_fns$OptimVal(theta_init[mask])
+opt_fns$OptimGrad(theta_init[mask])
 
 stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta_init))
 
-optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
-                      lower=bounds$theta_lower, upper=bounds$theta_upper,
+optim_result <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
+                      lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
                       control=list(fnscale=-1, maxit=1000))
 # optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="Nelder-Mead",
 #                       control=list(fnscale=-1))
+any(abs(optim_result$par - bounds$theta_lower[mask]) < 1e-8) ||
+  any(abs(optim_result$par - bounds$theta_upper[mask]) < 1e-8)
 
 vp_opt <- GetParametersFromVector(vp_base, optim_result$par, TRUE)
+SummarizeVpNat(vp_opt)
+
 nat_result <- SummarizeNaturalParameters(vp_opt)
+
+plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
+
+nat_reg_result <-
+  filter(SummarizeNaturalParameters(vp_reg), par == "mu_g") %>%
+  dcast(group ~ component, value.var="val")
+plot(as.matrix(true_mu_g[,1]), nat_reg_result[["1"]]); abline(0, 1)
+
 
 ##############
 # Comare to GLM
@@ -83,9 +126,12 @@ vb_mu_g <-
   dcast(group ~ component, value.var="val")
 
 if (FALSE) {
-  plot(as.matrix(ranef(glm_res)$y_g)[,1], true_mu_g[,1]); abline(0, 1)
-  plot(as.matrix(ranef(glm_res)$y_g)[,1], vb_mu_g[["1"]]); abline(0, 1)
+  plot(as.matrix(true_mu_g[,1]), as.matrix(ranef(glm_res)$y_g)[,1]); abline(0, 1)
+  plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
+  plot(as.matrix(true_mu_g[,2]), vb_mu_g[["2"]]); abline(0, 1)
 }
+
+
 
 
 opt_fns$OptimGrad(optim_result$par)
@@ -94,6 +140,16 @@ hess <- opt_fns$OptimHess(optim_result$par)
 hess_eig <- eigen(hess)
 min(hess_eig$values)
 max(hess_eig$values)
+
+
+
+
+
+
+
+
+
+
 
 
 

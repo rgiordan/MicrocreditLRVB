@@ -53,6 +53,20 @@ GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10) {
 }
 
 
+SummarizeVpNat <- function(vp_nat) {
+  print("Mu:")
+  print(vp_nat$mu_loc)
+  print(vp_nat$mu_info)
+  print("Lambda:")
+  print(vp_nat$lambda_v)
+  print(vp_nat$lambda_n)
+  print("Mu_g[1]:")
+  print(vp_nat$mu_g[[1]])
+  print("Tau[1]:")
+  print(vp_nat$tau[[1]])
+}
+
+
 GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
                               DerivFun=GetElboDerivatives,
                               mask=rep(TRUE, length(GetVectorFromParameters(vp_base, TRUE)))) {
@@ -76,15 +90,14 @@ GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
     ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=FALSE,
                 unconstrained=TRUE)
-    cat(".")
-    ret$grad
+    ret$grad[mask]
   }
   
   OptimHess <- function(theta) {
     ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=TRUE,
                 unconstrained=TRUE)
-    ret$hess
+    ret$hess[mask, mask]
   }
   return(list(OptimVal=OptimVal, OptimGrad=OptimGrad, OptimHess=OptimHess))
 }

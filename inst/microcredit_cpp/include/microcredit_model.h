@@ -45,7 +45,7 @@ T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
     T log_lik = 0.0;
     for (int g = 0; g < vp.n_g; g++) {
         MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
-        log_lik += mu_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
+        log_lik += mu_g_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
     }
 
     return log_lik;
