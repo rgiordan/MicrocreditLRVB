@@ -208,46 +208,33 @@ struct MicroCreditElbo {
   VariationalParameters<double> base_vp;
   PriorParameters<double> pp;
 
+  bool include_obs;
+  bool include_hier;
+  bool include_prior;
+  bool include_entropy;
+
   MicroCreditElbo(
       MicroCreditData const &data,
       VariationalParameters<double> const &base_vp,
       PriorParameters<double> const &pp):
-    data(data), base_vp(base_vp), pp(pp) {};
+    data(data), base_vp(base_vp), pp(pp) {
+        include_obs = include_hier = include_prior = include_entropy = true;
+    };
 
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
     SetFromVector(theta, vp);
-    T obs_log_lik = GetObservationLogLikelihood(data, vp);
-    T hier_log_lik = GetHierarchyLogLikelihood(vp);
-    T prior = GetPriorLogLikelihood(vp, pp);
-    T entropy = GetEntropy(vp);
+    T obs_log_lik = 0;
+    T hier_log_lik = 0;
+    T prior = 0;
+    T entropy = 0;
+    if (include_obs) obs_log_lik = GetObservationLogLikelihood(data, vp);
+    if (include_hier) hier_log_lik = GetHierarchyLogLikelihood(vp);
+    if (include_prior) prior = GetPriorLogLikelihood(vp, pp);
+    if (include_entropy) entropy = GetEntropy(vp);
     return obs_log_lik + hier_log_lik + prior + entropy;
   }
 };
-
-
-// Likelihood + entropy for lambda only.
-struct MicroCreditLikelihood {
-  MicroCreditData data;
-  VariationalParameters<double> base_vp;
-  PriorParameters<double> pp;
-
-  MicroCreditLikelihood(
-      MicroCreditData const &data,
-      VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp):
-    data(data), base_vp(base_vp), pp(pp) {};
-
-  template <typename T> T operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    SetFromVector(theta, vp);
-    T obs_log_lik = GetObservationLogLikelihood(data, vp);
-    T hier_log_lik = GetHierarchyLogLikelihood(vp);
-    T prior = GetPriorLogLikelihood(vp, pp);
-    return obs_log_lik + hier_log_lik + prior;
-  }
-};
-
 
 
 struct Derivatives {
@@ -271,18 +258,17 @@ Derivatives GetElboDerivatives(
 
 
 // Get derivatives of the ELBO.
-Derivatives GetLikDerivatives(
+Derivatives GetElboDerivatives(
     MicroCreditData const &data,
     VariationalParameters<double> &vp,
     PriorParameters<double> const &pp,
+    bool include_obs,
+    bool include_hier,
+    bool include_prior,
+    bool include_entropy,
     bool const unconstrained,
     bool const calculate_gradient,
     bool const calculate_hessian);
-
-
-// This is not necessary, I think -- declaring GetElboDerivatives should do it.
-// extern template
-// double MicroCreditElbo::operator()(VectorXT<double> const &theta) const;
 
 
 // Get the covariance of the moment parameters from the natural parameters.

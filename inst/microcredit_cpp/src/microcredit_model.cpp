@@ -64,20 +64,28 @@ Derivatives GetElboDerivatives(
     }
 
     return Derivatives(val, grad, hess);
-}
+};
 
 
-Derivatives GetLikDerivatives(
+Derivatives GetElboDerivatives(
   MicroCreditData const &data,
   VariationalParameters<double> &vp,
   PriorParameters<double> const &pp,
+  bool include_obs,
+  bool include_hier,
+  bool include_prior,
+  bool include_entropy,
   bool const unconstrained,
   bool const calculate_gradient,
   bool const calculate_hessian) {
 
     vp.unconstrained = unconstrained;
 
-    MicroCreditLikelihood Lik(data, vp, pp);
+    MicroCreditElbo ELBO(data, vp, pp);
+    ELBO.include_obs = include_obs;
+    ELBO.include_hier = include_hier;
+    ELBO.include_prior = include_prior;
+    ELBO.include_entropy = include_entropy;
 
     double val;
     VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
@@ -87,15 +95,15 @@ Derivatives GetLikDerivatives(
     stan::math::set_zero_all_adjoints();
 
     if (calculate_hessian) {
-        stan::math::hessian(Lik, theta, val, grad, hess);
+        stan::math::hessian(ELBO, theta, val, grad, hess);
     } else if (calculate_gradient) {
-        stan::math::gradient(Lik, theta, val, grad);
+        stan::math::gradient(ELBO, theta, val, grad);
     } else {
-        val = Lik(theta);
+        val = ELBO(theta);
     }
 
     return Derivatives(val, grad, hess);
-}
+};
 
 
 // Get the covariance of the moment parameters from the natural parameters.

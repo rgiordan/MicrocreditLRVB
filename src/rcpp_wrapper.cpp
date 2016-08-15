@@ -210,11 +210,15 @@ Rcpp::List GetElboDerivatives(
 
 // r_y_g should be one-indexed group indicators.
 // [[Rcpp::export]]
-Rcpp::List GetLikDerivatives(
+Rcpp::List GetCustomElboDerivatives(
     const Eigen::Map<Eigen::MatrixXd> r_x,
     const Eigen::Map<Eigen::VectorXd> r_y,
     const Eigen::Map<Eigen::VectorXi> r_y_g,
     const Rcpp::List r_vp, const Rcpp::List r_pp,
+    bool include_obs,
+    bool include_hier,
+    bool include_prior,
+    bool include_entropy,
     const bool calculate_gradient,
     const bool calculate_hessian,
     const bool unconstrained) {
@@ -227,7 +231,8 @@ Rcpp::List GetLikDerivatives(
     PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
 
     Derivatives derivs =
-        GetLikDerivatives(data, vp, pp, unconstrained,
+        GetElboDerivatives(data, vp, pp, unconstrained,
+            include_obs, include_hier, include_prior, include_entropy,
             calculate_gradient, calculate_hessian);
     Rcpp::List ret = ConvertDerivativesToList(derivs);
     return ret;

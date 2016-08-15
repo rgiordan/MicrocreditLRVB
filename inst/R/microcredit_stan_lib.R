@@ -27,47 +27,45 @@ SimulateData <- function(true_params, n_g, n_per_group) {
 }
 
 
-
-GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=1e9, min_bound=0.0000001) {
+GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10) {
   # Get sensible extreme bounds, for example for L-BFGS-B
-  info_lower <- diag(vp_base$k_reg) * vp_base$diag_min * (1 + min_bound)
-  info_upper <- diag(vp_base$k_reg) * info_bound
+  #info_lower <- diag(vp_base$k_reg) * vp_base$diag_min * (1 + min_bound)
+  #info_upper <- diag(vp_base$k_reg) * info_bound
   
+  info_lower <- matrix(-1 * info_bound, vp_base$k_reg, vp_base$k_reg)
+
   vp_nat_lower <- vp_base
   vp_nat_lower$mu_loc[] <- -1 * loc_bound
   vp_nat_lower$mu_info[,] <- info_lower
   vp_nat_lower$lambda_v <- info_lower
-  vp_nat_lower$lambda_n <- min_bound 
+  vp_nat_lower$lambda_n <- -1 * info_bound 
   for (g in 1:vp_nat_lower$n_g) {
-    vp_nat_lower$mu_g[[g]][["loc"]] <- -1 * loc_bound
+    vp_nat_lower$mu_g[[g]][["loc"]][] <- -1 * loc_bound
     vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
-    vp_nat_lower$tau[[g]][["alpha"]] <- vp_nat_lower$tau_alpha_min + min_bound
-    vp_nat_lower$tau[[g]][["beta"]] <- vp_nat_lower$tau_beta_min + min_bound
+    vp_nat_lower$tau[[g]][["alpha"]] <- -1 * info_bound
+    vp_nat_lower$tau[[g]][["beta"]] <- -1 * info_bound
   }
   
-  vp_nat_upper <- vp_base
-  vp_nat_upper$mu_loc[] <- loc_bound
-  vp_nat_upper$mu_info[,] <- info_upper
-  vp_nat_upper$lambda_v <- info_upper
-  vp_nat_upper$lambda_n <- min_bound 
-  for (g in 1:vp_nat_lower$n_g) {
-    vp_nat_upper$mu_g[[g]][["loc"]] <- loc_bound
-    vp_nat_upper$mu_g[[g]][["info"]] <- info_upper
-    vp_nat_upper$tau[[g]][["alpha"]] <- vp_nat_upper$tau_alpha_min + min_bound
-    vp_nat_upper$tau[[g]][["beta"]] <- vp_nat_upper$tau_beta_min + min_bound
-  }
-  
-  theta_lower <- GetVectorFromParameters(vp_nat_lower, TRUE)
-  theta_upper <- GetVectorFromParameters(vp_nat_upper, TRUE)
+  theta_lower <- GetVectorFromParameters(vp_nat_lower, FALSE)
+  theta_upper <- -1 * theta_lower
   
   return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
 }
 
 
-GetOptimFunctions <- function(x, y, y_g, vp_base, pp, DerivFun=GetElboDerivatives) {
+GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
+                              DerivFun=GetElboDerivatives,
+                              mask=rep(TRUE, length(GetVectorFromParameters(vp_base, TRUE)))) {
+  theta_base <- GetVectorFromParameters(vp_base, TRUE)
+
+  GetLocalVP <- function(theta) {
+    full_theta <- theta_base
+    full_theta[mask] <- theta
+    return(GetParametersFromVector(vp_base, full_theta, TRUE))
+  }
+  
   OptimVal <- function(theta) {
-    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
-    ret <- DerivFun(x, y, y_g, this_vp, pp,
+    ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=FALSE, calculate_hessian=FALSE,
                 unconstrained=TRUE)
     cat(ret$val, "\n")
@@ -75,8 +73,7 @@ GetOptimFunctions <- function(x, y, y_g, vp_base, pp, DerivFun=GetElboDerivative
   }
   
   OptimGrad <- function(theta) {
-    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
-    ret <- DerivFun(x, y, y_g, this_vp, pp,
+    ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=FALSE,
                 unconstrained=TRUE)
     cat(".")
@@ -84,8 +81,7 @@ GetOptimFunctions <- function(x, y, y_g, vp_base, pp, DerivFun=GetElboDerivative
   }
   
   OptimHess <- function(theta) {
-    this_vp <- GetParametersFromVector(vp_base, theta, TRUE)
-    ret <- DerivFun(x, y, y_g, this_vp, pp,
+    ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=TRUE,
                 unconstrained=TRUE)
     ret$hess
@@ -119,6 +115,27 @@ InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
   vp$lambda_n <- vp$k + 1
   vp$lambda_v <- solve(cov(mu_g_mat)) / vp$lambda_n + min_info
 
+  return(vp)
+}
+
+
+InitializeZeroVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
+  # Initial parameters from data
+  vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
+  vp$diag_min <- diag_min
+  vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
+  min_info <- diag(vp$k_reg) * diag_min
+  
+  vp$mu_loc <- rep(0, vp$k_reg)
+  vp$mu_info <- diag(vp$k_reg) + min_info
+  for (g in 1:vp$n_g) {
+    stopifnot(sum(y_g == g) > 1)
+    vp$mu_g[[g]] <- list(loc=rep(0, vp$k_reg), info=diag(vp$k_reg) + min_info)
+    vp$tau[[g]] <- list(alpha=1  + tau_min, beta=1 + tau_min)
+  }
+  vp$lambda_n <- vp$k + 1
+  vp$lambda_v <- diag(vp$k_reg) + min_info
+  
   return(vp)
 }
 
@@ -183,6 +200,84 @@ OptimizeLambdaSubproblem <- function(x, y, y_g, vp, pp, factr=1e7, itnmax=100) {
   return(lambda_update)
 }
 
+
+# Keep the formatting standard.
+ResultRow <- function(par, component, group, method, metric, val) {
+  return(data.frame(par=par, component=component, group=group, method=method, metric=metric, val=val))
+}
+
+
+SummarizeMCMCColumn <- function(draws, par, component=-1, group=-1, method="mcmc") {
+  rbind(ResultRow(par, component, group, method=method, metric="mean", val=mean(draws)),
+        ResultRow(par, component, group, method=method, metric="sd", val=sd(draws)))
+}
+
+# The Accessor function should take a vb list and return the appropriate component.
+SummarizeVBVariable <- function(vp_mom, mfvb_sd, lrvb_sd, Accessor, par, component=-1, group=-1) {
+  rbind(ResultRow(par, component, group, method="mfvb", metric="mean", val=Accessor(vp_mom)),
+        ResultRow(par, component, group, method="mfvb", metric="sd", val=Accessor(mfvb_sd)),
+        ResultRow(par, component, group, method="lrvb", metric="sd", val=Accessor(lrvb_sd)))
+}
+
+
+SummarizeNaturalParameters <- function(vp_nat) {
+  k_reg <- vp_nat$k_reg
+  n_g <- vp_nat$n_g
+  
+  results_list <- list()
+  for (k in 1:k_reg) {
+    Accessor <- function(vp) { vp[["mu_loc"]][k] }
+    results_list[[length(results_list) + 1]] <-
+      ResultRow(par="mu", component=k, group=-1, method="mfvb", metric="mean", val=Accessor(vp_nat))
+  }
+
+  for (g in 1:n_g) {
+    for (k in 1:k_reg) {
+      Accessor <- function(vp) { vp[["mu_g"]][[g]][["loc"]][k] }
+      results_list[[length(results_list) + 1]] <-
+        ResultRow(par="mu_g", component=k, group=g, method="mfvb", metric="mean", val=Accessor(vp_nat))
+    }
+  }
+  
+  do.call(rbind, results_list)
+}
+
+
+SummarizeVbResults <- function(vp_mom, mfvb_sd, lrvb_sd) {
+  
+  k_reg <- vp_mom$k_reg
+  n_groups <- vp_mom$n_groups
+  
+  results_list <- list()
+  
+  # VB results
+  results_list[[length(results_list) + 1]] <-
+    SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, function(vp) { vp[["mu_loc"]] }, par="mu")
+  results_list[[length(results_list) + 1]] <-
+    SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, function(vp) { vp[["tau_e"]] }, par="tau")
+  for (k in 1:k_reg) {
+    results_list[[length(results_list) + 1]] <-
+      SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, function(vp) { vp[["beta_e_vec"]][k] },
+                          par="beta", component=k)
+  }
+  for (g in 1:n_groups) {
+    results_list[[length(results_list) + 1]] <-
+      SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, function(vp) { vp[["u_vec"]][[g]][["u_e"]] },
+                          par="u", group=g)
+  }
+  
+  return(do.call(rbind, results_list))
+}
+
+
+
+
+
+
+
+
+
+######################### Old
 
 FitModel <- function(x, y, y_g, vp, pp, num_iters=100, fit_lambda=TRUE, rel_tol=1e-8, verbose=FALSE) {
   n_g <- vp$n_g
@@ -252,6 +347,12 @@ FitModel <- function(x, y, y_g, vp, pp, num_iters=100, fit_lambda=TRUE, rel_tol=
   result_list$steps_list <- steps_list
   return(result_list)
 }
+
+
+
+
+
+
 
 
 ############################################

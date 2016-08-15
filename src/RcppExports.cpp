@@ -72,9 +72,9 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// GetLikDerivatives
-Rcpp::List GetLikDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
-RcppExport SEXP MicrocreditLRVB_GetLikDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
+// GetCustomElboDerivatives
+Rcpp::List GetCustomElboDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, bool include_obs, bool include_hier, bool include_prior, bool include_entropy, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetCustomElboDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP include_obsSEXP, SEXP include_hierSEXP, SEXP include_priorSEXP, SEXP include_entropySEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -83,10 +83,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_y_g(r_y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_obs(include_obsSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_hier(include_hierSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_prior(include_priorSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_entropy(include_entropySEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_gradient(calculate_gradientSEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
-    __result = Rcpp::wrap(GetLikDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained));
+    __result = Rcpp::wrap(GetCustomElboDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, include_obs, include_hier, include_prior, include_entropy, calculate_gradient, calculate_hessian, unconstrained));
     return __result;
 END_RCPP
 }

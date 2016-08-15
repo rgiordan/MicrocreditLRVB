@@ -29,13 +29,30 @@ y_g <- stan_results$stan_dat$y_group
 ################################
 # Initialize the data
 
-vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+#vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
 pp <- SetPriorsFromVP(vp_base)
 
 
+DerivFun <- function(x, y, y_g, base_vp, pp,
+                     calculate_gradient, calculate_hessian,
+                     unconstrained) {
+  GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
+                           calculate_gradient=calculate_gradient, calculate_hessian=calculate_hessian,
+                           include_obs=TRUE, include_hier=TRUE, include_prior=TRUE, include_entropy=TRUE,
+                           unconstrained=TRUE)
+}
+
+vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
+
 bounds <- GetVectorBounds(vp_base)
 theta_init <- GetVectorFromParameters(vp_base, TRUE)
-opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=GetLikDerivatives)
+opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun)
+opt_fns$OptimVal(theta_init)
+opt_fns$OptimGrad(theta_init)
+
+stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta_init))
+
 optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower, upper=bounds$theta_upper,
                       control=list(fnscale=-1, maxit=1000))
@@ -43,7 +60,32 @@ optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="L
 #                       control=list(fnscale=-1))
 
 vp_opt <- GetParametersFromVector(vp_base, optim_result$par, TRUE)
+nat_result <- SummarizeNaturalParameters(vp_opt)
 
+##############
+# Comare to GLM
+library(lme4)
+
+glm_data <- data.frame(y=y, y_g=y_g)
+glm_data <- cbind(glm_data, data.frame(x))
+glm_res <- lmer(y ~ (X1 + 0 | y_g) + (X2 + 0 | y_g) + 0, data=glm_data)
+glm_summary <- summary(glm_res)
+
+
+true_mu_g <- list()
+for (g in 1:vp_base$n_g) {
+  true_mu_g[[g]] <- stan_results$true_params$true_mu_g[[g]]
+}
+true_mu_g <- do.call(rbind, true_mu_g)
+
+vb_mu_g <-
+  filter(nat_result, par == "mu_g") %>%
+  dcast(group ~ component, value.var="val")
+
+if (FALSE) {
+  plot(as.matrix(ranef(glm_res)$y_g)[,1], true_mu_g[,1]); abline(0, 1)
+  plot(as.matrix(ranef(glm_res)$y_g)[,1], vb_mu_g[["1"]]); abline(0, 1)
+}
 
 
 opt_fns$OptimGrad(optim_result$par)
