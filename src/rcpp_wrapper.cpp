@@ -231,9 +231,9 @@ Rcpp::List GetCustomElboDerivatives(
     PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
 
     Derivatives derivs =
-        GetElboDerivatives(data, vp, pp, unconstrained,
+        GetElboDerivatives(data, vp, pp,
             include_obs, include_hier, include_prior, include_entropy,
-            calculate_gradient, calculate_hessian);
+            unconstrained, calculate_gradient, calculate_hessian);
     Rcpp::List ret = ConvertDerivativesToList(derivs);
     return ret;
 }

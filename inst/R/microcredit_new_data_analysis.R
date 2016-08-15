@@ -40,11 +40,17 @@ SummarizeVpNat(vp_check)
 
 vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
 vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
+vp_base$lambda_n <- 0.0001
 theta_init <- GetVectorFromParameters(vp_base, TRUE)
 pp <- SetPriorsFromVP(vp_base)
 vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
 
+
+# Optimize everything
+mask <- rep(TRUE, length(theta_init))
+
 if (FALSE) {
+  # Optimize only the top level params
   vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
   vp_mask$mu_loc[]  <- 1
   vp_mask$mu_info[]  <- 1
@@ -54,6 +60,15 @@ if (FALSE) {
 }
 
 if (FALSE) {
+  # Optimize everything but lambda
+  vp_mask  <- GetParametersFromVector(vp_base, rep(1, length(theta_init)), FALSE)
+  vp_mask$lambda_v[]  <- 0
+  vp_mask$lambda_n[]  <- 0
+  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+}
+
+if (FALSE) {
+  # Optimize only mu_g
   vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
   for (g in 1:(vp_base$n_g)) {
     vp_mask$mu_g[[g]][["loc"]][]  <- 1
@@ -62,21 +77,20 @@ if (FALSE) {
   mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
 }
 
-mask <- rep(TRUE, length(theta_init))
 
 DerivFun <- function(x, y, y_g, base_vp, pp,
                      calculate_gradient, calculate_hessian,
                      unconstrained) {
   GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
+                           include_obs=TRUE, include_hier=TRUE,
+                           include_prior=TRUE, include_entropy=TRUE,
                            calculate_gradient=calculate_gradient,
                            calculate_hessian=calculate_hessian,
-                           include_obs=TRUE, include_hier=FALSE,
-                           include_prior=FALSE, include_entropy=FALSE,
-                           unconstrained=TRUE)
+                           unconstrained=unconstrained)
 }
 
 
-bounds <- GetVectorBounds(vp_base, loc_bound=20, info_bound=10)
+bounds <- GetVectorBounds(vp_base, loc_bound=20, info_bound=20)
 GetParametersFromVector(vp_base, theta_init, TRUE)
 opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
 opt_fns$OptimVal(theta_init[mask])
@@ -86,23 +100,27 @@ stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta
 
 optim_result <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                      control=list(fnscale=-1, maxit=1000))
+                      control=list(fnscale=-1, maxit=1000, trace=1))
+stopifnot(optim_result$convergence == 0)
+print(optim_result$message)
+
 # optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="Nelder-Mead",
 #                       control=list(fnscale=-1))
 any(abs(optim_result$par - bounds$theta_lower[mask]) < 1e-8) ||
   any(abs(optim_result$par - bounds$theta_upper[mask]) < 1e-8)
 
-vp_opt <- GetParametersFromVector(vp_base, optim_result$par, TRUE)
+base_theta <- GetVectorFromParameters(vp_base, TRUE)
+base_theta[mask] <- optim_result$par
+vp_opt <- GetParametersFromVector(vp_base, base_theta, TRUE)
 SummarizeVpNat(vp_opt)
 
 nat_result <- SummarizeNaturalParameters(vp_opt)
+vb_mu_g <-
+  filter(nat_result, par == "mu_g") %>%
+  dcast(group ~ component, value.var="val")
 
 plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
 
-nat_reg_result <-
-  filter(SummarizeNaturalParameters(vp_reg), par == "mu_g") %>%
-  dcast(group ~ component, value.var="val")
-plot(as.matrix(true_mu_g[,1]), nat_reg_result[["1"]]); abline(0, 1)
 
 
 ##############

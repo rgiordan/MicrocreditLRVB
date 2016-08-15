@@ -133,9 +133,8 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
 template <typename T> T
 GetEntropy(VariationalParameters<T> const &vp) {
     T entropy = 0;
-    entropy =
-        GetMultivariateNormalEntropy(vp.mu.info.mat) +
-        GetWishartEntropy(vp.lambda.v.mat, vp.lambda.n);
+    entropy += GetMultivariateNormalEntropy(vp.mu.info.mat);
+    entropy += GetWishartEntropy(vp.lambda.v.mat, vp.lambda.n);
     for (int g = 0; g < vp.n_g; g++) {
         entropy += GetMultivariateNormalEntropy(vp.mu_g[g].info.mat);
         entropy += GetGammaEntropy(vp.tau[g].alpha, vp.tau[g].beta);
