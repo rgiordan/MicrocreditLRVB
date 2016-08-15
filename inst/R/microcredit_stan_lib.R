@@ -251,6 +251,12 @@ SummarizeNaturalParameters <- function(vp_nat) {
         ResultRow(par="mu_g", component=k, group=g, method="mfvb", metric="mean", val=Accessor(vp_nat))
     }
   }
+
+  for (g in 1:n_g) {
+    Accessor <- function(vp) { vp[["tau"]][[g]][["alpha"]] / vp[["tau"]][[g]][["beta"]] }
+    results_list[[length(results_list) + 1]] <-
+      ResultRow(par="tau", component=k, group=g, method="mfvb", metric="mean", val=Accessor(vp_nat))
+  }
   
   do.call(rbind, results_list)
 }

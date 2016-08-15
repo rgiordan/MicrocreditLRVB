@@ -25,6 +25,17 @@ x <- stan_results$stan_dat$x
 y <- stan_results$stan_dat$y
 y_g <- stan_results$stan_dat$y_group
 
+
+##################
+# Convenient form for true parameters
+
+true_mu_g <- list()
+for (g in 1:vp_base$n_g) {
+  true_mu_g[[g]] <- stan_results$true_params$true_mu_g[[g]]
+}
+true_mu_g <- do.call(rbind, true_mu_g)
+
+
 #############################
 # Check conversion
 
@@ -37,10 +48,9 @@ SummarizeVpNat(vp_check)
 ################################
 # Initialize the data
 
-
-vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
-vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
-vp_base$lambda_n <- 0.0001
+diag_min <- 1e-6
+vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
+vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 theta_init <- GetVectorFromParameters(vp_base, TRUE)
 pp <- SetPriorsFromVP(vp_base)
 vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
@@ -115,13 +125,18 @@ vp_opt <- GetParametersFromVector(vp_base, base_theta, TRUE)
 SummarizeVpNat(vp_opt)
 
 nat_result <- SummarizeNaturalParameters(vp_opt)
+
 vb_mu_g <-
   filter(nat_result, par == "mu_g") %>%
   dcast(group ~ component, value.var="val")
 
 plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
 
+vp_opt$lambda_v * vp_opt$lambda_n
+true_params$true_lambda
 
+vb_tau_g <-
+  filter(nat_result, par == "tau")
 
 ##############
 # Comare to GLM
@@ -129,15 +144,10 @@ library(lme4)
 
 glm_data <- data.frame(y=y, y_g=y_g)
 glm_data <- cbind(glm_data, data.frame(x))
-glm_res <- lmer(y ~ (X1 + 0 | y_g) + (X2 + 0 | y_g) + 0, data=glm_data)
-glm_summary <- summary(glm_res)
+glm_res <- lmer(y ~ (X1 + 0 | y_g) + (X2 + 0 | y_g) + X1 + X2 + 0, data=glm_data)
 
-
-true_mu_g <- list()
-for (g in 1:vp_base$n_g) {
-  true_mu_g[[g]] <- stan_results$true_params$true_mu_g[[g]]
-}
-true_mu_g <- do.call(rbind, true_mu_g)
+glm_res
+filter(nat_result, par == "mu")
 
 vb_mu_g <-
   filter(nat_result, par == "mu_g") %>%
@@ -145,6 +155,8 @@ vb_mu_g <-
 
 if (FALSE) {
   plot(as.matrix(true_mu_g[,1]), as.matrix(ranef(glm_res)$y_g)[,1]); abline(0, 1)
+  plot(as.matrix(ranef(glm_res)$y_g)[,1], vb_mu_g[["1"]]); abline(0, 1)
+  plot(as.matrix(ranef(glm_res)$y_g)[,2], vb_mu_g[["2"]]); abline(0, 1)
   plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
   plot(as.matrix(true_mu_g[,2]), vb_mu_g[["2"]]); abline(0, 1)
 }
