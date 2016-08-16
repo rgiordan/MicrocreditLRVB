@@ -32,10 +32,8 @@ y_g <- stan_results$stan_dat$y_group
 # Check conversion
 
 vp_base <- InitializeVariationalParameters(x, y, y_g, diag_min=1, tau_min=0)
-SummarizeVpNat(vp_base)
 theta_init <- GetVectorFromParameters(vp_base, TRUE)
 vp_check <- GetParametersFromVector(vp_base, theta_init, TRUE)
-SummarizeVpNat(vp_check)
 
 ################################
 # Initialize the data
@@ -43,42 +41,13 @@ SummarizeVpNat(vp_check)
 diag_min <- 1e-6
 vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
-theta_init <- GetVectorFromParameters(vp_base, TRUE)
+theta_init <- GetVectorFromParameters(vp_reg, TRUE)
 pp <- SetPriorsFromVP(vp_base)
 vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
 
 
 # Optimize everything
 mask <- rep(TRUE, length(theta_init))
-
-if (FALSE) {
-  # Optimize only the top level params
-  vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
-  vp_mask$mu_loc[]  <- 1
-  vp_mask$mu_info[]  <- 1
-  vp_mask$lambda_v[]  <- 1
-  vp_mask$lambda_n[]  <- 1
-  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
-}
-
-if (FALSE) {
-  # Optimize everything but lambda
-  vp_mask  <- GetParametersFromVector(vp_base, rep(1, length(theta_init)), FALSE)
-  vp_mask$lambda_v[]  <- 0
-  vp_mask$lambda_n[]  <- 0
-  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
-}
-
-if (FALSE) {
-  # Optimize only mu_g
-  vp_mask  <- GetParametersFromVector(vp_base, rep(0, length(theta_init)), FALSE)
-  for (g in 1:(vp_base$n_g)) {
-    vp_mask$mu_g[[g]][["loc"]][]  <- 1
-    vp_mask$mu_g[[g]][["info"]][]  <- 1
-  }
-  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
-}
-
 
 DerivFun <- function(x, y, y_g, base_vp, pp,
                      calculate_gradient, calculate_hessian,
@@ -92,7 +61,7 @@ DerivFun <- function(x, y, y_g, base_vp, pp,
 }
 
 
-bounds <- GetVectorBounds(vp_base, loc_bound=20, info_bound=20)
+bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=15)
 GetParametersFromVector(vp_base, theta_init, TRUE)
 opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
 opt_fns$OptimVal(theta_init[mask])
@@ -103,12 +72,25 @@ stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta
 optim_time <- Sys.time()
 optim_result0 <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                      control=list(fnscale=-1, maxit=1000, trace=1))
+                      control=list(fnscale=-1, maxit=2000, trace=1))
+stopifnot(optim_result0$convergence == 0)
+print(optim_result0$message)
+
+hess <- opt_fns$OptimHess(optim_result0$par)
+grad <- opt_fns$OptimGrad(optim_result0$par)
+hess_eig <- eigen(hess)
+sum(hess_eig$values > 0)
+length(hess_eig$values)
+
+ind <- which(hess_eig$values > 1e-8)
+hess_p <- hess_eig$vectors[ind, ind]
+grad_p <- grad[ind]
+
+step <- -1 * solve(hess_p, grad_p)
+
 optim_result <- NewtonsMethod(opt_fns$OptimVal, opt_fns$OptimGrad, opt_fns$OptimHess,
                               theta_init=optim_result0$par, fn_scale=-1, tol=1e-8,
                               verbose=TRUE)
-stopifnot(optim_result$convergence == 0)
-print(optim_result$message)
 any(abs(optim_result$theta - bounds$theta_lower[mask]) < 1e-8) ||
   any(abs(optim_result$theta - bounds$theta_upper[mask]) < 1e-8)
 
@@ -116,15 +98,49 @@ base_theta <- GetVectorFromParameters(vp_base, TRUE)
 base_theta[mask] <- optim_result$theta
 vp_opt <- GetParametersFromVector(vp_base, base_theta, TRUE)
 
+vp_mom <- GetMoments(vp_opt)
+moment_derivs <- GetMomentJacobian(vp_opt)
+jac <- Matrix(moment_derivs$hess)
+
+elbo_hess <- opt_fns$OptimHess(optim_result$theta)
+
 optim_time <- Sys.time() - optim_time
 
-moments <- GetMoments(vp_opt)
+lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
+min(diag(lrvb_cov))
+
+mfvb_cov <- GetCovariance(vp_opt)
+min(diag(mfvb_cov))
+plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
+
+mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
+lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
+
+
+
+###########################
+# Sumamrize results
+
+mcmc_sample <- extract(stan_results$stan_sim)
+
+results <- rbind(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd),
+                 SummarizeMCMCResults(mcmc_sample))
+
+mean_results <-
+  filter(results, metric == "mean") %>%
+  dcast(par + component + group ~ method, value.var="val")
+
+ggplot(filter(mean_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
 
 
 
-moment_derivs <- GetMomentJacobian(vp_opt)
 
+
+########################
+# Sanity check
 
 nat_result <- SummarizeNaturalParameters(vp_opt)
 
@@ -138,8 +154,13 @@ true_params$true_lambda
 vb_tau_g <- filter(nat_result, par == "tau")
 true_params$true_tau
 
+
+
 ##############
 # Comare to GLM
+
+
+
 library(lme4)
 
 glm_data <- data.frame(y=y, y_g=y_g)

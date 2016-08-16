@@ -31,6 +31,18 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetMomentsFromVector
+Rcpp::List GetMomentsFromVector(const Rcpp::List r_mp, const Eigen::Map<Eigen::VectorXd> r_theta);
+RcppExport SEXP MicrocreditLRVB_GetMomentsFromVector(SEXP r_mpSEXP, SEXP r_thetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_mp(r_mpSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    __result = Rcpp::wrap(GetMomentsFromVector(r_mp, r_theta));
+    return __result;
+END_RCPP
+}
 // GetVectorFromParameters
 Eigen::VectorXd GetVectorFromParameters(const Rcpp::List r_vp, bool unconstrained);
 RcppExport SEXP MicrocreditLRVB_GetVectorFromParameters(SEXP r_vpSEXP, SEXP unconstrainedSEXP) {

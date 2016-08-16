@@ -9,6 +9,10 @@ GetParametersFromVector <- function(r_vp, r_theta, unconstrained) {
     .Call('MicrocreditLRVB_GetParametersFromVector', PACKAGE = 'MicrocreditLRVB', r_vp, r_theta, unconstrained)
 }
 
+GetMomentsFromVector <- function(r_mp, r_theta) {
+    .Call('MicrocreditLRVB_GetMomentsFromVector', PACKAGE = 'MicrocreditLRVB', r_mp, r_theta)
+}
+
 GetVectorFromParameters <- function(r_vp, unconstrained) {
     .Call('MicrocreditLRVB_GetVectorFromParameters', PACKAGE = 'MicrocreditLRVB', r_vp, unconstrained)
 }

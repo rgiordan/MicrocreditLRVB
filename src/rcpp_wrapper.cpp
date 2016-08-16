@@ -141,6 +141,45 @@ Rcpp::List ConvertMomentsToList(MomentParameters<double> const &mp) {
 };
 
 
+MomentParameters<double>
+ConvertMomentsFromList(Rcpp::List r_list) {
+
+    int k_reg = r_list["k_reg"];
+    int n_g = r_list["n_g"];
+    MomentParameters<double> mp(k_reg, n_g);
+
+    mp.mu.e_vec = Rcpp::as<Eigen::VectorXd>(r_list["mu_e_vec"]);
+    mp.mu.e_outer.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_e_outer"]);
+
+    mp.lambda.e.mat = Rcpp::as<Eigen::MatrixXd>(r_list["lambda_e"]);
+    mp.lambda.e_log_det = Rcpp::as<double>(r_list["lambda_e_log_det"]);
+
+    Rcpp::List mu_g_list = r_list["mu_g"];
+    if (mp.n_g != mu_g_list.size()) {
+        throw std::runtime_error("mu_g size does not match");
+    }
+
+    for (int g = 0; g < mp.n_g; g++) {
+        Rcpp::List this_mu_g = mu_g_list[g];
+        mp.mu_g[g].e_vec = Rcpp::as<Eigen::VectorXd>(this_mu_g["e_vec"]);
+        mp.mu_g[g].e_outer.mat = Rcpp::as<Eigen::MatrixXd>(this_mu_g["e_outer"]);
+    }
+
+    Rcpp::List tau_list = r_list["tau"];
+    if (mp.n_g != tau_list.size()) {
+        throw std::runtime_error("tau size does not match");
+    }
+
+    for (int g = 0; g < mp.n_g; g++) {
+        Rcpp::List this_tau = tau_list[g];
+        mp.tau[g].e = Rcpp::as<double>(this_tau["e"]);
+        mp.tau[g].e_log = Rcpp::as<double>(this_tau["e_log"]);
+    }
+
+    return mp;
+}
+
+
 // Update pp in place with the values from r_list.
 PriorParameters<double> ConvertPriorsFromlist(Rcpp::List r_list) {
 
@@ -191,6 +230,22 @@ Rcpp::List GetParametersFromVector(
   SetFromVector(theta, vp);
   Rcpp::List vp_list = ConvertParametersToList(vp);
   return vp_list;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List GetMomentsFromVector(
+    const Rcpp::List r_mp,
+    const Eigen::Map<Eigen::VectorXd> r_theta) {
+
+  VectorXd theta = r_theta;
+  MomentParameters<double> mp = ConvertMomentsFromList(r_mp);
+  if (theta.size() != mp.offsets.encoded_size) {
+    throw std::runtime_error("Theta is the wrong size");
+  }
+  SetFromVector(theta, mp);
+  Rcpp::List mp_list = ConvertMomentsToList(mp);
+  return mp_list;
 }
 
 
@@ -273,13 +328,9 @@ Rcpp::List GetCustomElboDerivatives(
 
 // [[Rcpp::export]]
 Rcpp::List GetMoments(const Rcpp::List r_vp) {
-    Rcpp::Rcout << ".\n";
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-    Rcpp::Rcout << ".\n";
     MomentParameters<double> mp(vp);
-    Rcpp::Rcout << ".\n";
     Rcpp::List r_mp = ConvertMomentsToList(mp);
-    Rcpp::Rcout << ".\n";
     return r_mp;
 };
 
