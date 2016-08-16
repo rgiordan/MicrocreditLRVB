@@ -70,9 +70,9 @@ struct PriorOffsets {
 template <class T>
 class VariationalParameters {
 private:
-    void Initialize(int k, int n_g, bool unconstrained) {
-        k = k;
-        n_g = n_g;
+    void Initialize(int _k, int _n_g, bool unconstrained) {
+        k = _k;
+        n_g = _n_g;
         unconstrained = unconstrained;
 
         mu = MultivariateNormalNatural<T>(k);
@@ -139,9 +139,9 @@ public:
 template <class T>
 class MomentParameters {
 private:
-    void Initialize(int k, int n_g) {
-        k = k;
-        n_g = n_g;
+    void Initialize(int _k, int _n_g) {
+        k = _k;
+        n_g = _n_g;
         unconstrained = true;
 
         mu = MultivariateNormalMoments<T>(k);
@@ -369,6 +369,54 @@ void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
       theta_sub = theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size);
       vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
   }
+}
+
+
+// For a single group
+template <typename T, template<typename> class VPType>
+VectorXT<T> GetGroupParameterVector(VPType<T> vp, int const g) {
+
+    if (g < 0 || g > vp.n_g) {
+        throw std::runtime_error("g out of bounds");
+    }
+
+    int encoded_size = vp.tau[g].encoded_size + vp.mu_g[g].encoded_size;
+    VectorXT<T> theta(encoded_size);
+
+    int offset = 0;
+    theta.segment(offset, vp.tau[g].encoded_size) =
+        vp.tau[g].encode_vector(vp.unconstrained);
+    offset += vp.tau[g].encoded_size;
+    theta.segment(offset, vp.mu_g[g].encoded_size) =
+        vp.mu_g[g].encode_vector(vp.unconstrained);
+
+    return theta;
+}
+
+
+template <typename T, template<typename> class VPType>
+void SetFromGroupVector(
+    VectorXT<T> const &theta, VPType<T> &vp, int const g) {
+
+    if (g < 0 || g > vp.n_g) {
+        throw std::runtime_error("g out of bounds");
+    }
+
+    int encoded_size = vp.tau[g].encoded_size + vp.mu_g[g].encoded_size;
+    if (theta.size() != encoded_size) {
+        throw std::runtime_error("Vector is wrong size.");
+    }
+
+    int offset = 0;
+    VectorXT<T> theta_sub;
+
+    // Make sure that GetParameterVector follows the same ordering.
+    theta_sub = theta.segment(offset, vp.tau[g].encoded_size);
+    vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
+    offset += vp.tau[g].encoded_size;
+
+    theta_sub = theta.segment(offset, vp.mu_g[g].encoded_size);
+    vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
 }
 
 

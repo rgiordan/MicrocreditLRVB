@@ -25,6 +25,10 @@ GetCustomElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, include_obs, i
     .Call('MicrocreditLRVB_GetCustomElboDerivatives', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, include_obs, include_hier, include_prior, include_entropy, calculate_gradient, calculate_hessian, unconstrained)
 }
 
+GetMoments <- function(r_vp) {
+    .Call('MicrocreditLRVB_GetMoments', PACKAGE = 'MicrocreditLRVB', r_vp)
+}
+
 GetMomentJacobian <- function(r_vp) {
     .Call('MicrocreditLRVB_GetMomentJacobian', PACKAGE = 'MicrocreditLRVB', r_vp)
 }

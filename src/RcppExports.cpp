@@ -94,6 +94,17 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetMoments
+Rcpp::List GetMoments(const Rcpp::List r_vp);
+RcppExport SEXP MicrocreditLRVB_GetMoments(SEXP r_vpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    __result = Rcpp::wrap(GetMoments(r_vp));
+    return __result;
+END_RCPP
+}
 // GetMomentJacobian
 Rcpp::List GetMomentJacobian(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetMomentJacobian(SEXP r_vpSEXP) {

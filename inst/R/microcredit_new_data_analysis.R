@@ -28,16 +28,6 @@ y <- stan_results$stan_dat$y
 y_g <- stan_results$stan_dat$y_group
 
 
-##################
-# Convenient form for true parameters
-
-true_mu_g <- list()
-for (g in 1:vp_base$n_g) {
-  true_mu_g[[g]] <- stan_results$true_params$true_mu_g[[g]]
-}
-true_mu_g <- do.call(rbind, true_mu_g)
-
-
 #############################
 # Check conversion
 
@@ -115,27 +105,32 @@ optim_result0 <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, me
                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
                       control=list(fnscale=-1, maxit=1000, trace=1))
 optim_result <- NewtonsMethod(opt_fns$OptimVal, opt_fns$OptimGrad, opt_fns$OptimHess,
-                              theta_init=optim_result0$par, fn_scale=-1, tol=1e-8, verbose=TRUE)
-optim_time <- Sys.time() - optim_time
-
+                              theta_init=optim_result0$par, fn_scale=-1, tol=1e-8,
+                              verbose=TRUE)
 stopifnot(optim_result$convergence == 0)
 print(optim_result$message)
-any(abs(optim_result$par - bounds$theta_lower[mask]) < 1e-8) ||
-  any(abs(optim_result$par - bounds$theta_upper[mask]) < 1e-8)
-
+any(abs(optim_result$theta - bounds$theta_lower[mask]) < 1e-8) ||
+  any(abs(optim_result$theta - bounds$theta_upper[mask]) < 1e-8)
 
 base_theta <- GetVectorFromParameters(vp_base, TRUE)
-base_theta[mask] <- optim_result$par
+base_theta[mask] <- optim_result$theta
 vp_opt <- GetParametersFromVector(vp_base, base_theta, TRUE)
-SummarizeVpNat(vp_opt)
+
+optim_time <- Sys.time() - optim_time
+
+moments <- GetMoments(vp_opt)
+
+
+
+
+moment_derivs <- GetMomentJacobian(vp_opt)
+
 
 nat_result <- SummarizeNaturalParameters(vp_opt)
 
 vb_mu_g <-
   filter(nat_result, par == "mu_g") %>%
   dcast(group ~ component, value.var="val")
-
-plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
 
 vp_opt$lambda_v * vp_opt$lambda_n
 true_params$true_lambda
@@ -169,16 +164,16 @@ if (FALSE) {
 
 
 
-opt_fns$OptimGrad(optim_result$par)
+opt_fns$OptimGrad(optim_result$theta)
 
-grad <- opt_fns$OptimGrad(optim_result$par)
-hess <- opt_fns$OptimHess(optim_result$par)
+grad <- opt_fns$OptimGrad(optim_result$theta)
+hess <- opt_fns$OptimHess(optim_result$theta)
 hess_eig <- eigen(hess)
 min(hess_eig$values)
 max(hess_eig$values)
 
 newton_step <- solve(hess, grad)
-diff <- opt_fns$OptimVal(optim_result$par - newton_step) - opt_fns$OptimVal(optim_result$par)
+diff <- opt_fns$OptimVal(optim_result$theta - newton_step) - opt_fns$OptimVal(optim_result$theta)
 
 
 

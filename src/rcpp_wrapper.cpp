@@ -272,6 +272,19 @@ Rcpp::List GetCustomElboDerivatives(
 
 
 // [[Rcpp::export]]
+Rcpp::List GetMoments(const Rcpp::List r_vp) {
+    Rcpp::Rcout << ".\n";
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    Rcpp::Rcout << ".\n";
+    MomentParameters<double> mp(vp);
+    Rcpp::Rcout << ".\n";
+    Rcpp::List r_mp = ConvertMomentsToList(mp);
+    Rcpp::Rcout << ".\n";
+    return r_mp;
+};
+
+
+// [[Rcpp::export]]
 Rcpp::List GetMomentJacobian(const Rcpp::List r_vp) {
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
 
