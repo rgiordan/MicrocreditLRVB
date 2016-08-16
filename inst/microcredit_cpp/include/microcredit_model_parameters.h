@@ -136,6 +136,83 @@ public:
 };
 
 
+template <class T>
+class MomentParameters {
+private:
+    void Initialize(int k, int n_g) {
+        k = k;
+        n_g = n_g;
+        unconstrained = true;
+
+        mu = MultivariateNormalMoments<T>(k);
+        lambda = WishartMoments<T>(k);
+
+        // Per-observation parameters
+        mu_g.resize(n_g);
+        tau.resize(n_g);
+
+        for (int g = 0; g < n_g; g++) {
+          mu_g[g] = MultivariateNormalMoments<T>(k);
+          tau[g] = GammaMoments<T>();
+        }
+        offsets = GetOffsets(*this);
+    }
+public:
+  // Parameters:
+  int n_g;    // The number of groups
+  int k;      // The dimension of the means
+  bool unconstrained;
+
+  Offsets offsets;
+
+  // The global mean parameter.
+  MultivariateNormalMoments<T> mu;
+
+  // The precision matrix of the grou p means.
+  WishartMoments<T> lambda;
+
+  // A vector of per-group, E(tau), the observation noise precision
+  vector<GammaMoments<T>> tau;
+
+  // Vectors of the per-group means.
+  vector<MultivariateNormalMoments<T>> mu_g;
+
+  // Methods:
+  MomentParameters(int k, int n_g): k(k), n_g(n_g) {
+    Initialize(k, n_g);
+  };
+
+  MomentParameters(VariationalParameters<T> vp) {
+      Initialize(vp.k, vp.n_g);
+      mu = MultivariateNormalMoments<T>(vp.mu);
+      lambda = WishartMoments<T>(vp.lambda);
+      for (int g = 0; g < n_g; g++) {
+          mu_g[g] = MultivariateNormalMoments<T>(vp.mu_g[g]);
+          tau[g] = GammaMoments<T>(vp.tau[g]);
+      }
+  };
+
+  MomentParameters() {
+    Initialize(1, 1, false);
+  }
+
+  /////////////////
+  template <typename Tnew>
+  operator MomentParameters<Tnew>() const {
+    MomentParameters<Tnew> mp = MomentParameters<Tnew>(k, n_g);
+
+    mp.mu = mu;
+    mp.lambda = lambda;
+
+    for (int g = 0; g < n_g; g++) {
+      mp.mu_g[g] = mu_g[g];
+      mp.tau[g] = tau[g];
+    }
+    return mp;
+  }
+};
+
+
 //////////////////////////////
 // Priors
 

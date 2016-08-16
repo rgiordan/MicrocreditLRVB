@@ -236,6 +236,21 @@ struct MicroCreditElbo {
 };
 
 
+// Likelihood + entropy for lambda only.
+struct NaturalToMomentParameters {
+    VariationalParameters<double> base_vp;
+    NaturalToMomentParameters(VariationalParameters<double> vp): base_vp(vp) {};
+
+    template <typename T> VectorXT<T> operator()(VectorXT<T> const &theta) const {
+        VariationalParameters<T> vp(base_vp);
+        SetFromVector(theta, vp);
+        MomentParameters<T> mp(vp);
+        VectorXT<T> moment_vec = GetParameterVector(mp);
+        return moment_vec;
+    }
+};
+
+
 struct Derivatives {
   double val;
   VectorXd grad;
@@ -269,6 +284,9 @@ Derivatives GetElboDerivatives(
     bool const calculate_gradient,
     bool const calculate_hessian);
 
+
+// Get derivatives of the ELBO.
+Derivatives GetMomentJacobian(VariationalParameters<double> &vp);
 
 // Get the covariance of the moment parameters from the natural parameters.
 SparseMatrix<double> GetCovariance(

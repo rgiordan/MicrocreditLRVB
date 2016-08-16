@@ -8,6 +8,9 @@
 #include <stan/math/fwd/scal/fun/abs.hpp>
 #include <stan/math/fwd/scal/fun/sqrt.hpp>
 
+// To check the Jacobian orientation
+# include "transform_hessian.h"
+
 # include "variational_parameters.h"
 # include "exponential_families.h"
 # include "microcredit_model_parameters.h"
@@ -103,6 +106,27 @@ Derivatives GetElboDerivatives(
     }
 
     return Derivatives(val, grad, hess);
+};
+
+
+Derivatives GetMomentJacobian(VariationalParameters<double> &vp) {
+    NaturalToMomentParameters GetMoments(vp);
+    MomentParameters<double> mp(vp);
+
+    VectorXd theta = GetParameterVector(vp);
+    VectorXd moments = VectorXd::Zero(mp.offsets.encoded_size);
+    MatrixXd jacobian = MatrixXd::Zero(vp.offsets.encoded_size, mp.offsets.encoded_size);
+
+    stan::math::jacobian(GetMoments, theta, moments, jacobian);
+
+    bool jac_correct = CheckJacobianCorrectOrientation();
+    if (!jac_correct) {
+        MatrixXd jacobian_t = jacobian.transpose();
+        jacobian = jacobian_t;
+    }
+
+    // Abuse the Derivatives type.
+    return Derivatives(0, moments, jacobian);
 };
 
 

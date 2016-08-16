@@ -5,6 +5,8 @@ library(rstan)
 library(Matrix)
 library(mvtnorm)
 
+library(LRVBUtils)
+
 library(MicrocreditLRVB)
 library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
 source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
@@ -108,16 +110,19 @@ opt_fns$OptimGrad(theta_init[mask])
 
 stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta_init))
 
-optim_result <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
+optim_time <- Sys.time()
+optim_result0 <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
                       control=list(fnscale=-1, maxit=1000, trace=1))
+optim_result <- NewtonsMethod(opt_fns$OptimVal, opt_fns$OptimGrad, opt_fns$OptimHess,
+                              theta_init=optim_result0$par, fn_scale=-1, tol=1e-8, verbose=TRUE)
+optim_time <- Sys.time() - optim_time
+
 stopifnot(optim_result$convergence == 0)
 print(optim_result$message)
-
-# optim_result <- optim(theta_init, opt_fns$OptimVal, opt_fns$OptimGrad, method="Nelder-Mead",
-#                       control=list(fnscale=-1))
 any(abs(optim_result$par - bounds$theta_lower[mask]) < 1e-8) ||
   any(abs(optim_result$par - bounds$theta_upper[mask]) < 1e-8)
+
 
 base_theta <- GetVectorFromParameters(vp_base, TRUE)
 base_theta[mask] <- optim_result$par
@@ -135,8 +140,8 @@ plot(as.matrix(true_mu_g[,1]), vb_mu_g[["1"]]); abline(0, 1)
 vp_opt$lambda_v * vp_opt$lambda_n
 true_params$true_lambda
 
-vb_tau_g <-
-  filter(nat_result, par == "tau")
+vb_tau_g <- filter(nat_result, par == "tau")
+true_params$true_tau
 
 ##############
 # Comare to GLM
@@ -166,11 +171,14 @@ if (FALSE) {
 
 opt_fns$OptimGrad(optim_result$par)
 
+grad <- opt_fns$OptimGrad(optim_result$par)
 hess <- opt_fns$OptimHess(optim_result$par)
 hess_eig <- eigen(hess)
 min(hess_eig$values)
 max(hess_eig$values)
 
+newton_step <- solve(hess, grad)
+diff <- opt_fns$OptimVal(optim_result$par - newton_step) - opt_fns$OptimVal(optim_result$par)
 
 
 

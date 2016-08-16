@@ -109,6 +109,38 @@ ConvertParametersFromList(Rcpp::List r_list) {
 }
 
 
+Rcpp::List ConvertMomentsToList(MomentParameters<double> const &mp) {
+    Rcpp::List r_list;
+    r_list["n_g"] = mp.n_g;
+    r_list["k_reg"] = mp.k;
+
+    r_list["mu_e_vec"] = mp.mu.e_vec;
+    r_list["mu_e_outer"] = mp.mu.e_outer.mat;
+
+    r_list["lambda_e"] = mp.lambda.e.mat;
+    r_list["lambda_e_log_det"] = mp.lambda.e_log_det;
+
+    Rcpp::List mu_g(mp.n_g);
+    Rcpp::List tau(mp.n_g);
+    for (int g = 0; g < mp.n_g; g++) {
+        Rcpp::List this_mu_g;
+        this_mu_g["e_vec"] = mp.mu_g[g].e_vec;
+        this_mu_g["e_outer"] = mp.mu_g[g].e_outer.mat;
+        mu_g[g] = this_mu_g;
+
+        Rcpp::List this_tau;
+        this_tau["e"] = mp.tau[g].e;
+        this_tau["e_log"] = mp.tau[g].e_log;
+        tau[g] = this_tau;
+    }
+
+    r_list["mu_g"] = mu_g;
+    r_list["tau"] = tau;
+
+    return r_list;
+};
+
+
 // Update pp in place with the values from r_list.
 PriorParameters<double> ConvertPriorsFromlist(Rcpp::List r_list) {
 
@@ -237,6 +269,26 @@ Rcpp::List GetCustomElboDerivatives(
     Rcpp::List ret = ConvertDerivativesToList(derivs);
     return ret;
 }
+
+
+// [[Rcpp::export]]
+Rcpp::List GetMomentJacobian(const Rcpp::List r_vp) {
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+
+    Derivatives derivs = GetMomentJacobian(vp);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
+}
+
+
+// [[Rcpp::export]]
+Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp) {
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    MomentParameters<double> mp(vp);
+    return GetCovariance(vp, mp.offsets);
+}
+
+
 
 
 // // [[Rcpp::export]]

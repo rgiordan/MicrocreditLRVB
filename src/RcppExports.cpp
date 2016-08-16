@@ -94,6 +94,28 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetMomentJacobian
+Rcpp::List GetMomentJacobian(const Rcpp::List r_vp);
+RcppExport SEXP MicrocreditLRVB_GetMomentJacobian(SEXP r_vpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    __result = Rcpp::wrap(GetMomentJacobian(r_vp));
+    return __result;
+END_RCPP
+}
+// GetCovariance
+Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp);
+RcppExport SEXP MicrocreditLRVB_GetCovariance(SEXP r_vpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    __result = Rcpp::wrap(GetCovariance(r_vp));
+    return __result;
+END_RCPP
+}
 // GetVariationalCovariance
 Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetVariationalCovariance(SEXP r_vpSEXP) {
