@@ -42,7 +42,9 @@ diag_min <- 1e-6
 vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 theta_init <- GetVectorFromParameters(vp_reg, TRUE)
-pp <- SetPriorsFromVP(vp_base)
+pp <- stan_results$pp
+pp[["k_reg"]] <- pp$k # Fix typo
+pp[["mu_loc"]] <- pp$mu_mean # Fix typo
 vp_index <- GetParametersFromVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
 
 
@@ -61,7 +63,7 @@ DerivFun <- function(x, y, y_g, base_vp, pp,
 }
 
 
-bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=15)
+bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=20)
 GetParametersFromVector(vp_base, theta_init, TRUE)
 opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
 opt_fns$OptimVal(theta_init[mask])
@@ -70,23 +72,80 @@ opt_fns$OptimGrad(theta_init[mask])
 stopifnot(all(bounds$theta_lower < theta_init) && all(bounds$theta_upper > theta_init))
 
 optim_time <- Sys.time()
+bfgs_time <- Sys.time()
 optim_result0 <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                      control=list(fnscale=-1, maxit=2000, trace=1))
+                      control=list(fnscale=-1, maxit=2000, trace=1, factr=1))
 stopifnot(optim_result0$convergence == 0)
 print(optim_result0$message)
+bfgs_time <- Sys.time() - bfgs_time
 
-hess <- opt_fns$OptimHess(optim_result0$par)
-grad <- opt_fns$OptimGrad(optim_result0$par)
-hess_eig <- eigen(hess)
-sum(hess_eig$values > 0)
-length(hess_eig$values)
 
-ind <- which(hess_eig$values > 1e-8)
-hess_p <- hess_eig$vectors[ind, ind]
-grad_p <- grad[ind]
+if (FALSE) {
+  # Debugging
+  EvalFun <- opt_fns$OptimVal
+  EvalGrad <- opt_fns$OptimGrad
+  theta <- optim_result0$par[mask]
+  
+  vp_bfgs <- GetParametersFromVector(vp_base, theta, TRUE)
+  theta[unique(as.numeric(vp_index$lambda_v))]
+  mp_bfgs <- GetMoments(vp_bfgs)
+  mfvb_cov <- GetCovariance(vp_bfgs)
+  mfvb_sd <- GetMomentsFromVector(mp_bfgs, sqrt(diag(mfvb_cov)))
+  SummarizeMomentParameters(mp_bfgs, mfvb_sd, mfvb_sd) %>% filter(method != "lrvb")
+  
+  hess <- opt_fns$OptimHess(theta)
+  grad <- opt_fns$OptimGrad(theta)
+  hess_eig <- eigen(hess)
+  sum(hess_eig$values > 1e-8)
+  length(hess_eig$values)
+  
+  ind <- which(hess_eig$values > 1e-8)
+  hess_eig$values[ind]
+  hess_p <- hess_eig$vectors[, ind]
+  hess_p_outer <- t(hess_p) %*% hess_p 
+  grad_p <- hess_p %*% solve(hess_p_outer, t(hess_p) %*% grad)
+  grad_perp <- grad - grad_p
+  grad_params <- GetParametersFromVector(vp_base, grad_p, FALSE)
 
-step <- -1 * solve(hess_p, grad_p)
+  eig_p <- hess_eig$vectors[, which.max(hess_eig$values)]
+  
+  grid_vals <- list()
+  eps_grid <- seq(-10, 28, length.out=50)
+  for (i in 1:length(eps_grid)) {
+    eps <- eps_grid[i]
+    grid_vals[[i]] <- data.frame(eps=eps, f=EvalFun(theta + grad_p * eps))
+  }
+  grid_vals <- do.call(rbind, grid_vals)
+  qplot(eps, f, data=grid_vals)
+
+  grid_vals <- list()
+  eps_grid1 <- seq(-10, 30, length.out=20)
+  eps_grid2 <- seq(-1e-5, 1e-5, length.out=20)
+  for (i in 1:length(eps_grid)) { cat("-------\n"); for (j in 1:length(eps_grid)) {
+    eps1 <- eps_grid1[i]
+    eps2 <- eps_grid2[j]
+    new_theta <- theta + grad_p * eps1 + grad_perp * eps2
+    grid_vals[[length(grid_vals) + 1]] <- data.frame(eps1=eps1, eps2=eps2, f=EvalFun(new_theta))
+  }}
+  grid_vals <- do.call(rbind, grid_vals)
+
+  ggplot(grid_vals) + geom_tile(aes(x=eps1, y=eps2, fill=f))
+  
+  theta1 <- theta + grad_p * 8e5
+  EvalFun(theta1) - EvalFun(theta)
+  
+  theta <- theta1
+  
+  grad_p[grad_p < 1e-8] <- 0
+  
+  step_direction <- grad_p
+  ls_result <- LineSearch(EvalFun, EvalGrad, theta, step_direction,
+                          step_scale=0.5, max_iters=5000,
+                          step_max=100, initial_step=1,
+                          fn_scale=fn_scale, verbose=FALSE)
+  
+}
 
 optim_result <- NewtonsMethod(opt_fns$OptimVal, opt_fns$OptimGrad, opt_fns$OptimHess,
                               theta_init=optim_result0$par, fn_scale=-1, tol=1e-8,
@@ -105,6 +164,8 @@ jac <- Matrix(moment_derivs$hess)
 elbo_hess <- opt_fns$OptimHess(optim_result$theta)
 
 optim_time <- Sys.time() - optim_time
+
+
 
 lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
 min(diag(lrvb_cov))
@@ -134,7 +195,23 @@ ggplot(filter(mean_results, par != "mu_g")) +
   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
+ggplot(filter(mean_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
+sd_results <-
+  filter(results, metric == "sd") %>%
+  dcast(par + component + group ~ method, value.var="val")
+
+ggplot(filter(sd_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(sd_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
 
 

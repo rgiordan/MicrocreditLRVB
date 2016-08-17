@@ -311,7 +311,7 @@ SetVPFromTrueParams <- function(true_params) {
 
 SetPriorsFromVP <- function(vp) {
   pp <- list()
-  k <- vp$k
+  k <- vp$k_reg
   pp[["k_reg"]] <- k
   pp[["mu_loc"]] <- rep(0, k)
   pp[["mu_info"]] <- diag(k)

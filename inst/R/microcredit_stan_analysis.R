@@ -21,8 +21,8 @@ set.seed(42)
 k <- 2
 
 pp <- list()
-pp[["k"]] <- k
-pp[["mu_mean"]] <- rep(0, k)
+pp[["k_reg"]] <- k
+pp[["mu_loc"]] <- rep(0, k)
 pp[["mu_info"]] <- matrix(c(0.02, 0., 0, 0.02), k, k)
 pp[["lambda_eta"]] <- 15.01
 pp[["lambda_alpha"]] <- 20.01
@@ -30,9 +30,6 @@ pp[["lambda_beta"]] <- 20.01
 pp[["tau_alpha"]] <- 2.01
 pp[["tau_beta"]] <- 2.01
 
-# Optimization parameters stored in the prior:
-pp[["lambda_diag_min"]] <- 1e-10
-pp[["lambda_n_min"]] <- k + 0.5
 
 #############################
 # Simualate some data
