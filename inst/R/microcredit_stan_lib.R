@@ -115,7 +115,7 @@ InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
   vp$mu_info <- solve(mu_cov) + min_info
   mu_g_mat <- matrix(NaN, vp$n_g, vp$k)
   for (g in 1:vp$n_g) {
-    stopifnot(sum(y_g == g) > 1)
+    stopifnot(sum(y_g == g) >= 1)
     g_reg <- summary(lm(y ~ x - 1, subset=y_g == g))
     mu_g_mean <- g_reg$coefficients[,"Estimate"]
     mu_g_cov <- mu_g_mean %*% t(mu_g_mean) + 10 * diag(vp$k)
@@ -142,7 +142,7 @@ InitializeZeroVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1
   vp$mu_loc <- rep(0, vp$k_reg)
   vp$mu_info <- diag(vp$k_reg) + min_info
   for (g in 1:vp$n_g) {
-    stopifnot(sum(y_g == g) > 1)
+    stopifnot(sum(y_g == g) >= 1)
     vp$mu_g[[g]] <- list(loc=rep(0, vp$k_reg), info=diag(vp$k_reg) + min_info)
     vp$tau[[g]] <- list(alpha=1  + tau_min, beta=1 + tau_min)
   }

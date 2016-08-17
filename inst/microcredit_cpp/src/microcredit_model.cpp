@@ -70,6 +70,7 @@ Derivatives GetElboDerivatives(
 };
 
 
+// ELBO derivatives with customizable options.
 Derivatives GetElboDerivatives(
   MicroCreditData const &data,
   VariationalParameters<double> &vp,
@@ -78,6 +79,8 @@ Derivatives GetElboDerivatives(
   bool include_hier,
   bool include_prior,
   bool include_entropy,
+  bool use_group,
+  int g,
   bool const unconstrained,
   bool const calculate_gradient,
   bool const calculate_hessian) {
@@ -90,10 +93,26 @@ Derivatives GetElboDerivatives(
     ELBO.include_prior = include_prior;
     ELBO.include_entropy = include_entropy;
 
+    ELBO.g = g;
+    ELBO.use_group = use_group;
+
     double val;
     VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
     MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
-    VectorXd theta = GetParameterVector(vp);
+
+    VectorXd theta;
+    if (use_group) {
+        if (g < -1) {
+            throw std::runtime_error("g < -1 is not permitted.");
+        }
+        if (g == -1) {
+            theta = GetGlobalParameterVector(vp);
+        } else {
+            theta = GetGroupParameterVector(vp, g);
+        }
+    } else {
+        theta = GetParameterVector(vp);
+    }
 
     stan::math::set_zero_all_adjoints();
 

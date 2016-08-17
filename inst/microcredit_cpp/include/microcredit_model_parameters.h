@@ -420,6 +420,43 @@ void SetFromGroupVector(
 }
 
 
+// For global parameters
+template <typename T, template<typename> class VPType>
+VectorXT<T> GetGlobalParameterVector(VPType<T> vp) {
+    int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
+    VectorXT<T> theta(encoded_size);
+
+    int offset = 0;
+    theta.segment(offset, vp.mu.encoded_size) = vp.mu.encode_vector(vp.unconstrained);
+    offset += vp.mu.encoded_size;
+    theta.segment(offset, vp.lambda.encoded_size) = vp.lambda.encode_vector(vp.unconstrained);
+
+    return theta;
+}
+
+
+template <typename T, template<typename> class VPType>
+void SetFromGlobalVector(VectorXT<T> const &theta, VPType<T> &vp) {
+
+        int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
+    if (theta.size() != encoded_size) {
+        throw std::runtime_error("Vector is wrong size.");
+    }
+
+    int offset = 0;
+    VectorXT<T> theta_sub;
+
+    // Make sure that GetParameterVector follows the same ordering.
+    theta_sub = theta.segment(offset, vp.mu.encoded_size);
+    vp.mu.decode_vector(theta_sub, vp.unconstrained);
+    offset += vp.mu.encoded_size;
+
+    theta_sub = theta.segment(offset, vp.lambda.encoded_size);
+    vp.lambda.decode_vector(theta_sub, vp.unconstrained);
+}
+
+
+// Priors
 template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
   VectorXT<T> theta(pp.offsets.encoded_size);
 

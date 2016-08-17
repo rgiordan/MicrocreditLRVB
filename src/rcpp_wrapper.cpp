@@ -306,6 +306,8 @@ Rcpp::List GetCustomElboDerivatives(
     bool include_hier,
     bool include_prior,
     bool include_entropy,
+    bool use_group,
+    int g,
     const bool calculate_gradient,
     const bool calculate_hessian,
     const bool unconstrained) {
@@ -320,6 +322,7 @@ Rcpp::List GetCustomElboDerivatives(
     Derivatives derivs =
         GetElboDerivatives(data, vp, pp,
             include_obs, include_hier, include_prior, include_entropy,
+            use_group, g,
             unconstrained, calculate_gradient, calculate_hessian);
     Rcpp::List ret = ConvertDerivativesToList(derivs);
     return ret;

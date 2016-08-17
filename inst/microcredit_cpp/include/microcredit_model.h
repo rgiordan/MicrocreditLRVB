@@ -148,30 +148,6 @@ GetEntropy(VariationalParameters<T> const &vp) {
 // Functors
 
 // The log likelihood for the whole model (including the expected log prior)
-struct MicroCreditLogLikelihood {
-  MicroCreditData data;
-  VariationalParameters<double> base_vp;
-  PriorParameters<double> pp;
-
-  MicroCreditLogLikelihood(
-      MicroCreditData const &data,
-      VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &pp):
-    data(data), base_vp(base_vp), pp(pp) {};
-
-  template <typename T> T operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    SetFromVector(theta, vp);
-
-    return
-      GetObservationLogLikelihood(data, vp) +
-      GetHierarchyLogLikelihood(vp) +
-      GetPriorLogLikelihood(vp, pp);
-  }
-};
-
-
-// The log likelihood for the whole model (including the expected log prior)
 struct MicroCreditLogPrior {
   VariationalParameters<double> base_vp;
   PriorParameters<double> base_pp;
@@ -212,17 +188,36 @@ struct MicroCreditElbo {
   bool include_prior;
   bool include_entropy;
 
+  // If use_group then theta represesnts a subset of parameters.
+  // If g == -1, it is the global parameters, and otherwise is a particular group's
+  // local parameters.
+  bool use_group;
+  int g;
+
   MicroCreditElbo(
       MicroCreditData const &data,
       VariationalParameters<double> const &base_vp,
       PriorParameters<double> const &pp):
     data(data), base_vp(base_vp), pp(pp) {
         include_obs = include_hier = include_prior = include_entropy = true;
+        use_group = false;
+        g = 0;
     };
 
   template <typename T> T operator()(VectorXT<T> const &theta) const {
     VariationalParameters<T> vp(base_vp);
-    SetFromVector(theta, vp);
+    if (use_group) {
+        if (g < -1) {
+            throw std::runtime_error("g < -1 is not permitted.");
+        }
+        if (g == -1) {
+            SetFromGlobalVector(theta, vp);
+        } else {
+            SetFromGroupVector(theta, vp, g);
+        }
+    } else {
+        SetFromVector(theta, vp);
+    }
     T obs_log_lik = 0;
     T hier_log_lik = 0;
     T prior = 0;
@@ -280,6 +275,8 @@ Derivatives GetElboDerivatives(
     bool include_hier,
     bool include_prior,
     bool include_entropy,
+    bool use_group,
+    int g,
     bool const unconstrained,
     bool const calculate_gradient,
     bool const calculate_hessian);

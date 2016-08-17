@@ -57,6 +57,7 @@ DerivFun <- function(x, y, y_g, base_vp, pp,
   GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
                            include_obs=TRUE, include_hier=TRUE,
                            include_prior=TRUE, include_entropy=TRUE,
+                           use_group=FALSE, g=-2,
                            calculate_gradient=calculate_gradient,
                            calculate_hessian=calculate_hessian,
                            unconstrained=unconstrained)
