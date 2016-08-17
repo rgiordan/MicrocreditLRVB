@@ -187,31 +187,33 @@ mcmc_sample <- extract(stan_results$stan_sim)
 results <- rbind(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd),
                  SummarizeMCMCResults(mcmc_sample))
 
-mean_results <-
-  filter(results, metric == "mean") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(mean_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-sd_results <-
-  filter(results, metric == "sd") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(sd_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(sd_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
+if (FALSE) {
+  mean_results <-
+    filter(results, metric == "mean") %>%
+    dcast(par + component + group ~ method, value.var="val")
+  
+  ggplot(filter(mean_results, par != "mu_g")) +
+    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(slope=1, intercept=0))
+  
+  ggplot(filter(mean_results, par == "mu_g")) +
+    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(slope=1, intercept=0))
+  
+  sd_results <-
+    filter(results, metric == "sd") %>%
+    dcast(par + component + group ~ method, value.var="val")
+  
+  ggplot(filter(sd_results, par != "mu_g")) +
+    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+    geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+    geom_abline(aes(slope=1, intercept=0))
+  
+  ggplot(filter(sd_results, par == "mu_g")) +
+    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+    geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+    geom_abline(aes(slope=1, intercept=0))
+}
 
 
 

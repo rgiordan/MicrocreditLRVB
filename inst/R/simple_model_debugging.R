@@ -70,3 +70,64 @@ true_params$true_mu_g <- sim_data$true_mu_g
 mu_g_mat <- do.call(rbind, true_params$true_mu_g)
 cov(mu_g_mat)
 solve(true_params$true_lambda)
+
+#############################
+# Fit
+
+# Get a mask for the global parameters only.
+mask <- GetVectorFromParameters(vp_base, FALSE)
+mask <- rep(0, length(mask))
+vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)
+vp_mask$mu_loc[] <- 1
+vp_mask$mu_info[] <- 1
+vp_mask$lambda_v[] <- 1
+vp_mask$lambda_n <- 1
+mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+
+vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
+
+theta_init <- GetVectorFromParameters(vp_reg, TRUE)
+vm_reg <- GetMoments(vp_reg)
+
+DerivFun <- function(x, y, y_g, base_vp, pp,
+                     calculate_gradient, calculate_hessian,
+                     unconstrained) {
+  GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
+                           include_obs=FALSE, include_hier=TRUE,
+                           include_prior=FALSE, include_entropy=FALSE,
+                           calculate_gradient=calculate_gradient,
+                           calculate_hessian=calculate_hessian,
+                           unconstrained=unconstrained)
+}
+
+
+bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=20)
+opt_fns <- GetOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
+
+bfgs_time <- Sys.time()
+optim_result0 <- optim(theta_init[mask], opt_fns$OptimVal, opt_fns$OptimGrad, method="L-BFGS-B",
+                       lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
+                       control=list(fnscale=-1, maxit=2000, trace=1, factr=1))
+stopifnot(optim_result0$convergence == 0)
+print(optim_result0$message)
+bfgs_time <- Sys.time() - bfgs_time
+
+optim_result <- NewtonsMethod(opt_fns$OptimVal, opt_fns$OptimGrad, opt_fns$OptimHess,
+                              theta_init=theta_init[mask], fn_scale=-1, tol=1e-8,
+                              verbose=TRUE)
+
+library(trust)
+TrustObj <- function(theta) {
+  list(value=opt_fns$OptimVal(theta),
+       gradient=opt_fns$OptimGrad(theta),
+       hessian=opt_fns$OptimHess(theta))
+}
+
+trust_result <- trust(TrustObj, theta_init[mask], rinit=1, rmax=100, minimize=FALSE)
+tr_theta <- theta_init
+tr_theta[mask] <- trust_result$argument
+
+vm_tr <- GetMoments(GetParametersFromVector(vp_base, tr_theta, TRUE))
+
+vm_reg$lambda_e
+vm_tr$lambda_e
