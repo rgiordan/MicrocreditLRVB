@@ -75,8 +75,38 @@ typename promote_args<Tlik, Tprior>::type  GetGroupPriorLogLikelihood(
     GammaNatural<T> vp_tau(vp.tau[g]);
     GammaMoments<T> vp_tau_moments(vp_tau);
     T log_prior = vp_tau_moments.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
+    std::cout << "tau " << g << ": " << log_prior << "\n";
 
     return log_prior;
+};
+
+
+// TODO: put this in libLinearResponseVariationalBayes.cpp
+template <typename T> T EvaluateLKJPrior(
+    WishartNatural<T> lambda, T lambda_alpha, T lambda_beta, T lambda_eta) {
+
+    MatrixXT<T> v_inv = lambda.v.mat.inverse();
+    WishartMoments<T> lambda_mom(lambda);
+
+    T e_log_sigma_term = digamma(0.5 * (lambda.n - lambda.dim + 1));
+    T e_s_term = exp(lgamma(0.5 * (lambda.n - lambda.dim)) -
+                 lgamma(0.5 * (lambda.n - lambda.dim + 1)));
+
+    T e_log_s, e_s, e_log_sigma_diag;
+    T e_log_det_r = -1 * lambda_mom.e_log_det;
+    T diag_prior = 0.0;
+    for (int k=0; k < lambda.dim; k++) {
+        e_log_sigma_diag =log(0.5 * v_inv(k, k)) - e_log_sigma_term;
+        e_s = sqrt(0.5 * v_inv(k, k)) * e_s_term;
+        e_log_s = 0.5 * e_log_sigma_diag;
+        e_log_det_r -= e_log_sigma_diag;
+        diag_prior += (lambda_alpha - 1) * e_log_s -
+                       lambda_beta * e_s;
+    }
+
+    T lkj_prior = (lambda_eta - 1) * e_log_det_r;
+
+    return lkj_prior + diag_prior;
 };
 
 
@@ -93,28 +123,14 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     MultivariateNormalMoments<T> vp_mu_moments(vp_mu);
     MultivariateNormalNatural<T> pp_mu = pp.mu;
     log_prior += vp_mu_moments.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+    std::cout << "vp.mu: " << log_prior << "\n";
 
-    // Lambda.  Note that in the variable names Sigma = Lambda ^ (-1)
-    MatrixXT<T> v_inv = vp.lambda.v.mat.inverse();
-    T n_par = vp.lambda.n;
-    T e_log_sigma_term = digamma(0.5 * (n_par - pp.k + 1));
-    T e_s_term = exp(lgamma(0.5 * (n_par - pp.k)) - lgamma(0.5 * (n_par - pp.k + 1)));
-    T e_log_det_lambda = GetELogDetWishart(vp.lambda.v.mat, n_par);
-    T e_log_det_r = -1 * e_log_det_lambda;
-    T diag_prior = 0.0;
-
-    T e_log_s, e_s, e_log_sigma_diag;
-    for (int k=0; k < pp.k; k++) {
-    e_log_sigma_diag =log(0.5 * v_inv(k, k)) - e_log_sigma_term;
-    e_s = sqrt(0.5 * v_inv(k, k)) * e_s_term;
-    e_log_s = 0.5 * e_log_sigma_diag;
-    e_log_det_r -= e_log_sigma_diag;
-    diag_prior += (pp.lambda_alpha - 1) * e_log_s -
-                   pp.lambda_beta * e_s;
-    }
-    T lkj_prior = (pp.lambda_eta - 1) * e_log_det_r;
-
-    log_prior += lkj_prior + diag_prior;
+    WishartNatural<T> vp_lambda(vp.lambda);
+    T lambda_alpha = pp.lambda_alpha;
+    T lambda_beta = pp.lambda_beta;
+    T lambda_eta = pp.lambda_eta;
+    log_prior += EvaluateLKJPrior(vp_lambda, lambda_alpha, lambda_beta, lambda_eta);
+    std::cout << "vp.lambda: " << log_prior << "\n";
 
     return log_prior;
 };
@@ -127,8 +143,11 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
     typedef typename promote_args<Tlik, Tprior>::type T;
     T log_prior = 0.0;
     log_prior += GetGlobalPriorLogLikelihood(vp, pp);
+    std::cout << "global: " << log_prior << "\n";
+
     for (int g = 0; g < vp.n_g; g++) {
         log_prior += GetGroupPriorLogLikelihood(vp, pp, g);
+        std::cout << "group " << g << ": " << log_prior << "\n";
     }
     return log_prior;
 };

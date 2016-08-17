@@ -232,6 +232,9 @@ PriorFun <- function(x, y, y_g, vp, pp) {
                            unconstrained=TRUE)$val
 }
 
+pp$tau_alpha <- 10
+pp$tau_beta <- 10
+
 EntropyFun(x, y, y_g, vp_reg, pp)
 HierFun(x, y, y_g, vp_reg, pp)
 ObsFun(x, y, y_g, vp_reg, pp)
