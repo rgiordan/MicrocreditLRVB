@@ -40,14 +40,19 @@ using fvar = stan::math::fvar<var>;
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
     WishartMoments<T> lambda_moments(vp.lambda);
-
     MultivariateNormalMoments<T> mu_moments(vp.mu);
+    // std::cout << "GetHierarchyLogLikelihood\n";
+    // lambda_moments.print("lambda");
+    // mu_moments.print("mu");
     T log_lik = 0.0;
     for (int g = 0; g < vp.n_g; g++) {
         MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
-        log_lik += mu_g_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
+        // mu_g_moments.print("mu_g");
+        T this_log_lik = mu_g_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
+        // std::cout << "log_lik: " << this_log_lik << "\n";
+        log_lik += this_log_lik;
     }
-
+    // std::cout << "---------\n";
     return log_lik;
 };
 

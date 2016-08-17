@@ -13,7 +13,6 @@ source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 library(ggplot2)
 library(dplyr)
 library(reshape2)
-library(rstan)
 library(Matrix)
 library(mvtnorm)
 
@@ -55,7 +54,7 @@ true_params$true_lambda <- solve(true_params$true_sigma)
 true_params$true_tau <- 1 / (0.001^2)
 
 # Number of groups
-n_g <- 1000
+n_g <- 100
 
 # Number of data points per group
 n_per_group <- 3
@@ -78,17 +77,34 @@ diag_min <- 1e-5
 vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 
+mu_g_mat <- matrix(NaN, vp_base$n_g, vp_base$k_reg)
+for (g in 1:vp_base$n_g) {
+  mu_g_mat[g, ] <- vp_reg$mu_g[[g]][["loc"]]
+  vp_reg$mu_g[[g]][["info"]] <- 1e6 * diag(vp_base$k_reg)
+}
+solve(cov(mu_g_mat))
+
+vp_reg$mu_loc <- colMeans(mu_g_mat)
+vp_reg$mu_info <- 1e6 * diag(vp_base$k_reg)
+vp_reg$lambda_n <- 1000
+vp_reg$lambda_v <- solve(cov(mu_g_mat)) / vp_reg$lambda_n
+
 mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
 mask <- rep(0, length(mask))
 vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
 # vp_mask$mu_loc[] <- 1
 # vp_mask$mu_info[] <- 1
 vp_mask$lambda_v[] <- 1
-vp_mask$lambda_n <- 1
+# vp_mask$lambda_n <- 1
 mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
 
 theta_init <- GetGlobalVectorFromParameters(vp_reg, TRUE)
+vp_indices <- GetParametersFromGlobalVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
+vp_indices$lambda_v
+vp_indices$lambda_n
+
 vm_reg <- GetMoments(vp_reg)
+vm_reg$lambda_e
 
 DerivFun <- function(x, y, y_g, base_vp, pp,
                      calculate_gradient, calculate_hessian,
@@ -103,7 +119,11 @@ DerivFun <- function(x, y, y_g, base_vp, pp,
 }
 
 
-opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_base, pp, DerivFun=DerivFun, mask=mask)
+opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=DerivFun, mask=mask)
+opt_fns$OptimVal(theta_init[mask])
+vm_reg$lambda_e
+vm_reg$lambda_e_log_det
+vm_reg$mu_g[[n_g]]
 
 library(trust)
 TrustObj <- function(theta) {
@@ -113,21 +133,41 @@ TrustObj <- function(theta) {
 }
 
 trust_result <- trust(TrustObj, theta_init[mask], rinit=1, rmax=100, minimize=FALSE)
+trust_result$converged
 
 tr_theta <- theta_init
 tr_theta[mask] <- trust_result$argument
 
-vp_tr <- GetParametersFromVector(vp_base, tr_theta, TRUE)
+vp_ev$lambda_v
+vp_ev$lambda_n
+
+
+vp_tr <- GetParametersFromGlobalVector(vp_reg, tr_theta, TRUE)
 vm_tr <- GetMoments(vp_tr)
 
 vp_tr$lambda_v
 vp_tr$lambda_n
+vp_tr$lambda_v * vp_tr$lambda_n
 
+true_params$true_lambda
 vm_reg$lambda_e
 vm_tr$lambda_e
 
+vm_reg$lambda_e_log_det
+vm_tr$lambda_e_log_det
+
+
+
 
 ############
+hess <- opt_fns$OptimHess(trust_result$argument)
+hess_eig <- eigen(hess)
+hess_eig$values
+ev <- rep(0, length(theta_init))
+ev[mask] <- hess_eig$vectors[,3]
+vp_zeros <- GetParametersFromVector(vp_base, rep(0, length(GetVectorFromParameters(vp_base, FALSE))), FALSE)
+vp_ev <- GetParametersFromGlobalVector(vp_zeros, ev, FALSE)
+
 
 ############
 
