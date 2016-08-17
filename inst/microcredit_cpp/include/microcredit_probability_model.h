@@ -75,8 +75,10 @@ typename promote_args<Tlik, Tprior>::type  GetGroupPriorLogLikelihood(
     GammaNatural<T> vp_tau(vp.tau[g]);
     GammaMoments<T> vp_tau_moments(vp_tau);
     T log_prior = vp_tau_moments.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
-    std::cout << "tau " << g << ": " << log_prior << "\n";
-
+    // std::cout << "tau " << g << ": " << log_prior << "\n";
+    // std::cout << "vp_tau_moments: " << vp_tau_moments.e << " " <<
+    //     vp_tau_moments.e_log << "\n";
+    // std::cout << "pp: " << pp_tau.alpha << " " << pp_tau.beta << "\n";
     return log_prior;
 };
 
@@ -123,14 +125,14 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     MultivariateNormalMoments<T> vp_mu_moments(vp_mu);
     MultivariateNormalNatural<T> pp_mu = pp.mu;
     log_prior += vp_mu_moments.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
-    std::cout << "vp.mu: " << log_prior << "\n";
+    // std::cout << "vp.mu: " << log_prior << "\n";
 
     WishartNatural<T> vp_lambda(vp.lambda);
     T lambda_alpha = pp.lambda_alpha;
     T lambda_beta = pp.lambda_beta;
     T lambda_eta = pp.lambda_eta;
     log_prior += EvaluateLKJPrior(vp_lambda, lambda_alpha, lambda_beta, lambda_eta);
-    std::cout << "vp.lambda: " << log_prior << "\n";
+    // std::cout << "vp.lambda: " << log_prior << "\n";
 
     return log_prior;
 };
@@ -143,11 +145,11 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
     typedef typename promote_args<Tlik, Tprior>::type T;
     T log_prior = 0.0;
     log_prior += GetGlobalPriorLogLikelihood(vp, pp);
-    std::cout << "global: " << log_prior << "\n";
+    // std::cout << "global: " << log_prior << "\n";
 
     for (int g = 0; g < vp.n_g; g++) {
         log_prior += GetGroupPriorLogLikelihood(vp, pp, g);
-        std::cout << "group " << g << ": " << log_prior << "\n";
+        // std::cout << "group " << g << ": " << log_prior << "\n";
     }
     return log_prior;
 };

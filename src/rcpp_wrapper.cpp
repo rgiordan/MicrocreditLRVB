@@ -23,14 +23,15 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
     r_list["k_reg"] = vp.k;
     r_list["encoded_size"] = vp.offsets.encoded_size;
 
-    // Assume this is all the same.
-    r_list["diag_min"] = vp.mu.diag_min;
-
     r_list["mu_loc"] = vp.mu.loc;
     r_list["mu_info"] = vp.mu.info.mat;
+    // Assume this is all the same for mu and mu_g
+    r_list["mu_diag_min"] = vp.mu.diag_min;
 
     r_list["lambda_v"] = vp.lambda.v.mat;
     r_list["lambda_n"] = vp.lambda.n;
+    r_list["lambda_n_min"] = vp.lambda.n_min;
+    r_list["lambda_diag_min"] = vp.mu.diag_min;
 
     if (vp.n_g > 0) {
         r_list["tau_alpha_min"] = vp.tau[0].alpha_min;
@@ -65,14 +66,14 @@ ConvertParametersFromList(Rcpp::List r_list) {
     int n_g = r_list["n_g"];
     VariationalParameters<double> vp(k_reg, n_g, true);
 
-    double diag_min = Rcpp::as<double>(r_list["diag_min"]);
     vp.mu.loc = Rcpp::as<Eigen::VectorXd>(r_list["mu_loc"]);
     vp.mu.info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
-    vp.mu.diag_min = diag_min;
+    vp.mu.diag_min = Rcpp::as<double>(r_list["mu_diag_min"]);;
 
     vp.lambda.v.mat = Rcpp::as<Eigen::MatrixXd>(r_list["lambda_v"]);
     vp.lambda.n = Rcpp::as<double>(r_list["lambda_n"]);
-    vp.lambda.diag_min = diag_min;
+    vp.lambda.n_min = Rcpp::as<double>(r_list["lambda_n_min"]);
+    vp.mu.diag_min = Rcpp::as<double>(r_list["lambda_diag_min"]);;
 
     double tau_alpha_min = 0;
     double tau_beta_min = 0;
@@ -90,7 +91,7 @@ ConvertParametersFromList(Rcpp::List r_list) {
         Rcpp::List this_mu_g = mu_g_list[g];
         vp.mu_g[g].loc = Rcpp::as<Eigen::VectorXd>(this_mu_g["loc"]);
         vp.mu_g[g].info.mat = Rcpp::as<Eigen::MatrixXd>(this_mu_g["info"]);
-        vp.mu_g[g].diag_min = diag_min;
+        vp.mu_g[g].diag_min = vp.mu.diag_min;
     }
 
     Rcpp::List tau_list = r_list["tau"];

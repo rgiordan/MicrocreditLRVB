@@ -122,7 +122,7 @@ GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
 
 
 GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
-                              mask=rep(TRUE, length(GetVectorFromParameters(vp_base))),
+                              mask=rep(TRUE, vp_base$encoded_size),
                               DerivFun=GetElboDerivatives) {
   GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
                         DerivFun, GetVectorFromParameters, GetParametersFromVector)
@@ -138,11 +138,15 @@ GetGlobalOptimFunctions <- function(x, y, y_g, vp_base, pp,
 
 
 
-InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
+InitializeVariationalParameters <-
+  function(x, y, y_g, mu_diag_min=0.01, lambda_diag_min=1e-5, tau_min=0.5, lambda_n_min=1e-6) {
   # Initial parameters from data
   vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
-  vp$diag_min <- diag_min
+  vp$mu_diag_min <- mu_diag_min
+  vp$lambda_diag_min <- lambda_diag_min
   vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
+  vp$lambda_n_min <- lambda_n_min
+    
   min_info <- diag(vp$k_reg) * diag_min
   
   vp$mu_loc <- summary(lm(y ~ x - 1))$coefficients[,"Estimate"]
@@ -155,9 +159,7 @@ InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
     mu_g_mean <- g_reg$coefficients[,"Estimate"]
     mu_g_cov <- mu_g_mean %*% t(mu_g_mean) + 10 * diag(vp$k)
     vp$mu_g[[g]] <- list(loc=mu_g_mean, info=solve(mu_g_cov) + min_info)
-
-    e_tau <- 1 / g_reg$sigma ^ 2
-    vp$tau[[g]] <- list(alpha=0.01 * e_tau + tau_min, beta=0.01 + tau_min)
+    vp$tau[[g]] <- list(alpha=1 + tau_min, beta=g_reg$sigma ^ 2 + tau_min)
     mu_g_mat[g, ] <- mu_g_mean
   }
   vp$lambda_n <- vp$k + 1
@@ -167,7 +169,9 @@ InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
 }
 
 
-InitializeZeroVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
+InitializeZeroVariationalParameters <-
+  function(x, y, y_g, mu_diag_min=1e-6, lambda_diag_min=1e-6, tau_min=1e-6, lambda_n_min=1e-6) {
+
   # Initial parameters from data
   vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
   vp$diag_min <- diag_min
@@ -183,6 +187,7 @@ InitializeZeroVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1
   }
   vp$lambda_n <- vp$k + 1
   vp$lambda_v <- diag(vp$k_reg) + min_info
+  vp$lambda_n_min <- 0.5
   
   return(vp)
 }
@@ -322,3 +327,114 @@ GetTrustObj <- function(optim_fns) {
   return(TrustObj)
 }
 
+
+EvaluateOnGrid <- function(FUN, theta, dir, grid_min, grid_max, len) {
+  result <- list()
+  grid_points <- seq(grid_min, grid_max, length.out=len)
+  for (i in 1:len) {
+    epsilon <- grid_points[i]
+    print(epsilon)
+    val <- FUN(theta + dir * epsilon)
+    result[[length(result) + 1]] <- data.frame(epsilon=epsilon, val=val)
+  }
+  return(do.call(rbind, result))
+}
+
+
+EntropyFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=TRUE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+
+HierFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=TRUE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+ObsFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=TRUE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+PriorFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=TRUE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+EntropyGrad <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=TRUE,
+                           global_only=FALSE,
+                           calculate_gradient=TRUE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$grad
+}
+
+
+HierGrad <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=TRUE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=TRUE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$grad
+}
+
+ObsGrad <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=TRUE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=TRUE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$grad
+}
+
+PriorGrad <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=TRUE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=TRUE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$grad
+}
