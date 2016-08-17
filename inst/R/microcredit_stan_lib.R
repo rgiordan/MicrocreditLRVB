@@ -1,8 +1,21 @@
 library(Matrix) # Needed for Matrix::diag :(
 
+# Get a mask for the global parameters only.
+GlobalMask <- function(vp) {
+  mask <- GetVectorFromParameters(vp_base, FALSE)
+  mask <- rep(0, length(mask))
+  vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)
+  vp_mask$mu_loc[] <- 1
+  vp_mask$mu_info[] <- 1
+  vp_mask$lambda_v[] <- 1
+  vp_mask$lambda_n <- 1
+  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+  return(mask)
+}
+
 
 # Generate sample data
-SimulateData <- function(true_params, n_g, n_per_group) {
+SimulateData <- function(true_params, n_g, n_per_group, binary_x=TRUE) {
   y_vec <- list()
   y_g_vec <- list()
   x_vec <- list()
@@ -11,7 +24,11 @@ SimulateData <- function(true_params, n_g, n_per_group) {
     true_mu_g[[g]] <-
       as.numeric(rmvnorm(1, mean=true_params$true_mu,
                          sigma=true_params$true_sigma))
-    x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
+    if (binary_x) {
+      x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group) > 0.5)
+    } else {
+      x_vec[[g]] <- cbind(rep(1.0, n_per_group), runif(n_per_group))
+    }
     y_vec[[g]] <-
       rnorm(n_per_group, x_vec[[g]] %*% true_mu_g[[g]],
             1 / sqrt(true_params$true_tau))
@@ -67,15 +84,15 @@ SummarizeVpNat <- function(vp_nat) {
 }
 
 
-GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
-                              DerivFun=GetElboDerivatives,
-                              mask=rep(TRUE, length(GetVectorFromParameters(vp_base, TRUE)))) {
-  theta_base <- GetVectorFromParameters(vp_base, TRUE)
+GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
+                                  DerivFun, VectorFromParameters, ParametersFromVector) {
 
+  theta_base <- VectorFromParameters(vp_base, TRUE)
+  
   GetLocalVP <- function(theta) {
     full_theta <- theta_base
     full_theta[mask] <- theta
-    return(GetParametersFromVector(vp_base, full_theta, TRUE))
+    return(ParametersFromVector(vp_base, full_theta, TRUE))
   }
   
   OptimVal <- function(theta) {
@@ -101,6 +118,24 @@ GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
   }
   return(list(OptimVal=OptimVal, OptimGrad=OptimGrad, OptimHess=OptimHess))
 }
+
+
+
+GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
+                              mask=rep(TRUE, length(GetVectorFromParameters(vp_base))),
+                              DerivFun=GetElboDerivatives) {
+  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
+                        DerivFun, GetVectorFromParameters, GetParametersFromVector)
+}
+
+
+GetGlobalOptimFunctions <- function(x, y, y_g, vp_base, pp,
+                                    mask=rep(TRUE, length(GetGlobalVectorFromParameters(vp_base))),
+                                    DerivFun=GetElboDerivatives) {
+  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
+                        DerivFun, GetGlobalVectorFromParameters, GetParametersFromGlobalVector)
+}
+
 
 
 InitializeVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1) {
@@ -163,7 +198,6 @@ ResultRow <- function(par, component, group, method, metric, val) {
   return(data.frame(par=par, component=component, group=group, method=method, metric=metric, val=val))
 }
 
-
 SummarizeMCMCColumn <- function(draws, par, component=-1, group=-1, method="mcmc") {
   rbind(ResultRow(par, component, group, method=method, metric="mean", val=mean(draws)),
         ResultRow(par, component, group, method=method, metric="sd", val=sd(draws)))
@@ -212,12 +246,6 @@ SummarizeMomentParameters <- function(vp_mom, mfvb_sd, lrvb_sd) {
   }
   
   return(do.call(rbind, results_list))
-}
-
-
-SummarizeMCMCColumn <- function(draws, par, component=-1, group=-1, method="mcmc") {
-  rbind(ResultRow(par, component, group, method=method, metric="mean", val=mean(draws)),
-        ResultRow(par, component, group, method=method, metric="sd", val=sd(draws)))
 }
 
 

@@ -31,18 +31,6 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// GetMomentsFromVector
-Rcpp::List GetMomentsFromVector(const Rcpp::List r_mp, const Eigen::Map<Eigen::VectorXd> r_theta);
-RcppExport SEXP MicrocreditLRVB_GetMomentsFromVector(SEXP r_mpSEXP, SEXP r_thetaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject __result;
-    Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Rcpp::List >::type r_mp(r_mpSEXP);
-    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
-    __result = Rcpp::wrap(GetMomentsFromVector(r_mp, r_theta));
-    return __result;
-END_RCPP
-}
 // GetVectorFromParameters
 Eigen::VectorXd GetVectorFromParameters(const Rcpp::List r_vp, bool unconstrained);
 RcppExport SEXP MicrocreditLRVB_GetVectorFromParameters(SEXP r_vpSEXP, SEXP unconstrainedSEXP) {
@@ -52,6 +40,43 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
     __result = Rcpp::wrap(GetVectorFromParameters(r_vp, unconstrained));
+    return __result;
+END_RCPP
+}
+// GetParametersFromGlobalVector
+Rcpp::List GetParametersFromGlobalVector(const Rcpp::List r_vp, const Eigen::Map<Eigen::VectorXd> r_theta, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetParametersFromGlobalVector(SEXP r_vpSEXP, SEXP r_thetaSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetParametersFromGlobalVector(r_vp, r_theta, unconstrained));
+    return __result;
+END_RCPP
+}
+// GetGlobalVectorFromParameters
+Eigen::VectorXd GetGlobalVectorFromParameters(const Rcpp::List r_vp, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetGlobalVectorFromParameters(SEXP r_vpSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetGlobalVectorFromParameters(r_vp, unconstrained));
+    return __result;
+END_RCPP
+}
+// GetMomentsFromVector
+Rcpp::List GetMomentsFromVector(const Rcpp::List r_mp, const Eigen::Map<Eigen::VectorXd> r_theta);
+RcppExport SEXP MicrocreditLRVB_GetMomentsFromVector(SEXP r_mpSEXP, SEXP r_thetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_mp(r_mpSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    __result = Rcpp::wrap(GetMomentsFromVector(r_mp, r_theta));
     return __result;
 END_RCPP
 }

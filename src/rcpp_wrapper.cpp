@@ -232,6 +232,44 @@ Rcpp::List GetParametersFromVector(
   return vp_list;
 }
 
+// [[Rcpp::export]]
+Eigen::VectorXd GetVectorFromParameters(
+    const Rcpp::List r_vp,
+    bool unconstrained) {
+
+  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+  vp.unconstrained = unconstrained;
+  VectorXd theta = GetParameterVector(vp);
+  return theta;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List GetParametersFromGlobalVector(
+    const Rcpp::List r_vp,
+    const Eigen::Map<Eigen::VectorXd> r_theta,
+    bool unconstrained) {
+
+  VectorXd theta = r_theta;
+  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+  vp.unconstrained = unconstrained;
+  SetFromGlobalVector(theta, vp);
+  Rcpp::List vp_list = ConvertParametersToList(vp);
+  return vp_list;
+}
+
+
+// [[Rcpp::export]]
+Eigen::VectorXd GetGlobalVectorFromParameters(
+    const Rcpp::List r_vp,
+    bool unconstrained) {
+
+  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+  vp.unconstrained = unconstrained;
+  VectorXd theta = GetGlobalParameterVector(vp);
+  return theta;
+}
+
 
 // [[Rcpp::export]]
 Rcpp::List GetMomentsFromVector(
@@ -248,17 +286,6 @@ Rcpp::List GetMomentsFromVector(
   return mp_list;
 }
 
-
-// [[Rcpp::export]]
-Eigen::VectorXd GetVectorFromParameters(
-    const Rcpp::List r_vp,
-    bool unconstrained) {
-
-  VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-  vp.unconstrained = unconstrained;
-  VectorXd theta = GetParameterVector(vp);
-  return theta;
-}
 
 
 // For testing.
