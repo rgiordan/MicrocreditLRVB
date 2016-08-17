@@ -21,6 +21,7 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
     Rcpp::List r_list;
     r_list["n_g"] = vp.n_g;
     r_list["k_reg"] = vp.k;
+    r_list["encoded_size"] = vp.offsets.encoded_size;
 
     // Assume this is all the same.
     r_list["diag_min"] = vp.mu.diag_min;
@@ -333,8 +334,7 @@ Rcpp::List GetCustomElboDerivatives(
     bool include_hier,
     bool include_prior,
     bool include_entropy,
-    bool use_group,
-    int g,
+    bool global_only,
     const bool calculate_gradient,
     const bool calculate_hessian,
     const bool unconstrained) {
@@ -349,8 +349,7 @@ Rcpp::List GetCustomElboDerivatives(
     Derivatives derivs =
         GetElboDerivatives(data, vp, pp,
             include_obs, include_hier, include_prior, include_entropy,
-            use_group, g,
-            unconstrained, calculate_gradient, calculate_hessian);
+            global_only, unconstrained, calculate_gradient, calculate_hessian);
     Rcpp::List ret = ConvertDerivativesToList(derivs);
     return ret;
 }
@@ -383,47 +382,20 @@ Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp) {
 }
 
 
-
-
-// // [[Rcpp::export]]
-// Rcpp::List PriorSensitivity(const Rcpp::List r_vp, const Rcpp::List r_pp) {
-//   // TODO: Add an unconstrained flag like elsewhere
-//
-//   int k = r_vp["k"];
-//   int n_g = r_vp["n_g"];
-//   VariationalParameters<double> vp(k, n_g);
-//   PriorParameters<double> pp(k);
-//
-//   convert_from_list(r_vp, vp);
-//   convert_from_list(r_pp, pp);
-//
-//   VariationalParameterEncoder
-//     vp_encoder(vp, pp.lambda_diag_min, pp.lambda_n_min, true);
-//   PriorParameterEncoder pp_encoder(pp);
-//   ModelParameterEncoder encoder(vp_encoder, pp_encoder);
-//
-//   double prior_val;
-//   Eigen::VectorXd prior_grad(encoder.dim);
-//   Eigen::MatrixXd prior_hess(encoder.dim, encoder.dim);
-//   Eigen::VectorXd theta = encoder.get_parameter_vector(vp, pp);
-//   MicroCreditLogPrior LogPrior(vp, pp, encoder);
-//
-//   stan::math::set_zero_all_adjoints();
-//   stan::math::hessian(LogPrior, theta, prior_val, prior_grad, prior_hess);
-//
-//   Rcpp::List ret;
-//   ret["prior_val"] = prior_val;
-//   ret["prior_grad"] = prior_grad;
-//   ret["prior_hess"] = prior_hess;
-//
-//   return ret;
-// }
-
-
-
 // [[Rcpp::export]]
 Eigen::SparseMatrix<double>
-GetVariationalCovariance(const Rcpp::List r_vp) {
+GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x,
+    const Eigen::Map<Eigen::VectorXd> r_y,
+    const Eigen::Map<Eigen::VectorXi> r_y_g,
+    const Rcpp::List r_vp, const Rcpp::List r_pp,
+    bool unconstrained) {
+
+    Eigen::MatrixXd x = r_x;
+    Eigen::VectorXd y = r_y;
+    Eigen::VectorXi y_g = r_y_g;
+    MicroCreditData data(x, y, y_g);
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-    return(GetCovariance(vp, vp.offsets));
+    vp.unconstrained = unconstrained;
+    PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
+    return GetSparseELBOHessian(data, vp, pp);
 }

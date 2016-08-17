@@ -79,8 +79,7 @@ Derivatives GetElboDerivatives(
   bool include_hier,
   bool include_prior,
   bool include_entropy,
-  bool use_group,
-  int g,
+  bool global_only,
   bool const unconstrained,
   bool const calculate_gradient,
   bool const calculate_hessian) {
@@ -93,23 +92,15 @@ Derivatives GetElboDerivatives(
     ELBO.include_prior = include_prior;
     ELBO.include_entropy = include_entropy;
 
-    ELBO.g = g;
-    ELBO.use_group = use_group;
+    ELBO.global_only = global_only;
 
     double val;
     VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
     MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
 
     VectorXd theta;
-    if (use_group) {
-        if (g < -1) {
-            throw std::runtime_error("g < -1 is not permitted.");
-        }
-        if (g == -1) {
-            theta = GetGlobalParameterVector(vp);
-        } else {
-            theta = GetGroupParameterVector(vp, g);
-        }
+    if (global_only) {
+        theta = GetGlobalParameterVector(vp);
     } else {
         theta = GetParameterVector(vp);
     }
@@ -186,4 +177,55 @@ SparseMatrix<double> GetCovariance(
   theta_cov.makeCompressed();
 
   return theta_cov;
-}
+};
+
+
+SparseMatrix<double> GetSparseELBOHessian(
+    MicroCreditData data,
+    VariationalParameters<double> vp,
+    PriorParameters<double> pp) {
+
+    // The group terms.
+    MicroCreditGroupElbo GroupElbo(data, vp, pp, 0);
+    std::vector<Triplet> all_terms = GetSparseGroupHessian(GroupElbo, vp);
+
+    // The global terms.
+    MicroCreditGlobalElbo GlobalElbo(data, vp, pp);
+    VectorXd theta = GetGlobalParameterVector(vp);
+
+    double val;
+    VectorXd grad = VectorXd::Zero(theta.size());
+    MatrixXd hess = MatrixXd::Zero(theta.size(), theta.size());
+    stan::math::hessian(GlobalElbo, theta, val, grad, hess);
+
+    for (int i1 = 0; i1 < hess.rows(); i1++) {
+        for (int i2 = 0; i2 < hess.cols(); i2++) {
+            all_terms.push_back(Triplet(i1, i2, hess(i1, i2)));
+        }
+    }
+
+    // Construct a sparse matrix.
+    SparseMatrix<double>
+      elbo_hess(vp.offsets.encoded_size, vp.offsets.encoded_size);
+    elbo_hess.setFromTriplets(all_terms.begin(), all_terms.end());
+    elbo_hess.makeCompressed();
+
+    return elbo_hess;
+};
+
+
+
+
+// Convert index from a "local" vector containing first the global variables
+// and then a single local variable to indices into a "global" vector containing
+// first the global variables and then all the local variables.
+int GlobalIndex(int index, int g, Offsets offsets) {
+    if (index < offsets.local_offset) {
+        // It is a "global" index: here, mu or lambda.
+        return index;
+    } else {
+        // It is a local index whose location in the global array is offset
+        // relative to the group vector.
+        return index + g * offsets.local_encoded_size;
+    }
+};

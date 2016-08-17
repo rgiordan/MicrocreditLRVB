@@ -22,6 +22,7 @@ template <typename T> using MatrixXT = Eigen::Matrix<T, Dynamic, Dynamic>;
 
 using std::vector;
 
+
 /////////////////////////////
 // Offset types
 
@@ -31,13 +32,17 @@ struct Offsets {
         vector<int> tau;
         vector<int> mu_g;
 
+        int local_offset;
         int encoded_size;
+        int local_encoded_size;
 
         Offsets() {
                 mu = 0;
                 lambda = 0;
                 tau.resize(0);
                 mu_g.resize(0);
+                local_offset = 0;
+                local_encoded_size = 0;
                 encoded_size = 0;
         }
 };
@@ -63,6 +68,7 @@ struct PriorOffsets {
 };
 
 
+
 //////////////////////////////////////
 // VariationalParameters
 //////////////////////////////////////
@@ -77,7 +83,7 @@ private:
 
         mu = MultivariateNormalNatural<T>(k);
         lambda = WishartNatural<T>(k);
-        mu.info.scale_cholesky = lambda.v.scale_cholesky = true;
+        mu.info.scale_cholesky = lambda.v.scale_cholesky = false;
 
         // Per-observation parameters
         mu_g.resize(n_g);
@@ -85,7 +91,7 @@ private:
 
         for (int g = 0; g < n_g; g++) {
             mu_g[g] = MultivariateNormalNatural<T>(k);
-            mu_g[g].info.scale_cholesky = true;
+            mu_g[g].info.scale_cholesky = false;
             tau[g] = GammaNatural<T>();
         }
         offsets = GetOffsets(*this);
@@ -272,226 +278,6 @@ public:
 };
 
 
-/////////////////////////////////////
-// Offsets
-
-template <typename T, template<typename> class VPType>
-Offsets GetOffsets(VPType<T> vp) {
-        Offsets offsets;
-        int encoded_size = 0;
-
-        offsets.mu = encoded_size;
-        encoded_size += vp.mu.encoded_size;
-
-        offsets.lambda = encoded_size;
-        encoded_size += vp.lambda.encoded_size;
-
-        offsets.tau.resize(vp.n_g);
-        for (int g = 0; g < vp.n_g; g++) {
-                offsets.tau[g] = encoded_size;
-                encoded_size += vp.tau[g].encoded_size;
-        }
-
-        offsets.mu_g.resize(vp.n_g);
-        for (int g = 0; g < vp.n_g; g++) {
-                offsets.mu_g[g] = encoded_size;
-                encoded_size += vp.mu_g[g].encoded_size;
-        }
-
-        offsets.encoded_size = encoded_size;
-
-        return offsets;
-};
-
-
-template <typename T> PriorOffsets GetPriorOffsets(PriorParameters<T> pp) {
-        PriorOffsets offsets;
-        int encoded_size = 0;
-
-        offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
-        offsets.tau = encoded_size; encoded_size += pp.tau.encoded_size;
-        offsets.lambda_eta = encoded_size; encoded_size += 1;
-        offsets.lambda_alpha = encoded_size; encoded_size += 1;
-        offsets.lambda_beta = encoded_size; encoded_size += 1;
-
-        offsets.encoded_size = encoded_size;
-
-        return offsets;
-};
-
-
-
-///////////////////////////////
-// Converting to and from vectors
-
-template <typename T, template<typename> class VPType>
-VectorXT<T> GetParameterVector(VPType<T> vp) {
-    VectorXT<T> theta(vp.offsets.encoded_size);
-
-        theta.segment(vp.offsets.mu, vp.mu.encoded_size) =
-                vp.mu.encode_vector(vp.unconstrained);
-
-        theta.segment(vp.offsets.lambda, vp.lambda.encoded_size) =
-                vp.lambda.encode_vector(vp.unconstrained);
-
-        for (int g = 0; g < vp.tau.size(); g++) {
-                theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size) =
-                        vp.tau[g].encode_vector(vp.unconstrained);
-        }
-
-        for (int g = 0; g < vp.mu_g.size(); g++) {
-                theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size) =
-                        vp.mu_g[g].encode_vector(vp.unconstrained);
-        }
-
-        return theta;
-}
-
-
-template <typename T, template<typename> class VPType>
-void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
-    if (theta.size() != vp.offsets.encoded_size) {
-            throw std::runtime_error("Vector is wrong size.");
-    }
-
-    VectorXT<T> theta_sub;
-
-    theta_sub = theta.segment(vp.offsets.mu, vp.mu.encoded_size);
-    vp.mu.decode_vector(theta_sub, vp.unconstrained);
-
-    theta_sub = theta.segment(vp.offsets.lambda, vp.lambda.encoded_size);
-    vp.lambda.decode_vector(theta_sub, vp.unconstrained);
-
-    for (int g = 0; g < vp.tau.size(); g++) {
-            theta_sub = theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size);
-            vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
-    }
-
-    for (int g = 0; g < vp.mu_g.size(); g++) {
-            theta_sub = theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size);
-            vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
-    }
-}
-
-
-// For a single group
-template <typename T, template<typename> class VPType>
-VectorXT<T> GetGroupParameterVector(VPType<T> vp, int const g) {
-
-        if (g < 0 || g > vp.n_g) {
-                throw std::runtime_error("g out of bounds");
-        }
-
-        int encoded_size = vp.tau[g].encoded_size + vp.mu_g[g].encoded_size;
-        VectorXT<T> theta(encoded_size);
-
-        int offset = 0;
-        theta.segment(offset, vp.tau[g].encoded_size) =
-                vp.tau[g].encode_vector(vp.unconstrained);
-        offset += vp.tau[g].encoded_size;
-        theta.segment(offset, vp.mu_g[g].encoded_size) =
-                vp.mu_g[g].encode_vector(vp.unconstrained);
-
-        return theta;
-}
-
-
-template <typename T, template<typename> class VPType>
-void SetFromGroupVector(
-        VectorXT<T> const &theta, VPType<T> &vp, int const g) {
-
-        if (g < 0 || g > vp.n_g) {
-                throw std::runtime_error("g out of bounds");
-        }
-
-        int encoded_size = vp.tau[g].encoded_size + vp.mu_g[g].encoded_size;
-        if (theta.size() != encoded_size) {
-                throw std::runtime_error("Vector is wrong size.");
-        }
-
-        int offset = 0;
-        VectorXT<T> theta_sub;
-
-        // Make sure that GetParameterVector follows the same ordering.
-        theta_sub = theta.segment(offset, vp.tau[g].encoded_size);
-        vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
-        offset += vp.tau[g].encoded_size;
-
-        theta_sub = theta.segment(offset, vp.mu_g[g].encoded_size);
-        vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
-}
-
-
-// For global parameters
-template <typename T, template<typename> class VPType>
-VectorXT<T> GetGlobalParameterVector(VPType<T> vp) {
-        int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
-        VectorXT<T> theta(encoded_size);
-
-        int offset = 0;
-        theta.segment(offset, vp.mu.encoded_size) = vp.mu.encode_vector(vp.unconstrained);
-        offset += vp.mu.encoded_size;
-        theta.segment(offset, vp.lambda.encoded_size) = vp.lambda.encode_vector(vp.unconstrained);
-
-        return theta;
-}
-
-
-template <typename T, template<typename> class VPType>
-void SetFromGlobalVector(VectorXT<T> const &theta, VPType<T> &vp) {
-
-                int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
-        if (theta.size() != encoded_size) {
-                throw std::runtime_error("Vector is wrong size.");
-        }
-
-        int offset = 0;
-        VectorXT<T> theta_sub;
-
-        // Make sure that GetParameterVector follows the same ordering.
-        theta_sub = theta.segment(offset, vp.mu.encoded_size);
-        vp.mu.decode_vector(theta_sub, vp.unconstrained);
-        offset += vp.mu.encoded_size;
-
-        theta_sub = theta.segment(offset, vp.lambda.encoded_size);
-        vp.lambda.decode_vector(theta_sub, vp.unconstrained);
-}
-
-
-// Priors
-template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
-    VectorXT<T> theta(pp.offsets.encoded_size);
-
-    theta.segment(pp.offsets.mu, pp.mu.encoded_size) = pp.mu.encode_vector(false);
-    theta.segment(pp.offsets.tau, pp.tau.encoded_size) = pp.tau.encode_vector(false);
-
-    theta(pp.offsets.lambda_eta) = pp.lambda_eta;
-    theta(pp.offsets.lambda_alpha) = pp.lambda_eta;
-    theta(pp.offsets.lambda_beta) = pp.lambda_eta;
-
-    return theta;
-}
-
-
-template <typename T>
-void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
-    if (theta.size() != pp.offsets.encoded_size) {
-            throw std::runtime_error("Vector is wrong size.");
-    }
-
-    VectorXT<T> theta_sub;
-
-    theta_sub = theta.segment(pp.offsets.mu, pp.mu.encoded_size);
-    pp.mu.decode_vector(theta_sub, false);
-
-    theta_sub = theta.segment(pp.offsets.tau, pp.tau.encoded_size);
-    pp.tau.decode_vector(theta_sub, false);
-
-    pp.lambda_eta = theta(pp.offsets.lambda_eta);
-    pp.lambda_alpha = theta(pp.offsets.lambda_alpha);
-    pp.lambda_beta = theta(pp.offsets.lambda_beta);
-}
-
 //////////////////////////////
 // Model data
 
@@ -546,5 +332,7 @@ struct MicroCreditData {
     }
 
 };
+
+# include "microcredit_encoders.h"
 
 # endif

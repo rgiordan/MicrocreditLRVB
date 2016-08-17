@@ -16,6 +16,8 @@ library(reshape2)
 library(Matrix)
 library(mvtnorm)
 
+library(trust)
+
 library(MicrocreditLRVB)
 
 project_directory <-
@@ -35,11 +37,12 @@ pp <- list()
 pp[["k_reg"]] <- k
 pp[["mu_loc"]] <- rep(0, k)
 pp[["mu_info"]] <- matrix(c(0.02, 0., 0, 0.02), k, k)
-pp[["lambda_eta"]] <- 15.01
-pp[["lambda_alpha"]] <- 20.01
-pp[["lambda_beta"]] <- 20.01
+pp[["lambda_eta"]] <- 10
+pp[["lambda_alpha"]] <- 3
+pp[["lambda_beta"]] <- 3
 pp[["tau_alpha"]] <- 2.01
 pp[["tau_beta"]] <- 2.01
+
 
 #############################
 # Simualate some data
@@ -70,11 +73,13 @@ mu_g_mat <- do.call(rbind, true_params$true_mu_g)
 cov(mu_g_mat)
 solve(true_params$true_lambda)
 
+
 #############################
-# Fit
+# Initialize
 
 diag_min <- 1e-5
 vp_base <- InitializeZeroVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
+vp_indices <- GetParametersFromVector(vp_base, as.numeric(1:vp_base$encoded_size), FALSE)
 vp_reg <- InitializeVariationalParameters(x, y, y_g, diag_min=diag_min, tau_min=0)
 
 mu_g_mat <- matrix(NaN, vp_base$n_g, vp_base$k_reg)
@@ -89,91 +94,161 @@ vp_reg$mu_info <- 1e6 * diag(vp_base$k_reg)
 vp_reg$lambda_n <- 1000
 vp_reg$lambda_v <- solve(cov(mu_g_mat)) / vp_reg$lambda_n
 
-mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
-mask <- rep(0, length(mask))
-vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
-# vp_mask$mu_loc[] <- 1
-# vp_mask$mu_info[] <- 1
-vp_mask$lambda_v[] <- 1
-vp_mask$lambda_n <- 1
-mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
-
-theta_init <- GetGlobalVectorFromParameters(vp_reg, TRUE)
-chol_v <- chol(vp_reg$lambda_v - diag_min * diag(vp_reg$k_reg))
-chol_v_scale <- diag(chol_v)
-log(chol_v_scale)
-solve(diag(chol_v_scale), chol_v)
-theta_init
-
-
-vp_indices <- GetParametersFromGlobalVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
-vp_indices$lambda_v
-vp_indices$lambda_n
-
 vm_reg <- GetMoments(vp_reg)
-vm_reg$lambda_e
 
-DerivFun <- function(x, y, y_g, base_vp, pp,
-                     calculate_gradient, calculate_hessian,
-                     unconstrained) {
-  GetCustomElboDerivatives(x, y, y_g, base_vp, pp,
+vp_opt <- vp_reg
+
+
+###################################
+# Check Hessians
+
+elbo_derivs <- GetElboDerivatives(x, y, y_g, vp_reg, pp, TRUE, TRUE, TRUE)
+hess_sparse <- GetSparseELBOHessian(x, y, y_g, vp_reg, pp, TRUE) 
+max(abs(hess_sparse - elbo_derivs$hess))
+# image(hess_sparse)
+# image(Matrix(elbo_derivs$hess))
+hess_diff <- abs(hess_sparse- Matrix(elbo_derivs$hess))
+hess_diff[abs(hess_diff) < 1e-9] <- 0
+# image(Matrix(hess_diff))
+hess_diff[1:15, 1:15]
+which(hess_diff == max(hess_diff), arr.ind = TRUE)
+hess_diff[454, 451]
+
+
+###################################
+# Optimize global parameters
+
+global_theta_init <- GetGlobalVectorFromParameters(vp_opt, TRUE)
+mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
+mask <- rep(TRUE, length(mask))
+
+GlobalDerivFun <- function(x, y, y_g, vp, pp,
+                           calculate_gradient, calculate_hessian, unconstrained) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
                            include_obs=FALSE, include_hier=TRUE,
-                           include_prior=FALSE, include_entropy=FALSE,
+                           include_prior=TRUE, include_entropy=TRUE,
                            use_group=TRUE, g=-1,
                            calculate_gradient=calculate_gradient,
                            calculate_hessian=calculate_hessian,
                            unconstrained=unconstrained)
 }
 
-opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=DerivFun, mask=mask)
-opt_fns$OptimVal(theta_init[mask])
-vm_reg$lambda_e
-vm_reg$lambda_e_log_det
-vm_reg$mu_g[[n_g]]
+global_opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_opt, pp, DerivFun=GlobalDerivFun, mask=mask)
+GlobalTrustObj <- GetTrustObj(global_opt_fns)
 
-library(trust)
-TrustObj <- function(theta) {
-  list(value=opt_fns$OptimVal(theta),
-       gradient=opt_fns$OptimGrad(theta),
-       hessian=opt_fns$OptimHess(theta))
-}
-
-trust_result <- trust(TrustObj, theta_init[mask], rinit=1, rmax=100, minimize=FALSE)
+trust_result <- trust(GlobalTrustObj, global_theta_init[mask], rinit=1, rmax=100, minimize=FALSE, blather=TRUE)
 trust_result$converged
 
-tr_theta <- theta_init
+tr_theta <- global_theta_init
 tr_theta[mask] <- trust_result$argument
 
-vp_ev$lambda_v
-vp_ev$lambda_n
+vp_opt <- GetParametersFromGlobalVector(vp_opt, tr_theta, TRUE)
 
 
-vp_tr <- GetParametersFromGlobalVector(vp_reg, tr_theta, TRUE)
+
+#####################################
+# Optimize local parameters
+
+theta_init <- GetVectorFromParameters(vp_opt, TRUE)
+local_mask <- GetLocalMask(vp_base)
+
+LocalDerivFun <- function(x, y, y_g, vp, pp,
+                          calculate_gradient, calculate_hessian, unconstrained) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=TRUE, include_hier=TRUE,
+                           include_prior=TRUE, include_entropy=TRUE,
+                           global_only=FALSE,
+                           calculate_gradient=calculate_gradient,
+                           calculate_hessian=calculate_hessian,
+                           unconstrained=unconstrained)
+}
+
+local_opt_fns <- GetOptimFunctions(x, y, y_g, vp_opt, pp, DerivFun=LocalDerivFun, mask=local_mask)
+LocalTrustObj <- GetTrustObj(local_opt_fns)
+
+trust_result <- trust(LocalTrustObj, theta_init[local_mask],
+                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE)
+trust_result$converged
+
+tr_theta <- global_theta_init
+tr_theta[mask] <- trust_result$argument
+
+vp_tr <- GetParametersFromGlobalVector(vp_opt, tr_theta, TRUE)
 vm_tr <- GetMoments(vp_tr)
 
-vp_tr$lambda_v
-vp_tr$lambda_n
-vp_tr$lambda_v * vp_tr$lambda_n
 
-true_params$true_lambda
-vm_reg$lambda_e
-vm_tr$lambda_e
+################################################
+# Look at certain components.
 
-vm_reg$lambda_e_log_det
-vm_tr$lambda_e_log_det
+theta_init <- GetVectorFromParameters(vp_opt, TRUE)
+mask <- rep(TRUE, vp_base$encoded_size)
 
+EntropyFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=TRUE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+
+HierFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=TRUE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+ObsFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=TRUE,
+                           include_hier=FALSE,
+                           include_prior=FALSE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+PriorFun <- function(x, y, y_g, vp, pp) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE,
+                           include_hier=FALSE,
+                           include_prior=TRUE,
+                           include_entropy=FALSE,
+                           global_only=FALSE,
+                           calculate_gradient=FALSE,
+                           calculate_hessian=FALSE,
+                           unconstrained=TRUE)$val
+}
+
+EntropyFun(x, y, y_g, vp_reg, pp)
+HierFun(x, y, y_g, vp_reg, pp)
+ObsFun(x, y, y_g, vp_reg, pp)
+PriorFun(x, y, y_g, vp_reg, pp)
 
 
 
 ############
 # hess <- opt_fns$OptimHess(trust_result$argument)
-hess <- opt_fns$OptimHess(theta_init[mask])
-grad <- opt_fns$OptimGrad(theta_init[mask])
+hess <- opt_fns$OptimHess(trust_result$argument)
+grad <- opt_fns$OptimGrad(trust_result$argument)
 
 hess_eig <- eigen(hess)
+stopifnot(sign(max(hess_eig$values)) < 1e-8)
 hess_eig$values
 ev <- rep(0, length(theta_init))
-ev[mask] <- hess_eig$vectors[,4]
+ev[mask] <- hess_eig$vectors[,1]
 vp_zeros <- GetParametersFromVector(vp_base, rep(0, length(GetVectorFromParameters(vp_base, FALSE))), FALSE)
 vp_ev <- GetParametersFromGlobalVector(vp_zeros, ev, FALSE)
 vp_ev$lambda_v

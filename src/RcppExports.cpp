@@ -110,8 +110,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // GetCustomElboDerivatives
-Rcpp::List GetCustomElboDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, bool include_obs, bool include_hier, bool include_prior, bool include_entropy, bool use_group, int g, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
-RcppExport SEXP MicrocreditLRVB_GetCustomElboDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP include_obsSEXP, SEXP include_hierSEXP, SEXP include_priorSEXP, SEXP include_entropySEXP, SEXP use_groupSEXP, SEXP gSEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
+Rcpp::List GetCustomElboDerivatives(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, bool include_obs, bool include_hier, bool include_prior, bool include_entropy, bool global_only, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetCustomElboDerivatives(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP include_obsSEXP, SEXP include_hierSEXP, SEXP include_priorSEXP, SEXP include_entropySEXP, SEXP global_onlySEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
@@ -124,12 +124,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type include_hier(include_hierSEXP);
     Rcpp::traits::input_parameter< bool >::type include_prior(include_priorSEXP);
     Rcpp::traits::input_parameter< bool >::type include_entropy(include_entropySEXP);
-    Rcpp::traits::input_parameter< bool >::type use_group(use_groupSEXP);
-    Rcpp::traits::input_parameter< int >::type g(gSEXP);
+    Rcpp::traits::input_parameter< bool >::type global_only(global_onlySEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_gradient(calculate_gradientSEXP);
     Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
     Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
-    __result = Rcpp::wrap(GetCustomElboDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, include_obs, include_hier, include_prior, include_entropy, use_group, g, calculate_gradient, calculate_hessian, unconstrained));
+    __result = Rcpp::wrap(GetCustomElboDerivatives(r_x, r_y, r_y_g, r_vp, r_pp, include_obs, include_hier, include_prior, include_entropy, global_only, calculate_gradient, calculate_hessian, unconstrained));
     return __result;
 END_RCPP
 }
@@ -166,14 +165,19 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// GetVariationalCovariance
-Eigen::SparseMatrix<double> GetVariationalCovariance(const Rcpp::List r_vp);
-RcppExport SEXP MicrocreditLRVB_GetVariationalCovariance(SEXP r_vpSEXP) {
+// GetSparseELBOHessian
+Eigen::SparseMatrix<double> GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetSparseELBOHessian(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type r_x(r_xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_y(r_ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_y_g(r_y_gSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
-    __result = Rcpp::wrap(GetVariationalCovariance(r_vp));
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetSparseELBOHessian(r_x, r_y, r_y_g, r_vp, r_pp, unconstrained));
     return __result;
 END_RCPP
 }

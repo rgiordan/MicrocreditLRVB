@@ -189,7 +189,6 @@ InitializeZeroVariationalParameters <- function(x, y, y_g, diag_min=1, tau_min=1
 
 
 
-
 #################################################
 # Formatting:
 
@@ -285,69 +284,41 @@ SummarizeMCMCResults <- function(mcmc_sample) {
 
 
 #############
-# Old
+# Debugging
 
-
-############################################
-# Setup and simulated data:
-
-SampleParams <- function(k, n_g, sigma_scale = 1) {
-  true_params <- list()
-  true_params$k <- k
-  true_params$n_g <- n_g
-  true_params$mu <- as.double(1:k)
-  true_params$sigma <- sigma_scale * (diag(k) + matrix(0.1, k, k))
-  true_params$lambda <- solve(true_params$sigma)
-  true_params$tau <- list()
-  true_params$mu_g <- list()
-  for (g in 1:n_g) {
-    true_params$tau[[g]] <- 1.5 + g / n_g
-    true_params$mu_g[[g]] <- mvrnorm(n=1, mu=true_params$mu, Sigma=true_params$sigma)
-  }
-
-  return(true_params)
+GetLambdaMask <- function(vp_base) {
+  mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
+  mask <- rep(0, length(mask))
+  vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
+  # vp_mask$mu_loc[] <- 1
+  # vp_mask$mu_info[] <- 1
+  vp_mask$lambda_v[] <- 1
+  vp_mask$lambda_n <- 1
+  mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
+  return(mask)
 }
 
 
-SetVPFromTrueParams <- function(true_params) {
-  k <- length(true_params$mu)
-  second_moment_start <- function(x) {
-    x %*% t(x) + diag(length(x))
-  }
-  vp <- list()
-  vp$e_mu = true_params$mu
-  vp$e_mu2 = second_moment_start(true_params$mu)
-  vp$e_tau <- list()
-  vp$e_log_tau <- list()
-  vp$e_mu_g <- list()
-  vp$e_mu2_g_vec <- list()
-  for (g in 1:n_g) {
-    vp$e_mu_g[[g]] = true_params$mu_g[[g]]
-    vp$e_mu2_g_vec[[g]] = second_moment_start(true_params$mu_g[[g]])
-    vp$e_tau[[g]] <- true_params$tau[[g]]
-    vp$e_log_tau[[g]] <- log(true_params$tau[[g]]) - k
-  }
-
-  vp$lambda_v_par <- true_params$lambda / k
-  vp$lambda_n_par <- k + 1
-
-  vp$k <- k
-  vp$n_g <- n_g
-
-  return(vp)
+GetLocalMask <- function(vp_base) {
+  mask <- GetVectorFromParameters(vp_base, FALSE)
+  mask <- rep(1, length(mask))
+  vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)
+  vp_mask$mu_loc[] <- 0
+  vp_mask$mu_info[] <- 0
+  vp_mask$lambda_v[] <- 0
+  vp_mask$lambda_n <- 0
+  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+  return(mask)
 }
 
-SetPriorsFromVP <- function(vp) {
-  pp <- list()
-  k <- vp$k_reg
-  pp[["k_reg"]] <- k
-  pp[["mu_loc"]] <- rep(0, k)
-  pp[["mu_info"]] <- diag(k)
-  pp[["lambda_eta"]] <- 5.0
-  pp[["lambda_alpha"]] <- 3.0
-  pp[["lambda_beta"]] <- 3.0
-  pp[["tau_alpha"]] <- 3.0
-  pp[["tau_beta"]] <- 3.0
 
-  return(pp)
+
+GetTrustObj <- function(optim_fns) {
+  TrustObj <- function(theta) {
+    list(value=optim_fns$OptimVal(theta),
+         gradient=optim_fns$OptimGrad(theta),
+         hessian=optim_fns$OptimHess(theta))
+  }
+  return(TrustObj)
 }
+
