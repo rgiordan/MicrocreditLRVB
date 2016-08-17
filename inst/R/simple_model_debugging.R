@@ -95,10 +95,17 @@ vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
 # vp_mask$mu_loc[] <- 1
 # vp_mask$mu_info[] <- 1
 vp_mask$lambda_v[] <- 1
-# vp_mask$lambda_n <- 1
+vp_mask$lambda_n <- 1
 mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
 
 theta_init <- GetGlobalVectorFromParameters(vp_reg, TRUE)
+chol_v <- chol(vp_reg$lambda_v - diag_min * diag(vp_reg$k_reg))
+chol_v_scale <- diag(chol_v)
+log(chol_v_scale)
+solve(diag(chol_v_scale), chol_v)
+theta_init
+
+
 vp_indices <- GetParametersFromGlobalVector(vp_base, as.numeric(1:length(theta_init)), FALSE)
 vp_indices$lambda_v
 vp_indices$lambda_n
@@ -117,7 +124,6 @@ DerivFun <- function(x, y, y_g, base_vp, pp,
                            calculate_hessian=calculate_hessian,
                            unconstrained=unconstrained)
 }
-
 
 opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=DerivFun, mask=mask)
 opt_fns$OptimVal(theta_init[mask])
@@ -160,14 +166,18 @@ vm_tr$lambda_e_log_det
 
 
 ############
-hess <- opt_fns$OptimHess(trust_result$argument)
+# hess <- opt_fns$OptimHess(trust_result$argument)
+hess <- opt_fns$OptimHess(theta_init[mask])
+grad <- opt_fns$OptimGrad(theta_init[mask])
+
 hess_eig <- eigen(hess)
 hess_eig$values
 ev <- rep(0, length(theta_init))
-ev[mask] <- hess_eig$vectors[,3]
+ev[mask] <- hess_eig$vectors[,4]
 vp_zeros <- GetParametersFromVector(vp_base, rep(0, length(GetVectorFromParameters(vp_base, FALSE))), FALSE)
 vp_ev <- GetParametersFromGlobalVector(vp_zeros, ev, FALSE)
-
+vp_ev$lambda_v
+vp_ev$lambda_n
 
 ############
 
