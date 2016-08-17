@@ -181,3 +181,14 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// PrintTauPrior
+void PrintTauPrior(const Rcpp::List r_vp, const Rcpp::List r_pp);
+RcppExport SEXP MicrocreditLRVB_PrintTauPrior(SEXP r_vpSEXP, SEXP r_ppSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    PrintTauPrior(r_vp, r_pp);
+    return R_NilValue;
+END_RCPP
+}

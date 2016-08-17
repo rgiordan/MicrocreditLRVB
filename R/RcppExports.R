@@ -53,3 +53,7 @@ GetSparseELBOHessian <- function(r_x, r_y, r_y_g, r_vp, r_pp, unconstrained) {
     .Call('MicrocreditLRVB_GetSparseELBOHessian', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, unconstrained)
 }
 
+PrintTauPrior <- function(r_vp, r_pp) {
+    invisible(.Call('MicrocreditLRVB_PrintTauPrior', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp))
+}
+

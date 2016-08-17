@@ -44,7 +44,7 @@ SimulateData <- function(true_params, n_g, n_per_group, binary_x=TRUE) {
 }
 
 
-GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10) {
+GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10, tau_bound=7) {
   # Get sensible extreme bounds, for example for L-BFGS-B
   #info_lower <- diag(vp_base$k_reg) * vp_base$diag_min * (1 + min_bound)
   #info_upper <- diag(vp_base$k_reg) * info_bound
@@ -59,7 +59,7 @@ GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10) {
   for (g in 1:vp_nat_lower$n_g) {
     vp_nat_lower$mu_g[[g]][["loc"]][] <- -1 * loc_bound
     vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
-    vp_nat_lower$tau[[g]][["alpha"]] <- -1 * info_bound
+    vp_nat_lower$tau[[g]][["alpha"]] <- -1 * tau_bound
     vp_nat_lower$tau[[g]][["beta"]] <- -1 * info_bound
   }
   
@@ -67,20 +67,6 @@ GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10) {
   theta_upper <- -1 * theta_lower
   
   return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
-}
-
-
-SummarizeVpNat <- function(vp_nat) {
-  print("Mu:")
-  print(vp_nat$mu_loc)
-  print(vp_nat$mu_info)
-  print("Lambda:")
-  print(vp_nat$lambda_v)
-  print(vp_nat$lambda_n)
-  print("Mu_g[1]:")
-  print(vp_nat$mu_g[[1]])
-  print("Tau[1]:")
-  print(vp_nat$tau[[1]])
 }
 
 
@@ -147,23 +133,21 @@ InitializeVariationalParameters <-
   vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
   vp$lambda_n_min <- lambda_n_min
     
-  min_info <- diag(vp$k_reg) * diag_min
-  
   vp$mu_loc <- summary(lm(y ~ x - 1))$coefficients[,"Estimate"]
   mu_cov <- vp$mu_loc %*% t(vp$mu_loc) + 10 * diag(vp$k)
-  vp$mu_info <- solve(mu_cov) + min_info
+  vp$mu_info <- solve(mu_cov) + diag(vp$k_reg) * mu_diag_min
   mu_g_mat <- matrix(NaN, vp$n_g, vp$k)
   for (g in 1:vp$n_g) {
     stopifnot(sum(y_g == g) >= 1)
     g_reg <- summary(lm(y ~ x - 1, subset=y_g == g))
     mu_g_mean <- g_reg$coefficients[,"Estimate"]
     mu_g_cov <- mu_g_mean %*% t(mu_g_mean) + 10 * diag(vp$k)
-    vp$mu_g[[g]] <- list(loc=mu_g_mean, info=solve(mu_g_cov) + min_info)
+    vp$mu_g[[g]] <- list(loc=mu_g_mean, info=solve(mu_g_cov) + diag(vp$k_reg) * mu_diag_min)
     vp$tau[[g]] <- list(alpha=1 + tau_min, beta=g_reg$sigma ^ 2 + tau_min)
     mu_g_mat[g, ] <- mu_g_mean
   }
   vp$lambda_n <- vp$k + 1
-  vp$lambda_v <- solve(cov(mu_g_mat)) / vp$lambda_n + min_info
+  vp$lambda_v <- solve(cov(mu_g_mat)) / vp$lambda_n + diag(vp$k_reg) * lambda_diag_min
 
   return(vp)
 }
@@ -174,12 +158,12 @@ InitializeZeroVariationalParameters <-
 
   # Initial parameters from data
   vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
-  vp$diag_min <- diag_min
   vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
-  min_info <- diag(vp$k_reg) * diag_min
+  min_info <- diag(vp$k_reg)
   
   vp$mu_loc <- rep(0, vp$k_reg)
   vp$mu_info <- diag(vp$k_reg) + min_info
+  vp$mu_diag_min <- mu_diag_min
   for (g in 1:vp$n_g) {
     stopifnot(sum(y_g == g) >= 1)
     vp$mu_g[[g]] <- list(loc=rep(0, vp$k_reg), info=diag(vp$k_reg) + min_info)
@@ -212,6 +196,15 @@ SummarizeVBVariable <- function(vp_mom, mfvb_sd, lrvb_sd, Accessor, par, compone
   rbind(ResultRow(par, component, group, method="mfvb", metric="mean", val=Accessor(vp_mom)),
         ResultRow(par, component, group, method="mfvb", metric="sd", val=Accessor(mfvb_sd)),
         ResultRow(par, component, group, method="lrvb", metric="sd", val=Accessor(lrvb_sd)))
+}
+
+
+SummarizeNaturalParameters <- function(vp_nat) {
+  vp_mom <- GetMoments(vp_nat)
+  mfvb_cov <- GetCovariance(vp_nat)
+  mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
+  lrvb_sd <- GetMomentsFromVector(vp_mom, rep(0, vp_nat$encoded_size))
+  return(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd))  
 }
 
 

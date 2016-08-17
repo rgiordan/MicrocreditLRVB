@@ -400,3 +400,17 @@ GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x,
     PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
     return GetSparseELBOHessian(data, vp, pp);
 }
+
+
+// For debugging
+//
+// [[Rcpp::export]]
+void PrintTauPrior(const Rcpp::List r_vp, const Rcpp::List r_pp) {
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
+
+    for (int g = 0; g < vp.n_g; g++) {
+        double log_prior = GetGroupPriorLogLikelihood(vp, pp, g);
+        std::cout << "Tau prior group " << g << ": " << log_prior << "\n";
+    }
+}
