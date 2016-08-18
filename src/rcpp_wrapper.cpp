@@ -296,13 +296,8 @@ Rcpp::List GetMomentsFromVector(
 }
 
 
-
-// For testing.
-// [[Rcpp::export]]
-Rcpp::List ToAndFromParameters(const Rcpp::List r_vp) {
-    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-    return ConvertParametersToList(vp);
-}
+/////////////////////////////
+// Derivative functions:
 
 
 // r_y_g should be one-indexed group indicators.
@@ -384,14 +379,6 @@ Rcpp::List GetMomentJacobian(const Rcpp::List r_vp, bool unconstrained) {
 
 
 // [[Rcpp::export]]
-Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp) {
-    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-    MomentParameters<double> mp(vp);
-    return GetCovariance(vp, mp.offsets);
-}
-
-
-// [[Rcpp::export]]
 Eigen::SparseMatrix<double>
 GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x,
     const Eigen::Map<Eigen::VectorXd> r_y,
@@ -410,15 +397,31 @@ GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x,
 }
 
 
-// For debugging
-//
 // [[Rcpp::export]]
-void PrintTauPrior(const Rcpp::List r_vp, const Rcpp::List r_pp) {
+Rcpp::List GetLogPriorDerivatives(
+    const Rcpp::List r_vp, const Rcpp::List r_pp,
+    const bool calculate_gradient,
+    const bool calculate_hessian,
+    const bool unconstrained) {
+
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
     PriorParameters<double> pp = ConvertPriorsFromlist(r_pp);
 
-    for (int g = 0; g < vp.n_g; g++) {
-        double log_prior = GetGroupPriorLogLikelihood(vp, pp, g);
-        std::cout << "Tau prior group " << g << ": " << log_prior << "\n";
-    }
+    Derivatives derivs = GetLogPriorDerivatives(vp, pp, unconstrained,
+                                                calculate_gradient,
+                                                calculate_hessian);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
+}
+
+
+
+//////////////////////
+// Covariance
+
+// [[Rcpp::export]]
+Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp) {
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    MomentParameters<double> mp(vp);
+    return GetCovariance(vp, mp.offsets);
 }

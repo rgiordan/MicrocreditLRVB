@@ -97,17 +97,17 @@ bfgs_time + tr_time
 unconstrained <- TRUE # This seems to have a better condition number. 
 vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
 vp_mom <- GetMoments(vp_opt)
+mfvb_cov <- GetCovariance(vp_opt)
 
 moment_derivs <- GetMomentJacobian(vp_opt, unconstrained)
 jac <- Matrix(moment_derivs$hess)
 
 elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, unconstrained)
-lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
-min(diag(lrvb_cov))
 
-mfvb_cov <- GetCovariance(vp_opt)
+lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
+stopifnot(min(diag(lrvb_cov)) > 0)
+
 min(diag(mfvb_cov))
-# plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
 
 mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
 lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))

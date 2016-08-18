@@ -140,6 +140,36 @@ Derivatives GetMomentJacobian(VariationalParameters<double> &vp) {
 };
 
 
+// Get derivatives of the log prior.
+Derivatives GetLogPriorDerivatives(
+    VariationalParameters<double> &vp,
+    PriorParameters<double> const &pp,
+    bool const unconstrained,
+    bool const calculate_gradient,
+    bool const calculate_hessian) {
+
+    vp.unconstrained = unconstrained;
+    MicroCreditLogPrior LogPrior(vp, pp);
+
+    double val;
+    VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
+    MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
+    VectorXd theta = GetParameterVector(vp);
+
+    stan::math::set_zero_all_adjoints();
+
+    if (calculate_hessian) {
+        stan::math::hessian(MicroCreditLogPrior, theta, val, grad, hess);
+    } else if (calculate_gradient) {
+        stan::math::gradient(MicroCreditLogPrior, theta, val, grad);
+    } else {
+        val = MicroCreditLogPrior(theta);
+    }
+
+    return Derivatives(val, grad, hess);
+}
+
+
 // Get the covariance of the moment parameters from the natural parameters.
 SparseMatrix<double> GetCovariance(
     const VariationalParameters<double> &vp,

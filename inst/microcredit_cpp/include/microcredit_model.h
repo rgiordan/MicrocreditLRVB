@@ -41,31 +41,31 @@ using fvar = stan::math::fvar<var>;
 
 // The log likelihood for the whole model (including the expected log prior)
 struct MicroCreditLogPrior {
-  VariationalParameters<double> base_vp;
-  PriorParameters<double> base_pp;
+    VariationalParameters<double> base_vp;
+    PriorParameters<double> base_pp;
 
-  MicroCreditLogPrior(
-      VariationalParameters<double> const &base_vp,
-      PriorParameters<double> const &base_pp):
+    MicroCreditLogPrior(
+        VariationalParameters<double> const &base_vp,
+        PriorParameters<double> const &base_pp):
     base_vp(base_vp), base_pp(base_pp) {};
 
-  template <typename T> T operator()(VectorXT<T> const &theta) const {
-    VariationalParameters<T> vp(base_vp);
-    PriorParameters<T> pp(base_pp);
+    template <typename T> T operator()(VectorXT<T> const &theta) const {
+        VariationalParameters<T> vp(base_vp);
+        PriorParameters<T> pp(base_pp);
 
-    if (theta.size() != vp.offsets.encoded_size + pp.offsets.encoded_size) {
-        throw std::runtime_error("Theta is the wrong size.");
+        if (theta.size() != vp.offsets.encoded_size + pp.offsets.encoded_size) {
+            throw std::runtime_error("Theta is the wrong size.");
+        }
+
+        VectorXT<T> theta_sub;
+        theta_sub = theta.segment(0, vp.offsets.encoded_size);
+        SetFromVector(theta_sub, vp);
+
+        theta_sub = theta.segment(vp.offsets.encoded_size + 1, pp.offsets.encoded_size);
+        SetFromVector(theta_sub, pp);
+
+        return GetPriorLogLikelihood(vp, pp);
     }
-
-    VectorXT<T> theta_sub;
-    theta_sub = theta.segment(0, vp.offsets.encoded_size);
-    SetFromVector(theta_sub, vp);
-
-    theta_sub = theta.segment(vp.offsets.encoded_size + 1, pp.offsets.encoded_size);
-    SetFromVector(theta_sub, pp);
-
-    return GetPriorLogLikelihood(vp, pp);
-  }
 };
 
 
@@ -226,6 +226,15 @@ Derivatives GetElboDerivatives(
     bool include_prior,
     bool include_entropy,
     bool global_only,
+    bool const unconstrained,
+    bool const calculate_gradient,
+    bool const calculate_hessian);
+
+
+// Get derivatives of the log prior.
+Derivatives GetLogPriorDerivatives(
+    VariationalParameters<double> &vp,
+    PriorParameters<double> const &pp,
     bool const unconstrained,
     bool const calculate_gradient,
     bool const calculate_hessian);
