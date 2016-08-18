@@ -69,7 +69,7 @@ bfgs_time <- Sys.time()
 bfgs_result <- optim(theta_init[mask],
                      bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
                      method="L-BFGS-B", lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                     control=list(fnscale=-1, maxit=1000, trace=0))
+                     control=list(fnscale=-1, maxit=1000, trace=0, factr=1e9))
 stopifnot(bfgs_result$convergence == 0)
 print(bfgs_result$message)
 bfgs_time <- Sys.time() - bfgs_time
@@ -83,48 +83,44 @@ vp_bfgs <- GetParametersFromVector(vp_reg, bfgs_result$par, TRUE)
 tr_time <- Sys.time()
 trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_bfgs, pp, verbose=TRUE)
 trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
-                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE,
-                      iterlim=50)
+                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE, iterlim=50)
 tr_time <- Sys.time() - tr_time
 trust_result$converged
 trust_result$value
+
+bfgs_time + tr_time
 
 
 #################################
 # LRVB
 
+unconstrained <- TRUE # This seems to have a better condition number. 
 vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
 vp_mom <- GetMoments(vp_opt)
 
-moment_derivs <- GetMomentJacobian(vp_opt)
+moment_derivs <- GetMomentJacobian(vp_opt, unconstrained)
 jac <- Matrix(moment_derivs$hess)
 
-elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, TRUE)
+elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, unconstrained)
 lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
 min(diag(lrvb_cov))
 
 mfvb_cov <- GetCovariance(vp_opt)
 min(diag(mfvb_cov))
-plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
+# plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
 
 mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
 lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
 
 
-
 ###############################
 # Debugging
 
-sqrt(diag(mfvb_cov))[vp_indices$tau[[1]]$alpha]
-mfvb_sd$tau[[1]]$e
+lrvb_cov_diag1 <- diag(lrvb_cov)
 
-vm_base <- GetMoments(vp_base)
-vm_indices <- GetMomentsFromVector(vm_base, as.numeric(1:vp_base$encoded_size))
-
-vp_indices$tau[[1]]
-vm_base$tau[[1]]
-
-
+elbo_hess_eig <- eigen(elbo_hess)
+max(elbo_hess_eig$values)
+max(elbo_hess_eig$values) / min(elbo_hess_eig$values)
 
 ###########################
 # Sumamrize results
@@ -133,9 +129,6 @@ mcmc_sample <- extract(stan_results$stan_sim)
 
 results <- rbind(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd),
                  SummarizeMCMCResults(mcmc_sample))
-
-filter(results, par == "tau", group < 4) %>%
-  dcast(group + metric ~ method, value.var="val")
 
 if (FALSE) {
   mean_results <-
@@ -147,6 +140,10 @@ if (FALSE) {
     geom_abline(aes(slope=1, intercept=0))
   
   ggplot(filter(mean_results, par == "mu_g")) +
+    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(slope=1, intercept=0))
+
+  ggplot(filter(mean_results, par == "tau")) +
     geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
     geom_abline(aes(slope=1, intercept=0))
   

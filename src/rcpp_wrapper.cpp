@@ -373,8 +373,9 @@ Rcpp::List GetMoments(const Rcpp::List r_vp) {
 
 
 // [[Rcpp::export]]
-Rcpp::List GetMomentJacobian(const Rcpp::List r_vp) {
+Rcpp::List GetMomentJacobian(const Rcpp::List r_vp, bool unconstrained) {
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    vp.unconstrained = unconstrained;
 
     Derivatives derivs = GetMomentJacobian(vp);
     Rcpp::List ret = ConvertDerivativesToList(derivs);

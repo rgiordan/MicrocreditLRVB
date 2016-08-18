@@ -144,13 +144,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // GetMomentJacobian
-Rcpp::List GetMomentJacobian(const Rcpp::List r_vp);
-RcppExport SEXP MicrocreditLRVB_GetMomentJacobian(SEXP r_vpSEXP) {
+Rcpp::List GetMomentJacobian(const Rcpp::List r_vp, bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetMomentJacobian(SEXP r_vpSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
-    __result = Rcpp::wrap(GetMomentJacobian(r_vp));
+    Rcpp::traits::input_parameter< bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetMomentJacobian(r_vp, unconstrained));
     return __result;
 END_RCPP
 }

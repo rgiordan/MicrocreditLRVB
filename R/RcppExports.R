@@ -41,8 +41,8 @@ GetMoments <- function(r_vp) {
     .Call('MicrocreditLRVB_GetMoments', PACKAGE = 'MicrocreditLRVB', r_vp)
 }
 
-GetMomentJacobian <- function(r_vp) {
-    .Call('MicrocreditLRVB_GetMomentJacobian', PACKAGE = 'MicrocreditLRVB', r_vp)
+GetMomentJacobian <- function(r_vp, unconstrained) {
+    .Call('MicrocreditLRVB_GetMomentJacobian', PACKAGE = 'MicrocreditLRVB', r_vp, unconstrained)
 }
 
 GetCovariance <- function(r_vp) {
