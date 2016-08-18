@@ -106,6 +106,31 @@ GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
 }
 
 
+GetTrustRegionELBO <- function(x, y, y_g, vp_base, pp,
+                               verbose=FALSE, mask=rep(TRUE, vp_base$encoded_size)) {
+  
+  theta_base <- GetVectorFromParameters(vp_base, TRUE)
+
+  TrustFun <- function(theta) {
+    full_theta <- theta_base
+    full_theta[mask] <- theta
+    this_vp <- GetParametersFromVector(vp_base, full_theta, TRUE)
+    ret <- GetElboDerivatives(x, y, y_g, this_vp, pp,
+                              calculate_gradient=TRUE, calculate_hessian=FALSE,
+                              unconstrained=TRUE)
+    sparse_hess <- GetSparseELBOHessian(x, y, y_g, this_vp, pp, TRUE)
+    hess <- as.matrix(sparse_hess[mask, mask])
+
+    if (verbose) {
+      cat("Value: ", ret$val, "\n")
+    }    
+    list(value=ret$val, gradient=ret$grad[mask], hessian=hess)
+  }
+  
+  return(list(TrustFun=TrustFun, mask=mask, theta_base=theta_base, theta_init=theta_base[mask]))
+}
+
+
 
 GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
                               mask=rep(TRUE, vp_base$encoded_size),

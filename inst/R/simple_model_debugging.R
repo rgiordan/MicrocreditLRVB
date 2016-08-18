@@ -120,6 +120,17 @@ tau$alpha / tau$beta
 
 
 #############
+# Trust region
+
+trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_reg, pp, verbose=TRUE)
+trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
+                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE)
+
+
+
+
+
+#############
 # BFGS
 
 DerivFun <- function(x, y, y_g, vp, pp,
@@ -150,6 +161,8 @@ stopifnot(optim_result0$convergence == 0)
 print(optim_result0$message)
 bfgs_time <- Sys.time() - bfgs_time
 
+
+
 vp_bad <- GetParametersFromVector(vp_reg, optim_result0$par, TRUE)
 mp_bad <- GetMoments(vp_bad)
 mp_bad$tau[[1]]
@@ -172,9 +185,11 @@ FUN <- function(theta) {
 print(check_ind <- vp_indices$tau[[1]]$alpha)
 
 trimmed_grad <- rep(0, vp_bad$encoded_size)
-grad[check_ind] * 0.1
+grad[check_ind]
+theta[check_ind]
+vp_bad$tau[[1]]
 trimmed_grad[check_ind] <- grad[check_ind]
-res <- EvaluateOnGrid(FUN, theta, trimmed_grad, -1e-2, 1e-1, 50)
+res <- EvaluateOnGrid(FUN, theta, trimmed_grad, -1, 1, 50)
 qplot(epsilon, val, data=res)
 
 
@@ -239,7 +254,7 @@ vp_ev$lambda_n
 
 
 ###################################
-# Check Hessians
+# Check the sparse Hessian
 
 if (FALSE) {
   elbo_derivs <- GetElboDerivatives(x, y, y_g, vp_reg, pp, TRUE, TRUE, TRUE)
@@ -310,4 +325,35 @@ local_trust_result$converged
 
 
 
+
+
+###################################
+# Optimize global parameters
+
+global_theta_init <- GetGlobalVectorFromParameters(vp_opt, TRUE)
+mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
+mask <- rep(TRUE, length(mask))
+
+GlobalDerivFun <- function(x, y, y_g, vp, pp,
+                           calculate_gradient, calculate_hessian, unconstrained) {
+  GetCustomElboDerivatives(x, y, y_g, vp, pp,
+                           include_obs=FALSE, include_hier=TRUE,
+                           include_prior=TRUE, include_entropy=TRUE,
+                           global_only=TRUE,
+                           calculate_gradient=calculate_gradient,
+                           calculate_hessian=calculate_hessian,
+                           unconstrained=unconstrained)
+}
+
+global_opt_fns <- GetGlobalOptimFunctions(x, y, y_g, vp_opt, pp, DerivFun=GlobalDerivFun, mask=mask)
+GlobalTrustObj <- GetTrustObj(global_opt_fns)
+
+trust_result <- trust(GlobalTrustObj, global_theta_init[mask],
+                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE)
+trust_result$converged
+
+tr_theta <- global_theta_init
+tr_theta[mask] <- trust_result$argument
+
+vp_opt <- GetParametersFromGlobalVector(vp_opt, tr_theta, TRUE)
 
