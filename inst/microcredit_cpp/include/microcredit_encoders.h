@@ -89,7 +89,7 @@ VectorXT<T> GetParameterVector(VPType<T> vp) {
 template <typename T, template<typename> class VPType>
 void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
     if (theta.size() != vp.offsets.encoded_size) {
-        throw std::runtime_error("Vector is wrong size.");
+        throw std::runtime_error("SetFromVector vp: Vector is wrong size.");
     }
 
     VectorXT<T> theta_sub;
@@ -149,7 +149,7 @@ void SetFromGroupVector(
 
         VPType<T> vp_g = GetSingleGroupVariationalParameters(vp, g);
         if (theta.size() != vp_g.offsets.encoded_size) {
-                throw std::runtime_error("Vector is wrong size.");
+                throw std::runtime_error("SetFromGroupVector: Vector is wrong size.");
         }
 
         SetFromVector(theta, vp_g);
@@ -182,7 +182,7 @@ void SetFromGlobalVector(VectorXT<T> const &theta, VPType<T> &vp) {
 
                 int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
         if (theta.size() != encoded_size) {
-                throw std::runtime_error("Vector is wrong size.");
+                throw std::runtime_error("SetFromGlobalVector: Vector is wrong size.");
         }
 
         int offset = 0;
@@ -219,7 +219,7 @@ template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
 template <typename T>
 void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
     if (theta.size() != pp.offsets.encoded_size) {
-            throw std::runtime_error("Vector is wrong size.");
+            throw std::runtime_error("SetFromVector pp:  is wrong size.");
     }
 
     VectorXT<T> theta_sub;
@@ -233,4 +233,39 @@ void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
     pp.lambda_eta = theta(pp.offsets.lambda_eta);
     pp.lambda_alpha = theta(pp.offsets.lambda_alpha);
     pp.lambda_beta = theta(pp.offsets.lambda_beta);
+}
+
+
+/////////////
+// Both priors and parameters in a single vector.
+template <typename T>
+VectorXT<T> GetParameterVector(VariationalParameters<T> &vp,
+                               PriorParameters<T> pp) {
+
+    int encoded_size = vp.offsets.encoded_size + pp.offsets.encoded_size;
+    VectorXT<T> theta(encoded_size);
+    theta.segment(0, vp.offsets.encoded_size) = GetParameterVector(vp);
+    theta.segment(vp.offsets.encoded_size, pp.offsets.encoded_size) =
+        GetParameterVector(pp);
+
+    return theta;
+}
+
+
+template <typename T>
+void SetFromVector(VectorXT<T> const &theta,
+                   VariationalParameters<T> &vp, PriorParameters<T> &pp) {
+
+    int encoded_size = vp.offsets.encoded_size + pp.offsets.encoded_size;
+    if (theta.size() != encoded_size) {
+        throw std::runtime_error("SetFromVector vp and pp: Vector is wrong size.");
+    }
+
+    VectorXT<T> theta_sub;
+
+    theta_sub = theta.segment(0, vp.offsets.encoded_size);
+    SetFromVector(theta_sub, vp);
+
+    theta_sub = theta.segment(vp.offsets.encoded_size, pp.offsets.encoded_size);
+    SetFromVector(theta_sub, pp);
 }

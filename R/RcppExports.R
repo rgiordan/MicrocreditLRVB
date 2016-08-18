@@ -5,6 +5,10 @@ GetEmptyVariationalParameters <- function(k, n_g) {
     .Call('MicrocreditLRVB_GetEmptyVariationalParameters', PACKAGE = 'MicrocreditLRVB', k, n_g)
 }
 
+GetEmptyPriors <- function(k) {
+    .Call('MicrocreditLRVB_GetEmptyPriors', PACKAGE = 'MicrocreditLRVB', k)
+}
+
 GetParametersFromVector <- function(r_vp, r_theta, unconstrained) {
     .Call('MicrocreditLRVB_GetParametersFromVector', PACKAGE = 'MicrocreditLRVB', r_vp, r_theta, unconstrained)
 }
@@ -25,8 +29,16 @@ GetMomentsFromVector <- function(r_mp, r_theta) {
     .Call('MicrocreditLRVB_GetMomentsFromVector', PACKAGE = 'MicrocreditLRVB', r_mp, r_theta)
 }
 
-ToAndFromParameters <- function(r_vp) {
-    .Call('MicrocreditLRVB_ToAndFromParameters', PACKAGE = 'MicrocreditLRVB', r_vp)
+GetPriorsFromVector <- function(r_pp, r_theta) {
+    .Call('MicrocreditLRVB_GetPriorsFromVector', PACKAGE = 'MicrocreditLRVB', r_pp, r_theta)
+}
+
+GetVectorFromPriors <- function(r_pp) {
+    .Call('MicrocreditLRVB_GetVectorFromPriors', PACKAGE = 'MicrocreditLRVB', r_pp)
+}
+
+GetPriorsAndParametersFromVector <- function(r_vp, r_pp, r_theta) {
+    .Call('MicrocreditLRVB_GetPriorsAndParametersFromVector', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp, r_theta)
 }
 
 GetElboDerivatives <- function(r_x, r_y, r_y_g, r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained) {
@@ -45,15 +57,15 @@ GetMomentJacobian <- function(r_vp, unconstrained) {
     .Call('MicrocreditLRVB_GetMomentJacobian', PACKAGE = 'MicrocreditLRVB', r_vp, unconstrained)
 }
 
-GetCovariance <- function(r_vp) {
-    .Call('MicrocreditLRVB_GetCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
-}
-
 GetSparseELBOHessian <- function(r_x, r_y, r_y_g, r_vp, r_pp, unconstrained) {
     .Call('MicrocreditLRVB_GetSparseELBOHessian', PACKAGE = 'MicrocreditLRVB', r_x, r_y, r_y_g, r_vp, r_pp, unconstrained)
 }
 
-PrintTauPrior <- function(r_vp, r_pp) {
-    invisible(.Call('MicrocreditLRVB_PrintTauPrior', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp))
+GetLogPriorDerivatives <- function(r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained) {
+    .Call('MicrocreditLRVB_GetLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
+}
+
+GetCovariance <- function(r_vp) {
+    .Call('MicrocreditLRVB_GetCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }
 

@@ -9,8 +9,10 @@ library(MicrocreditLRVB)
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
+library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
+source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
-analysis_name <- "simulated_data_easy"
+analysis_name <- "simulated_data_nonrobust"
 
 set.seed(42)
 
@@ -20,8 +22,7 @@ set.seed(42)
 # The dimension of the regressors.
 k <- 2
 
-pp <- list()
-pp[["k_reg"]] <- k
+pp <- GetEmptyPriors(k)
 pp[["mu_loc"]] <- rep(0, k)
 pp[["mu_info"]] <- matrix(c(0.02, 0., 0, 0.02), k, k)
 pp[["lambda_eta"]] <- 15.01
@@ -38,7 +39,7 @@ true_params <- list()
 # Set parameters similar to the microcredit data.  Note that the true mean is
 # an unlikely value relative to the prior.  This will result in a non-robust
 # posterior.
-true_params$true_mu <- c(0, 1)
+true_params$true_mu <- c(10, -10)
 true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
 true_params$true_lambda <- solve(true_params$true_sigma)
 true_params$true_tau <- 1e-2
@@ -89,10 +90,10 @@ stan_dat <- list(NG = n_g,
                  y = y,
                  x = x,
                  mu_prior_sigma = solve(pp$mu_info),
-                 mu_prior_mean = pp$mu_mean,
+                 mu_prior_mean = pp$mu_loc,
                  use_mu1_prior = FALSE,
                  mu1_prior_sigma = solve(pp$mu_info),
-                 mu1_prior_mean = pp$mu_mean,
+                 mu1_prior_mean = pp$mu_loc,
                  scale_prior_alpha = pp$lambda_alpha,
                  scale_prior_beta = pp$lambda_beta,
                  lkj_prior_eta = pp$lambda_eta,
@@ -110,23 +111,21 @@ stan_dat$mu_prior_sigma
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 5000
+iters <- 10000
 seed <- 42
 
 # Note: this takes a while.
 stan_draws_file <-
   file.path(project_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
 mcmc_time <- Sys.time()
-stan_sim <- sampling(model, data = stan_dat, seed = seed,
-                     chains = chains, iter = iters, control = control)
+stan_sim <- sampling(model, data=stan_dat, seed=seed, chains=chains, iter=iters)
 mcmc_time <- Sys.time() - mcmc_time
-stan_sim_perturb <- sampling(model, data = stan_dat_perturbed, seed = seed,
-                             chains = chains, iter = iters, control = control)
+stan_sim_perturb <- sampling(model, data=stan_dat_perturbed, seed=seed, chains=chains, iter=iters)
 
-stan_advi <- vb(model, data = stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
-stan_advi_perturb <- vb(model, data = stan_dat,  algorithm="meanfield", output_samples=iters)
-stan_advi_full <- vb(model, data = stan_dat_perturbed,  algorithm="fullrank", output_samples=iters)
-stan_advi_full_perturb <- vb(model, data = stan_dat,  algorithm="meanfield", output_samples=iters)
+stan_advi <- vb(model, data =stan_dat,  algorithm="meanfield", output_samples=iters)
+stan_advi_perturb <- vb(model, data=stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
+stan_advi_full <- vb(model, data=stan_dat,  algorithm="fullrank", output_samples=iters)
+stan_advi_full_perturb <- vb(model, data=stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
 
 save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
      stan_dat, stan_dat_perturbed, true_params, pp,

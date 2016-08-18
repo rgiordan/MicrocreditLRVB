@@ -18,6 +18,17 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetEmptyPriors
+Rcpp::List GetEmptyPriors(int k);
+RcppExport SEXP MicrocreditLRVB_GetEmptyPriors(SEXP kSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    __result = Rcpp::wrap(GetEmptyPriors(k));
+    return __result;
+END_RCPP
+}
 // GetParametersFromVector
 Rcpp::List GetParametersFromVector(const Rcpp::List r_vp, const Eigen::Map<Eigen::VectorXd> r_theta, bool unconstrained);
 RcppExport SEXP MicrocreditLRVB_GetParametersFromVector(SEXP r_vpSEXP, SEXP r_thetaSEXP, SEXP unconstrainedSEXP) {
@@ -80,14 +91,39 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// ToAndFromParameters
-Rcpp::List ToAndFromParameters(const Rcpp::List r_vp);
-RcppExport SEXP MicrocreditLRVB_ToAndFromParameters(SEXP r_vpSEXP) {
+// GetPriorsFromVector
+Rcpp::List GetPriorsFromVector(const Rcpp::List r_pp, const Eigen::Map<Eigen::VectorXd> r_theta);
+RcppExport SEXP MicrocreditLRVB_GetPriorsFromVector(SEXP r_ppSEXP, SEXP r_thetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    __result = Rcpp::wrap(GetPriorsFromVector(r_pp, r_theta));
+    return __result;
+END_RCPP
+}
+// GetVectorFromPriors
+Eigen::VectorXd GetVectorFromPriors(const Rcpp::List r_pp);
+RcppExport SEXP MicrocreditLRVB_GetVectorFromPriors(SEXP r_ppSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    __result = Rcpp::wrap(GetVectorFromPriors(r_pp));
+    return __result;
+END_RCPP
+}
+// GetPriorsAndParametersFromVector
+Rcpp::List GetPriorsAndParametersFromVector(const Rcpp::List r_vp, const Rcpp::List r_pp, const Eigen::Map<Eigen::VectorXd> r_theta);
+RcppExport SEXP MicrocreditLRVB_GetPriorsAndParametersFromVector(SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP r_thetaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
-    __result = Rcpp::wrap(ToAndFromParameters(r_vp));
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXd> >::type r_theta(r_thetaSEXP);
+    __result = Rcpp::wrap(GetPriorsAndParametersFromVector(r_vp, r_pp, r_theta));
     return __result;
 END_RCPP
 }
@@ -155,17 +191,6 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// GetCovariance
-Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp);
-RcppExport SEXP MicrocreditLRVB_GetCovariance(SEXP r_vpSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject __result;
-    Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
-    __result = Rcpp::wrap(GetCovariance(r_vp));
-    return __result;
-END_RCPP
-}
 // GetSparseELBOHessian
 Eigen::SparseMatrix<double> GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x, const Eigen::Map<Eigen::VectorXd> r_y, const Eigen::Map<Eigen::VectorXi> r_y_g, const Rcpp::List r_vp, const Rcpp::List r_pp, bool unconstrained);
 RcppExport SEXP MicrocreditLRVB_GetSparseELBOHessian(SEXP r_xSEXP, SEXP r_ySEXP, SEXP r_y_gSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP unconstrainedSEXP) {
@@ -182,14 +207,29 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// PrintTauPrior
-void PrintTauPrior(const Rcpp::List r_vp, const Rcpp::List r_pp);
-RcppExport SEXP MicrocreditLRVB_PrintTauPrior(SEXP r_vpSEXP, SEXP r_ppSEXP) {
+// GetLogPriorDerivatives
+Rcpp::List GetLogPriorDerivatives(const Rcpp::List r_vp, const Rcpp::List r_pp, const bool calculate_gradient, const bool calculate_hessian, const bool unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetLogPriorDerivatives(SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP calculate_gradientSEXP, SEXP calculate_hessianSEXP, SEXP unconstrainedSEXP) {
 BEGIN_RCPP
+    Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
-    PrintTauPrior(r_vp, r_pp);
-    return R_NilValue;
+    Rcpp::traits::input_parameter< const bool >::type calculate_gradient(calculate_gradientSEXP);
+    Rcpp::traits::input_parameter< const bool >::type calculate_hessian(calculate_hessianSEXP);
+    Rcpp::traits::input_parameter< const bool >::type unconstrained(unconstrainedSEXP);
+    __result = Rcpp::wrap(GetLogPriorDerivatives(r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained));
+    return __result;
+END_RCPP
+}
+// GetCovariance
+Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp);
+RcppExport SEXP MicrocreditLRVB_GetCovariance(SEXP r_vpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    __result = Rcpp::wrap(GetCovariance(r_vp));
+    return __result;
 END_RCPP
 }

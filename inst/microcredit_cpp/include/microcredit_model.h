@@ -53,17 +53,7 @@ struct MicroCreditLogPrior {
         VariationalParameters<T> vp(base_vp);
         PriorParameters<T> pp(base_pp);
 
-        if (theta.size() != vp.offsets.encoded_size + pp.offsets.encoded_size) {
-            throw std::runtime_error("Theta is the wrong size.");
-        }
-
-        VectorXT<T> theta_sub;
-        theta_sub = theta.segment(0, vp.offsets.encoded_size);
-        SetFromVector(theta_sub, vp);
-
-        theta_sub = theta.segment(vp.offsets.encoded_size + 1, pp.offsets.encoded_size);
-        SetFromVector(theta_sub, pp);
-
+        SetFromVector(theta, vp, pp);
         return GetPriorLogLikelihood(vp, pp);
     }
 };

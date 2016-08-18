@@ -229,18 +229,18 @@ public:
 
 template <class T> class PriorParameters {
 private:
-        void Initialize(int k) {
-                k = k;
-                mu = MultivariateNormalNatural<T>(k);
+    void Initialize(int k) {
+        k = k;
+        mu = MultivariateNormalNatural<T>(k);
 
-                lambda_eta = 1;
-                lambda_alpha = 1;
-                lambda_beta = 1;
+        lambda_eta = 1;
+        lambda_alpha = 1;
+        lambda_beta = 1;
 
-                tau = GammaNatural<T>();
+        tau = GammaNatural<T>();
 
-                offsets = PriorOffsets();
-        }
+        offsets = GetPriorOffsets(*this);
+    }
 public:
     // Parameters:
     int k;      // The dimension of the means

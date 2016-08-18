@@ -154,16 +154,14 @@ Derivatives GetLogPriorDerivatives(
     double val;
     VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
     MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
-    VectorXd theta = GetParameterVector(vp);
-
-    stan::math::set_zero_all_adjoints();
+    VectorXd theta = GetParameterVector(vp, pp);
 
     if (calculate_hessian) {
-        stan::math::hessian(MicroCreditLogPrior, theta, val, grad, hess);
+        stan::math::hessian(LogPrior, theta, val, grad, hess);
     } else if (calculate_gradient) {
-        stan::math::gradient(MicroCreditLogPrior, theta, val, grad);
+        stan::math::gradient(LogPrior, theta, val, grad);
     } else {
-        val = MicroCreditLogPrior(theta);
+        val = LogPrior(theta);
     }
 
     return Derivatives(val, grad, hess);
