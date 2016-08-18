@@ -12,7 +12,9 @@ library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
 source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data_easy"
+#analysis_name <- "simulated_data_easy"
+analysis_name <- "simulated_data_nonrobust"
+
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
@@ -30,12 +32,11 @@ y_g <- stan_results$stan_dat$y_group
 
 ####################
 # Fix the prior
-
-pp$k_reg <- pp$k
-pp$mu_loc <- pp$mu_mean
-pp_empty <- GetEmptyPriors(pp$k)
-pp$encoded_size <- pp_empty$encoded_size
-pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
+# 
+# pp$k_reg <- pp$k
+# pp$mu_loc <- pp$mu_mean
+# pp_empty <- GetEmptyPriors(pp$k)
+# pp$encoded_size <- pp_empty$encoded_size
 
 
 #############################
@@ -43,13 +44,14 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
 vp_base <- InitializeZeroVariationalParameters(
   x, y, y_g, mu_diag_min=0.01, lambda_diag_min=1e-5, tau_min=1, lambda_n_min=0.5)
-vp_indices <- GetParametersFromVector(vp_base, as.numeric(1:vp_base$encoded_size), FALSE)
 mp_base <- GetMoments(vp_base)
-mp_indices <- GetMomentsFromVector(mp_base, as.numeric(1:vp_base$encoded_size))
 vp_reg <- InitializeVariationalParameters(
   x, y, y_g, mu_diag_min=vp_base$mu_diag_min, lambda_diag_min=vp_base$lambda_diag_min,
   tau_min=vp_base$tau_alpha_min, lambda_n_min=vp_base$lambda_n_min)
 
+vp_indices <- GetParametersFromVector(vp_base, as.numeric(1:vp_base$encoded_size), FALSE)
+mp_indices <- GetMomentsFromVector(mp_base, as.numeric(1:vp_base$encoded_size))
+pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
 ############# 
 # BFGS
@@ -125,7 +127,6 @@ comb_indices <- GetPriorsAndParametersFromVector(
 comb_prior_ind <- GetVectorFromPriors(comb_indices$pp)
 comb_vp_ind <- GetVectorFromParameters(comb_indices$vp, FALSE)
 
-
 log_prior_derivs <- GetLogPriorDerivatives(vp_opt, pp, TRUE, TRUE, TRUE)
 log_prior_param_prior <- Matrix(log_prior_derivs$hess[comb_vp_ind, comb_prior_ind])
 
@@ -133,26 +134,31 @@ prior_sens <- -1 * jac %*% Matrix::solve(elbo_hess, log_prior_param_prior)
 prior_sens_norm <- prior_sens / sqrt(diag(lrvb_cov))
 
 
-#################
-# View sensitivity
+############################
+# Calculate vb perturbed estimates
 
-prior_sens_norm[mp_indices$mu_e_vec, unique(as.numeric(pp_indices$mu_info))]
-
-
+vp_mom_vec <- GetVectorFromMoments(vp_mom)
+mu_info_offdiag_sens <- prior_sens[, pp_indices$mu_info[1, 2]]
+vp_mom_vec_pert <- vp_mom_vec + stan_results$perturb_epsilon * mu_info_offdiag_sens
+vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
 
 
 ###########################
 # Sumamrize results
 
+results_vb <- SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd)
+results_vb_pert <- SummarizeMomentParameters(vp_mom_pert, mfvb_sd, lrvb_sd)
+results_vb_pert$method <- "mfvb_perturbed"
+
 mcmc_sample <- extract(stan_results$stan_sim)
 mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
 
-results <- rbind(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd),
-                 SummarizeMCMCResults(mcmc_sample))
+results_mcmc <- SummarizeMCMCResults(mcmc_sample)
+results_mcmc_pert <- SummarizeMCMCResults(mcmc_sample_perturbed)
+results_mcmc_pert$method <- "mcmc_perturbed"
 
-results_pert <- SummarizeMCMCResults(mcmc_sample_perturbed)
-results_pert$method <- "mcmc_perturbed"
-
+results <- rbind(results_vb, results_mcmc)
+result_pert <- rbind(results_vb, results_vb_pert, results_mcmc, results_mcmc_pert)
 
 stop("Graphs follow -- not executing.")
 
@@ -187,5 +193,18 @@ ggplot(filter(sd_results, par == "mu_g")) +
   geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
+
+mean_pert_results <-
+  filter(result_pert, metric == "mean") %>%
+  dcast(par + component + group ~ method, value.var="val") %>%
+  mutate(mfvb_diff = mfvb_perturbed - mfvb, mcmc_diff = mcmc_perturbed - mcmc)
+
+ggplot(filter(mean_pert_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_pert_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
 

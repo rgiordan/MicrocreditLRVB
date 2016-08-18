@@ -24,7 +24,8 @@ k <- 2
 
 pp <- GetEmptyPriors(k)
 pp[["mu_loc"]] <- rep(0, k)
-pp[["mu_info"]] <- matrix(c(0.02, 0., 0, 0.02), k, k)
+mu_prior_sd <- 3
+pp[["mu_info"]] <- matrix(c(mu_prior_sd ^ -2, 0., 0, mu_prior_sd ^ -2), k, k)
 pp[["lambda_eta"]] <- 15.01
 pp[["lambda_alpha"]] <- 20.01
 pp[["lambda_beta"]] <- 20.01
@@ -39,7 +40,7 @@ true_params <- list()
 # Set parameters similar to the microcredit data.  Note that the true mean is
 # an unlikely value relative to the prior.  This will result in a non-robust
 # posterior.
-true_params$true_mu <- c(10, -10)
+true_params$true_mu <- c(4 * mu_prior_sd, -4 * mu_prior_sd)
 true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
 true_params$true_lambda <- solve(true_params$true_sigma)
 true_params$true_tau <- 1e-2
@@ -100,7 +101,7 @@ stan_dat <- list(NG = n_g,
                  tau_prior_alpha = pp$tau_alpha,
                  tau_prior_beta = pp$tau_beta)
 
-perturb_epsilon <- 0.01
+perturb_epsilon <- 0.05
 stan_dat_perturbed <- stan_dat
 mu_prior_info_perturb <- pp$mu_info
 mu_prior_info_perturb[1,2] <- mu_prior_info_perturb[2,1] <-
@@ -111,7 +112,7 @@ stan_dat$mu_prior_sigma
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 10000
+iters <- 50000
 seed <- 42
 
 # Note: this takes a while.

@@ -29,6 +29,10 @@ GetMomentsFromVector <- function(r_mp, r_theta) {
     .Call('MicrocreditLRVB_GetMomentsFromVector', PACKAGE = 'MicrocreditLRVB', r_mp, r_theta)
 }
 
+GetVectorFromMoments <- function(r_mp) {
+    .Call('MicrocreditLRVB_GetVectorFromMoments', PACKAGE = 'MicrocreditLRVB', r_mp)
+}
+
 GetPriorsFromVector <- function(r_pp, r_theta) {
     .Call('MicrocreditLRVB_GetPriorsFromVector', PACKAGE = 'MicrocreditLRVB', r_pp, r_theta)
 }

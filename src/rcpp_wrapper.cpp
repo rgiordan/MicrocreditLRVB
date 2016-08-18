@@ -314,12 +314,22 @@ Rcpp::List GetMomentsFromVector(
 
     VectorXd theta = r_theta;
     MomentParameters<double> mp = ConvertMomentsFromList(r_mp);
+    mp.unconstrained = false;
     if (theta.size() != mp.offsets.encoded_size) {
         throw std::runtime_error("Theta is the wrong size");
     }
     SetFromVector(theta, mp);
     Rcpp::List mp_list = ConvertMomentsToList(mp);
     return mp_list;
+}
+
+
+// [[Rcpp::export]]
+Eigen::VectorXd GetVectorFromMoments(const Rcpp::List r_mp) {
+    MomentParameters<double> mp = ConvertMomentsFromList(r_mp);
+    mp.unconstrained = false;
+    VectorXd theta = GetParameterVector(mp);
+    return theta;
 }
 
 

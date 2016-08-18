@@ -91,6 +91,17 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetVectorFromMoments
+Eigen::VectorXd GetVectorFromMoments(const Rcpp::List r_mp);
+RcppExport SEXP MicrocreditLRVB_GetVectorFromMoments(SEXP r_mpSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_mp(r_mpSEXP);
+    __result = Rcpp::wrap(GetVectorFromMoments(r_mp));
+    return __result;
+END_RCPP
+}
 // GetPriorsFromVector
 Rcpp::List GetPriorsFromVector(const Rcpp::List r_pp, const Eigen::Map<Eigen::VectorXd> r_theta);
 RcppExport SEXP MicrocreditLRVB_GetPriorsFromVector(SEXP r_ppSEXP, SEXP r_thetaSEXP) {
