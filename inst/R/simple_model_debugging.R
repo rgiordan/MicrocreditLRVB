@@ -84,42 +84,6 @@ vp_reg <- InitializeVariationalParameters(
   x, y, y_g, mu_diag_min=vp_base$mu_diag_min, lambda_diag_min=vp_base$lambda_diag_min,
   tau_min=vp_base$tau_alpha_min, lambda_n_min=vp_base$lambda_n_min)
 
-mu_g_mat <- matrix(NaN, vp_base$n_g, vp_base$k_reg)
-for (g in 1:vp_base$n_g) {
-  mu_g_mat[g, ] <- vp_reg$mu_g[[g]][["loc"]]
-  vp_reg$mu_g[[g]][["info"]] <- 1e6 * diag(vp_base$k_reg)
-}
-solve(cov(mu_g_mat))
-
-vp_reg$mu_loc <- colMeans(mu_g_mat)
-vp_reg$mu_info <- 1e6 * diag(vp_base$k_reg)
-vp_reg$lambda_n <- 1000
-vp_reg$lambda_v <- solve(cov(mu_g_mat)) / vp_reg$lambda_n
-
-vm_reg <- GetMoments(vp_reg)
-
-vp_opt <- vp_reg
-
-
-################################################
-# Look at certain components.
-
-theta_init <- GetVectorFromParameters(vp_opt, TRUE)
-mask <- rep(TRUE, vp_base$encoded_size)
-
-pp$tau_alpha <- 10
-pp$tau_beta <- 10
-
-EntropyFun(x, y, y_g, vp_reg, pp)
-HierFun(x, y, y_g, vp_reg, pp)
-ObsFun(x, y, y_g, vp_reg, pp)
-PriorFun(x, y, y_g, vp_reg, pp)
-
-tau  <- vp_reg$tau[[1]]
-tau$alpha / tau$beta
-
-
-
 
 #############
 # BFGS
@@ -162,6 +126,57 @@ trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
                       iterlim=50)
 trust_result$converged
 trust_result$value
+
+
+
+#################################
+# LRVB
+
+vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
+vp_mom <- GetMoments(vp_opt)
+
+moment_derivs <- GetMomentJacobian(vp_opt)
+jac <- Matrix(moment_derivs$hess)
+
+elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, TRUE)
+lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
+min(diag(lrvb_cov))
+
+mfvb_cov <- GetCovariance(vp_opt)
+min(diag(mfvb_cov))
+plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
+
+mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
+lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
+
+
+
+
+
+
+
+
+################################################
+# Look at certain components.
+
+theta_init <- GetVectorFromParameters(vp_opt, TRUE)
+mask <- rep(TRUE, vp_base$encoded_size)
+
+pp$tau_alpha <- 10
+pp$tau_beta <- 10
+
+EntropyFun(x, y, y_g, vp_reg, pp)
+HierFun(x, y, y_g, vp_reg, pp)
+ObsFun(x, y, y_g, vp_reg, pp)
+PriorFun(x, y, y_g, vp_reg, pp)
+
+tau  <- vp_reg$tau[[1]]
+tau$alpha / tau$beta
+
+
+
+
+
 
 
 
