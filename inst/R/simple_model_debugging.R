@@ -119,15 +119,6 @@ tau  <- vp_reg$tau[[1]]
 tau$alpha / tau$beta
 
 
-#############
-# Trust region
-
-trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_reg, pp, verbose=TRUE)
-trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
-                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE)
-
-
-
 
 
 #############
@@ -148,28 +139,41 @@ bfgs_opt_fns <- GetOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=DerivFun, mask
 theta_init <- GetVectorFromParameters(vp_reg, TRUE)
 bfgs_opt_fns$OptimVal(theta_init)
 length(bfgs_opt_fns$OptimGrad(theta_init)) == length(theta_init)
-bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=15, tau_bound=4)
-length(bounds$theta_lower[mask]) == length(theta_init)
-length(bounds$theta_upper[mask]) == length(theta_init)
+bounds <- GetVectorBounds(vp_base, loc_bound=30, info_bound=10, tau_bound=100)
 
 bfgs_time <- Sys.time()
-optim_result0 <- optim(theta_init[mask],
+bfgs_result <- optim(theta_init[mask],
                        bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
                        method="L-BFGS-B", lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                       control=list(fnscale=-1, maxit=500, trace=0, factr=1))
-stopifnot(optim_result0$convergence == 0)
-print(optim_result0$message)
+                       control=list(fnscale=-1, maxit=1000, trace=0, factr=1))
+stopifnot(bfgs_result$convergence == 0)
+print(bfgs_result$message)
 bfgs_time <- Sys.time() - bfgs_time
 
+vp_bfgs <- GetParametersFromVector(vp_reg, bfgs_result$par, TRUE)
 
 
-vp_bad <- GetParametersFromVector(vp_reg, optim_result0$par, TRUE)
+#############
+# Trust region
+
+trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_bfgs, pp, verbose=TRUE)
+trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
+                      rinit=1, rmax=100, minimize=FALSE, blather=TRUE,
+                      iterlim=50)
+trust_result$converged
+trust_result$value
+
+
+
+################################
+
+vp_bad <- GetParametersFromVector(vp_reg, bfgs_result$par, TRUE)
 mp_bad <- GetMoments(vp_bad)
 mp_bad$tau[[1]]
-bfgs_opt_fns$OptimGrad(optim_result0$par)
-grad <- bfgs_opt_fns$OptimGrad(optim_result0$par)
+bfgs_opt_fns$OptimGrad(bfgs_result$par)
+grad <- bfgs_opt_fns$OptimGrad(bfgs_result$par)
 
-theta <- optim_result0$par
+theta <- bfgs_result$par
 FUN <- function(theta) {
   local_vp <- GetParametersFromVector(vp_bad, theta, TRUE)
   #ObsFun(x, y, y_g, local_vp, pp)
