@@ -36,6 +36,8 @@ Rcpp::List ConvertParametersToList(VariationalParameters<double> const &vp) {
     if (vp.n_g > 0) {
         r_list["tau_alpha_min"] = vp.tau[0].alpha_min;
         r_list["tau_beta_min"] = vp.tau[0].beta_min;
+        r_list["tau_alpha_max"] = vp.tau[0].alpha_max;
+        r_list["tau_beta_max"] = vp.tau[0].beta_max;
     }
 
     Rcpp::List mu_g(vp.n_g);
@@ -77,9 +79,13 @@ ConvertParametersFromList(Rcpp::List r_list) {
 
     double tau_alpha_min = 0;
     double tau_beta_min = 0;
+    double tau_alpha_max = 1e9;
+    double tau_beta_max = 1e9;
     if (vp.n_g > 0) {
         tau_alpha_min = Rcpp::as<double>(r_list["tau_alpha_min"]);
         tau_beta_min = Rcpp::as<double>(r_list["tau_beta_min"]);
+        tau_alpha_max = Rcpp::as<double>(r_list["tau_alpha_max"]);
+        tau_beta_max = Rcpp::as<double>(r_list["tau_beta_max"]);
     }
 
     Rcpp::List mu_g_list = r_list["mu_g"];
@@ -149,6 +155,7 @@ ConvertMomentsFromList(Rcpp::List r_list) {
     int k_reg = r_list["k_reg"];
     int n_g = r_list["n_g"];
     MomentParameters<double> mp(k_reg, n_g);
+    mp.unconstrained = false;
 
     mp.mu.e_vec = Rcpp::as<Eigen::VectorXd>(r_list["mu_e_vec"]);
     mp.mu.e_outer.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_e_outer"]);

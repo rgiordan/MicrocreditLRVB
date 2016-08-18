@@ -93,8 +93,8 @@ private:
             mu_g[g] = MultivariateNormalNatural<T>(k);
             mu_g[g].info.scale_cholesky = false;
             tau[g] = GammaNatural<T>();
-            tau[g].alpha_max = 1e6;
-            tau[g].beta_max = 1e6;
+            // tau[g].alpha_max = 1e6;
+            // tau[g].beta_max = 1e6;
             tau[g].beta_min = 1e-6;
         }
         offsets = GetOffsets(*this);

@@ -89,7 +89,7 @@ VectorXT<T> GetParameterVector(VPType<T> vp) {
 template <typename T, template<typename> class VPType>
 void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
     if (theta.size() != vp.offsets.encoded_size) {
-            throw std::runtime_error("Vector is wrong size.");
+        throw std::runtime_error("Vector is wrong size.");
     }
 
     VectorXT<T> theta_sub;
@@ -101,13 +101,13 @@ void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
     vp.lambda.decode_vector(theta_sub, vp.unconstrained);
 
     for (int g = 0; g < vp.tau.size(); g++) {
-            theta_sub = theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size);
-            vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
+        theta_sub = theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size);
+        vp.tau[g].decode_vector(theta_sub, vp.unconstrained);
     }
 
     for (int g = 0; g < vp.mu_g.size(); g++) {
-            theta_sub = theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size);
-            vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
+        theta_sub = theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size);
+        vp.mu_g[g].decode_vector(theta_sub, vp.unconstrained);
     }
 }
 

@@ -34,9 +34,12 @@ y_g <- stan_results$stan_dat$y_group
 vp_base <- InitializeZeroVariationalParameters(
   x, y, y_g, mu_diag_min=0.01, lambda_diag_min=1e-5, tau_min=1, lambda_n_min=0.5)
 vp_indices <- GetParametersFromVector(vp_base, as.numeric(1:vp_base$encoded_size), FALSE)
+vm_base <- GetMoments(vp_base)
+vm_indices <- GetMomentsFromVector(vm_base, as.numeric(1:vp_base$encoded_size))
 vp_reg <- InitializeVariationalParameters(
   x, y, y_g, mu_diag_min=vp_base$mu_diag_min, lambda_diag_min=vp_base$lambda_diag_min,
   tau_min=vp_base$tau_alpha_min, lambda_n_min=vp_base$lambda_n_min)
+
 
 ####################
 # Fix the prior
@@ -66,7 +69,7 @@ bfgs_time <- Sys.time()
 bfgs_result <- optim(theta_init[mask],
                      bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
                      method="L-BFGS-B", lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                     control=list(fnscale=-1, maxit=1000, trace=0, factr=1))
+                     control=list(fnscale=-1, maxit=1000, trace=0))
 stopifnot(bfgs_result$convergence == 0)
 print(bfgs_result$message)
 bfgs_time <- Sys.time() - bfgs_time
@@ -107,6 +110,22 @@ plot(sqrt(diag(lrvb_cov)), sqrt(diag(mfvb_cov))); abline(0, 1)
 mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
 lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
 
+
+
+###############################
+# Debugging
+
+sqrt(diag(mfvb_cov))[vp_indices$tau[[1]]$alpha]
+mfvb_sd$tau[[1]]$e
+
+vm_base <- GetMoments(vp_base)
+vm_indices <- GetMomentsFromVector(vm_base, as.numeric(1:vp_base$encoded_size))
+
+vp_indices$tau[[1]]
+vm_base$tau[[1]]
+
+
+
 ###########################
 # Sumamrize results
 
@@ -114,6 +133,9 @@ mcmc_sample <- extract(stan_results$stan_sim)
 
 results <- rbind(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd),
                  SummarizeMCMCResults(mcmc_sample))
+
+filter(results, par == "tau", group < 4) %>%
+  dcast(group + metric ~ method, value.var="val")
 
 if (FALSE) {
   mean_results <-
