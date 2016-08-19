@@ -3,13 +3,10 @@ library(dplyr)
 library(reshape2)
 library(rstan)
 library(Matrix)
-library(mvtnorm)
-library(trust)
-library(LRVBUtils)
 
 library(MicrocreditLRVB)
-library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
-source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
+# library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
+# source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Load previously computed Stan results
 #analysis_name <- "simulated_data_easy"

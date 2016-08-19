@@ -8,4 +8,4 @@ Maintainer: Ryan Giordano <rgiordan@gmail.com>
 Description: Micro credit module
 License: GPL (>= 2)
 Imports: Rcpp (>= 0.12.5), RcppEigen (>= 0.3.2.2.0), Matrix
-LinkingTo: Rcpp, RcppEigen, trust, Matrix
+LinkingTo: Rcpp, RcppEigen, trust, Matrix, mvtnorm

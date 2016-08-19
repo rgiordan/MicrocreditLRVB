@@ -3,14 +3,13 @@ library(dplyr)
 library(reshape2)
 library(rstan)
 library(Matrix)
-library(mvtnorm)
 
 library(MicrocreditLRVB)
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
-library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
-source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
+# library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
+# source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 analysis_name <- "simulated_data_nonrobust"
 
