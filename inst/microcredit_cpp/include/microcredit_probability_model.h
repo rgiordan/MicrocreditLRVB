@@ -63,9 +63,20 @@ T GetObservationLogLikelihood(
     return log_lik;
 };
 
+/////////////////////////////////
+// Priors.  For comparison with MCMC, we must be able to evaluate both
+// the variational expected log prior and the prior at a particular MCMC draw.
+
+template <typename T>
+T GetGroupPriorLogLikelihood(GammaMoments<T> &mp_tau, GammaNatural<T> const &pp_tau) {
+    // Tau is the only group parameter with a prior.
+    T log_prior = mp_tau.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
+    return log_prior;
+};
+
 
 template <typename Tlik, typename Tprior>
-typename promote_args<Tlik, Tprior>::type  GetGroupPriorLogLikelihood(
+typename promote_args<Tlik, Tprior>::type GetGroupPriorLogLikelihood(
     VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp, int g) {
 
     typedef typename promote_args<Tlik, Tprior>::type T;
@@ -73,13 +84,8 @@ typename promote_args<Tlik, Tprior>::type  GetGroupPriorLogLikelihood(
     // Tau is the only group parameter with a prior.
     GammaNatural<T> pp_tau(pp.tau);
     GammaNatural<T> vp_tau(vp.tau[g]);
-    GammaMoments<T> vp_tau_moments(vp_tau);
-    T log_prior = vp_tau_moments.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
-    // std::cout << "tau " << g << ": " << log_prior << "\n";
-    // std::cout << "vp_tau_moments: " << vp_tau_moments.e << " " <<
-    //     vp_tau_moments.e_log << "\n";
-    // std::cout << "pp: " << pp_tau.alpha << " " << pp_tau.beta << "\n";
-    return log_prior;
+    GammaMoments<T> mp_tau(vp_tau);
+    return GetGroupPriorLogLikelihood(mp_tau, pp_tau);
 };
 
 
@@ -112,6 +118,34 @@ template <typename T> T EvaluateLKJPrior(
 };
 
 
+// Evaluate the LKJ prior for a draw.
+// TODO: put this in libLinearResponseVariationalBayes.cpp
+template <typename T> T EvaluateLKJPrior(
+    MatrixXT<T> sigma, T log_det_sigma, T alpha, T beta, T eta) {
+
+    if (sigma.rows() != sigma.cols()) {
+        throw std::runtime_error("sigma must be square.");
+    }
+    int k_reg = sigma.rows();
+
+    T log_det_r = log_det_sigma;
+    T log_prior = 0.0;
+    GammaMoments<T> gamma_moment(0, 0);
+    for (int k = 0; k < k_reg; k++) {
+        T s = sigma(k, k);
+        if (s < 0) {
+            throw std::runtime_error("sigma must have non-negative diagonals");
+        }
+        gamma_moment.set(s, log(s));
+        log_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
+        log_det_r -= 2 * log(s);
+    }
+
+    log_prior += (eta - 1) * log_det_r;
+    return log_prior;
+};
+
+
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp) {
@@ -125,14 +159,41 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     MultivariateNormalMoments<T> vp_mu_moments(vp_mu);
     MultivariateNormalNatural<T> pp_mu = pp.mu;
     log_prior += vp_mu_moments.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
-    // std::cout << "vp.mu: " << log_prior << "\n";
 
     WishartNatural<T> vp_lambda(vp.lambda);
     T lambda_alpha = pp.lambda_alpha;
     T lambda_beta = pp.lambda_beta;
     T lambda_eta = pp.lambda_eta;
     log_prior += EvaluateLKJPrior(vp_lambda, lambda_alpha, lambda_beta, lambda_eta);
-    // std::cout << "vp.lambda: " << log_prior << "\n";
+
+    return log_prior;
+};
+
+
+// The global prior for a draw.
+template <typename Tlik, typename Tprior>
+typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
+    MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu, PriorParameters<Tprior> const &pp) {
+
+    typedef typename promote_args<Tlik, Tprior>::type T;
+
+    T log_prior = 0.0;
+
+    // Mu:
+    VectorXT<T> mu_e(mu);
+    MatrixXT<T> mu_outer = mu * mu.transpose();
+    MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
+
+    MultivariateNormalNatural<T> pp_mu = pp.mu;
+    log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+
+    // Lambda
+    MatrixXT<T> sigma = lambda.inverse();
+    T log_det_sigma = log(sigma.determinant());
+    T lambda_alpha = pp.lambda_alpha;
+    T lambda_beta = pp.lambda_beta;
+    T lambda_eta = pp.lambda_eta;
+    log_prior += EvaluateLKJPrior(sigma, log_det_sigma, lambda_alpha, lambda_beta, lambda_eta);
 
     return log_prior;
 };
@@ -145,11 +206,9 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
     typedef typename promote_args<Tlik, Tprior>::type T;
     T log_prior = 0.0;
     log_prior += GetGlobalPriorLogLikelihood(vp, pp);
-    // std::cout << "global: " << log_prior << "\n";
 
     for (int g = 0; g < vp.n_g; g++) {
         log_prior += GetGroupPriorLogLikelihood(vp, pp, g);
-        // std::cout << "group " << g << ": " << log_prior << "\n";
     }
     return log_prior;
 };
