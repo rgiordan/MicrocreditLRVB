@@ -121,6 +121,7 @@ Rcpp::List ConvertMomentsToList(MomentParameters<double> const &mp) {
         Rcpp::List r_list;
         r_list["n_g"] = mp.n_g;
         r_list["k_reg"] = mp.k;
+        r_list["encoded_size"] = mp.offsets.encoded_size;
 
         r_list["mu_e_vec"] = mp.mu.e_vec;
         r_list["mu_e_outer"] = mp.mu.e_outer.mat;

@@ -59,8 +59,22 @@ vp_mom_vec_pert <- vp_mom_vec + stan_results$perturb_epsilon * mu_info_offdiag_s
 vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
 
 
+##########################################
+# Get MCMC sensitivity measures
+
+mcmc_sample <- extract(stan_results$stan_sim)
+mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
+
+draw <- 1
+
+mu <- mcmc_sample$mu[draw, ]
+lambda <- mcmc_sample$lambda[draw, , ]
+tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
+mu_g <- mcmc_sample$mu1[draw, , ]
+
+
 ###########################
-# Sumamrize results
+# Summarize results
 
 # Pack the standard deviations into readable forms.
 mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
@@ -69,9 +83,6 @@ lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
 results_vb <- SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd)
 results_vb_pert <- SummarizeMomentParameters(vp_mom_pert, mfvb_sd, lrvb_sd)
 results_vb_pert$method <- "mfvb_perturbed"
-
-mcmc_sample <- extract(stan_results$stan_sim)
-mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
 
 results_mcmc <- SummarizeMCMCResults(mcmc_sample)
 results_mcmc_pert <- SummarizeMCMCResults(mcmc_sample_perturbed)
