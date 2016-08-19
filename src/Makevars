@@ -13,6 +13,6 @@ PKG_LIBS= $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) \
 -lMicrocreditModelLRVB \
 -lLinearResponseVariationalBayes
 
-PKG_CPPFLAGS= -Wno-deprecated -fPIC -ftime-report
+PKG_CPPFLAGS= -Wno-deprecated -fPIC
 
 CXX_STD = CXX11

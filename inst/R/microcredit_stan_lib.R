@@ -70,6 +70,22 @@ GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10, tau_bound=7) 
 }
 
 
+GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
+                              mask=rep(TRUE, vp_base$encoded_size),
+                              DerivFun=GetElboDerivatives) {
+  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
+                        DerivFun, GetVectorFromParameters, GetParametersFromVector)
+}
+
+
+GetGlobalOptimFunctions <- function(x, y, y_g, vp_base, pp,
+                                    mask=rep(TRUE, length(GetGlobalVectorFromParameters(vp_base))),
+                                    DerivFun=GetElboDerivatives) {
+  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
+                        DerivFun, GetGlobalVectorFromParameters, GetParametersFromGlobalVector)
+}
+
+
 GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
                                   DerivFun, VectorFromParameters, ParametersFromVector) {
 
@@ -131,24 +147,6 @@ GetTrustRegionELBO <- function(x, y, y_g, vp_base, pp,
 }
 
 
-
-GetOptimFunctions <- function(x, y, y_g, vp_base, pp,
-                              mask=rep(TRUE, vp_base$encoded_size),
-                              DerivFun=GetElboDerivatives) {
-  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
-                        DerivFun, GetVectorFromParameters, GetParametersFromVector)
-}
-
-
-GetGlobalOptimFunctions <- function(x, y, y_g, vp_base, pp,
-                                    mask=rep(TRUE, length(GetGlobalVectorFromParameters(vp_base))),
-                                    DerivFun=GetElboDerivatives) {
-  GetOptimFunctionsBase(x, y, y_g, vp_base, pp, mask,
-                        DerivFun, GetGlobalVectorFromParameters, GetParametersFromGlobalVector)
-}
-
-
-
 InitializeVariationalParameters <-
   function(x, y, y_g, mu_diag_min=0.01, lambda_diag_min=1e-5, tau_min=0.5, lambda_n_min=1e-6) {
   # Initial parameters from data
@@ -199,6 +197,74 @@ InitializeZeroVariationalParameters <-
   vp$lambda_n_min <- 0.5
   
   return(vp)
+}
+
+
+
+#################################################
+# Optimization:
+
+FitVariationalModel <- function(x, y, y_g, vp_reg, pp) {
+  # first BFGS
+  mask <- rep(TRUE, vp_reg$encoded_size)
+  bfgs_opt_fns <- GetOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=GetElboDerivatives, mask=mask)
+  theta_init <- GetVectorFromParameters(vp_reg, TRUE)
+  bounds <- GetVectorBounds(vp_reg, loc_bound=60, info_bound=10, tau_bound=100)
+  
+  bfgs_time <- Sys.time()
+  bfgs_result <- optim(theta_init[mask],
+                       bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
+                       method="L-BFGS-B", lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
+                       control=list(fnscale=-1, maxit=1000, trace=0, factr=1e7))
+  stopifnot(bfgs_result$convergence == 0)
+  print(bfgs_result$message)
+  bfgs_time <- Sys.time() - bfgs_time
+  vp_bfgs <- GetParametersFromVector(vp_reg, bfgs_result$par, TRUE)
+  
+  # then trust region
+  tr_time <- Sys.time()
+  trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_bfgs, pp, verbose=TRUE)
+  trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
+                        rinit=1, rmax=100, minimize=FALSE, blather=TRUE, iterlim=50)
+  tr_time <- Sys.time() - tr_time
+  trust_result$converged
+  trust_result$value
+  
+  bfgs_time + tr_time
+  
+  vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
+  
+  return(list(bfgs_time=bfgs_time, tr_time=tr_time,
+              bfgs_result=bfgs_result, trust_result=trust_result,
+              vp_opt=vp_opt))
+}
+
+
+GetLRVB <- function(x, y, y_g, vp_opt, pp) {
+  unconstrained <- TRUE # This seems to have a better condition number. 
+  moment_derivs <- GetMomentJacobian(vp_opt, unconstrained)
+  jac <- Matrix(moment_derivs$hess)
+  elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, unconstrained)
+  lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
+  stopifnot(min(diag(lrvb_cov)) > 0)
+  
+  return(list(lrvb_cov=lrvb_cov, jac=jac, elbo_hess=elbo_hess))
+  
+}
+
+# Sensitivity
+GetSensitivity <- function(vp_opt, pp, jac, elbo_hess) {
+  # Get some indices
+  comb_indices <- GetPriorsAndParametersFromVector(
+    vp_opt, pp, as.numeric(1:(vp_opt$encoded_size + pp$encoded_size)))
+  comb_prior_ind <- GetVectorFromPriors(comb_indices$pp)
+  comb_vp_ind <- GetVectorFromParameters(comb_indices$vp, FALSE)
+  
+  log_prior_derivs <- GetLogPriorDerivatives(vp_opt, pp, TRUE, TRUE, TRUE)
+  log_prior_param_prior <- Matrix(log_prior_derivs$hess[comb_vp_ind, comb_prior_ind])
+  
+  prior_sens <- -1 * jac %*% Matrix::solve(elbo_hess, log_prior_param_prior)
+  return(prior_sens)
 }
 
 
