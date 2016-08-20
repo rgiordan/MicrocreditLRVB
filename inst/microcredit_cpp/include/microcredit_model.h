@@ -39,7 +39,41 @@ using fvar = stan::math::fvar<var>;
 ///////////////////////////////////
 // Functors
 
-// The log likelihood for the whole model (including the expected log prior)
+// The log Likelihood  evaluated at a draw of the parameters as a function
+// of the prior parameters.
+struct MicroCreditLogPriorDraw {
+
+    // Encode the draw in moment parameters, where the "expectations"
+    // are just the values of the draw.
+    MomentParameters<double> draw;
+    PriorParameters<double> base_pp;
+
+    MicroCreditLogPriorDraw(
+        MomentParameters<double> const &draw,
+        PriorParameters<double> const &base_pp):
+    draw(draw), base_pp(base_pp) {};
+
+    template <typename T> T operator()(VectorXT<T> const &theta) const {
+        PriorParameters<T> pp(base_pp);
+        SetFromVector(theta, pp);
+
+        T log_prior = 0.0;
+
+        // Prior for global variables.
+        log_prior += GetGlobalPriorLogLikelihoodDraw(
+            draw.lambda.e.mat, draw.mu.e_vec, pp);
+
+        // Prior for group variables.
+        for (int g = 0; g < draw.n_g; g++) {
+            GammaMoments<T> mp_tau(draw.tau[g]);
+            log_prior += GetGroupPriorLogLikelihood(mp_tau, pp.tau);
+        }
+        return log_prior;
+    }
+};
+
+
+// The expected log prior for a variatoinal distribution
 struct MicroCreditLogPrior {
     VariationalParameters<double> base_vp;
     PriorParameters<double> base_pp;

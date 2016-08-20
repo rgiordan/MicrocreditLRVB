@@ -168,6 +168,31 @@ Derivatives GetLogPriorDerivatives(
 }
 
 
+// Derivative of the log prior evaluated at a draw encoded in MomentParameters.
+Derivatives GetLogPriorDerivativesFromDraw(
+    MomentParameters<double> const &draw,
+    PriorParameters<double> const &pp,
+    bool const calculate_gradient) {
+
+    MicroCreditLogPriorDraw LogPrior(draw, pp);
+
+    double val;
+    VectorXd grad = VectorXd::Zero(pp.offsets.encoded_size);
+    MatrixXd hess = MatrixXd::Zero(0, 0);  // Do not return the Hessian.
+    VectorXd theta = GetParameterVector(pp);
+
+    stan::math::set_zero_all_adjoints();
+    if (calculate_gradient) {
+        stan::math::gradient(LogPrior, theta, val, grad);
+    } else {
+        val = LogPrior(theta);
+    }
+
+    return Derivatives(val, grad, hess);
+};
+
+
+
 // Get the covariance of the moment parameters from the natural parameters.
 SparseMatrix<double> GetCovariance(
     const VariationalParameters<double> &vp,

@@ -67,6 +67,7 @@ T GetObservationLogLikelihood(
 // Priors.  For comparison with MCMC, we must be able to evaluate both
 // the variational expected log prior and the prior at a particular MCMC draw.
 
+// This can also be evaulated for a draw of tau..
 template <typename T>
 T GetGroupPriorLogLikelihood(GammaMoments<T> &mp_tau, GammaNatural<T> const &pp_tau) {
     // Tau is the only group parameter with a prior.
@@ -172,7 +173,7 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
 
 // The global prior for a draw.
 template <typename Tlik, typename Tprior>
-typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
+typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihoodDraw(
     MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu, PriorParameters<Tprior> const &pp) {
 
     typedef typename promote_args<Tlik, Tprior>::type T;
@@ -180,15 +181,16 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     T log_prior = 0.0;
 
     // Mu:
-    VectorXT<T> mu_e(mu);
-    MatrixXT<T> mu_outer = mu * mu.transpose();
+    VectorXT<T> mu_e = mu.template cast<T>();
+    MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
     MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
 
     MultivariateNormalNatural<T> pp_mu = pp.mu;
     log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
 
     // Lambda
-    MatrixXT<T> sigma = lambda.inverse();
+    MatrixXT<T> lambda_t = lambda.template cast<T>();
+    MatrixXT<T> sigma = lambda_t.inverse();
     T log_det_sigma = log(sigma.determinant());
     T lambda_alpha = pp.lambda_alpha;
     T lambda_beta = pp.lambda_beta;
@@ -213,6 +215,9 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
     return log_prior;
 };
 
+
+//////////////////////////////////
+// Entropy
 
 template <typename T> T
 GetGroupEntropy(VariationalParameters<T> const &vp, int g) {

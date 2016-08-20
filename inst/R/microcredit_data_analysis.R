@@ -72,6 +72,53 @@ lambda <- mcmc_sample$lambda[draw, , ]
 tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
 mu_g <- mcmc_sample$mu1[draw, , ]
 
+# Evidently Rcpp ignores all but the last index for NumericVectors.
+library(Rcpp)
+cppFunction(
+"
+void FooFun8(Rcpp::NumericVector foo, int i, int j, int k) {
+  Rcpp::Rcout << foo[0, 1, 0] << \"\\n\";
+  Rcpp::Rcout << foo[0, 1, 1] << \"\\n\";
+  Rcpp::Rcout << foo[0, 1, 2] << \"\\n\";
+  Rcpp::Rcout << foo[0, 1, 3] << \"\\n\";
+  Rcpp::Rcout << foo[0, 0, 0] << \"\\n\";
+  Rcpp::Rcout << foo[0, 0, 1] << \"\\n\";
+  Rcpp::Rcout << foo[1, 1, 0] << \"\\n\";
+  Rcpp::Rcout << foo[1, 1, 1] << \"\\n\";
+  Rcpp::Rcout << foo[10000, 23, 1001010011, 1, 1, 1] << \"\\n\";
+  Rcpp::Rcout << foo.size() << \"\\n\";
+  Rcpp::NumericVector foo_dims = foo.attr(\"dim\");
+  Rcpp::Rcout << foo_dims << \"\\n\";
+}"
+)
+
+foo <- array(as.numeric(1:24), dim=c(2, 3, 4))
+attr(x, "dim")
+FooFun8(foo)
+foo[1, 2, 3]
+
+
+cppFunction(
+  "
+void IndexIntoFoo(Rcpp::NumericVector foo, int i, int j, int k) {
+  Rcpp::NumericVector foo_dims = foo.attr(\"dim\");
+  if (foo_dims.size() != 3) {
+    throw std::runtime_error(\"no way jose\");
+  }
+  int ind = i + foo_dims[0] * j + foo_dims[0] * foo_dims[1] * k;
+  Rcpp::Rcout << foo[ind] << \"\\n\";
+}"
+)
+
+
+foo <- array(as.numeric(1:24), dim=c(2, 3, 4))
+attr(x, "dim")
+IndexIntoFoo(foo, 0, 1, 3)
+foo[1, 2, 4]
+
+
+# This is over-designing.  Put the draws into an array of lists of moment parameters.
+
 
 ###########################
 # Summarize results
