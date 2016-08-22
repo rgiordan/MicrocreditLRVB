@@ -313,5 +313,9 @@ SparseMatrix<double> GetSparseELBOHessian(
     VariationalParameters<double> vp,
     PriorParameters<double> pp);
 
+Derivatives GetLogPriorDerivativesFromDraw(
+    MomentParameters<double> const &draw,
+    PriorParameters<double> const &pp,
+    bool const calculate_gradient);
 
 # endif

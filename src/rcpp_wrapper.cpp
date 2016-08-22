@@ -501,6 +501,24 @@ Rcpp::List GetLogPriorDerivatives(
 }
 
 
+// [[Rcpp::export]]
+Rcpp::List GetMCMCLogPriorDerivatives(
+    const Rcpp::List draw_list, const Rcpp::List r_pp) {
+
+    int n_draws = draw_list.size();
+    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
+    Rcpp::Rcout << "Got " << n_draws << " draws.\n";
+    Rcpp::List log_prior_gradients(n_draws);
+    for (int draw = 0; draw < n_draws; draw++) {
+        Rcpp::List this_draw_list = draw_list[draw];
+        MomentParameters<double> mp_draw = ConvertMomentsFromList(this_draw_list);
+        Derivatives derivs = GetLogPriorDerivativesFromDraw(mp_draw, pp, true);
+        log_prior_gradients[draw] = derivs.grad;
+    }
+    return log_prior_gradients;
+}
+
+
 
 //////////////////////
 // Covariance

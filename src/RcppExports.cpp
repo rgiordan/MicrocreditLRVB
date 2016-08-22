@@ -233,6 +233,18 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// GetMCMCLogPriorDerivatives
+Rcpp::List GetMCMCLogPriorDerivatives(const Rcpp::List draw_list, const Rcpp::List r_pp);
+RcppExport SEXP MicrocreditLRVB_GetMCMCLogPriorDerivatives(SEXP draw_listSEXP, SEXP r_ppSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type draw_list(draw_listSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    __result = Rcpp::wrap(GetMCMCLogPriorDerivatives(draw_list, r_pp));
+    return __result;
+END_RCPP
+}
 // GetCovariance
 Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetCovariance(SEXP r_vpSEXP) {

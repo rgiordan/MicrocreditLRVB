@@ -65,12 +65,52 @@ vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
 mcmc_sample <- extract(stan_results$stan_sim)
 mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
 
-draw <- 1
+n_draws <- dim(mcmc_sample$mu)[1]
+mp_draws <- list()
+zero_mp <- GetMomentsFromVector(mp_reg, rep(NaN, mp_reg$encoded_size))
 
-mu <- mcmc_sample$mu[draw, ]
-lambda <- mcmc_sample$lambda[draw, , ]
-tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
-mu_g <- mcmc_sample$mu1[draw, , ]
+draw <- 1
+for (draw in 1:n_draws) {
+  if (draw %% 100 == 0) {
+    cat("Writing draw ", draw, " of ", n_draws, "(", 100 * draw / n_draws, "%)\n")
+  }
+  mp_draw <- zero_mp
+  
+  mu <- mcmc_sample$mu[draw, ]
+  lambda <- mcmc_sample$lambda[draw, , ]
+  tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
+  mu_g <- mcmc_sample$mu1[draw, , ]
+  
+  mp_draw$mu_e_vec <- mu
+  mp_draw$mu_e_outer <- mu %*% t(mu)
+  
+  mp_draw$lambda_e <- lambda
+  mp_draw$lambda_e_log_det <- log(det(lambda))
+  
+  for (g in 1:(vp_reg$n_g)) {
+    mp_draw$mu_g[[g]]$e_vec <- mu_g[g, ]
+    mp_draw$mu_g[[g]]$e_outer <- mu_g[g, ] %*% t(mu_g[g, ])
+    mp_draw$tau[[g]]$e <- tau[g]
+    mp_draw$tau[[g]]$e_log <- log(tau[g])
+  }
+  
+  GetVectorFromMoments(mp_draw)
+  
+  mp_draws[[draw]] <- mp_draw
+}
+
+
+log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
+log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
+dim(log_prior_grad_mat)
+
+mu_draws <- mcmc_sample$mu
+mu_sens <- cov(mu_draws, log_prior_grad_mat)
+
+
+foo <- matrix(runif(100 * 2), 100, 2)
+bar <- matrix(runif(100 * 3), 100, 3)
+cov(foo, bar)
 
 # Evidently Rcpp ignores all but the last index for NumericVectors.
 library(Rcpp)

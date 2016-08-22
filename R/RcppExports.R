@@ -69,6 +69,10 @@ GetLogPriorDerivatives <- function(r_vp, r_pp, calculate_gradient, calculate_hes
     .Call('MicrocreditLRVB_GetLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
 }
 
+GetMCMCLogPriorDerivatives <- function(draw_list, r_pp) {
+    .Call('MicrocreditLRVB_GetMCMCLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', draw_list, r_pp)
+}
+
 GetCovariance <- function(r_vp) {
     .Call('MicrocreditLRVB_GetCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }
