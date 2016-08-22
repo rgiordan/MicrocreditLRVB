@@ -65,100 +65,9 @@ vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
 mcmc_sample <- extract(stan_results$stan_sim)
 mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
 
-n_draws <- dim(mcmc_sample$mu)[1]
-mp_draws <- list()
-zero_mp <- GetMomentsFromVector(mp_reg, rep(NaN, mp_reg$encoded_size))
-
-draw <- 1
-for (draw in 1:n_draws) {
-  if (draw %% 100 == 0) {
-    cat("Writing draw ", draw, " of ", n_draws, "(", 100 * draw / n_draws, "%)\n")
-  }
-  mp_draw <- zero_mp
-  
-  mu <- mcmc_sample$mu[draw, ]
-  lambda <- mcmc_sample$lambda[draw, , ]
-  tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
-  mu_g <- mcmc_sample$mu1[draw, , ]
-  
-  mp_draw$mu_e_vec <- mu
-  mp_draw$mu_e_outer <- mu %*% t(mu)
-  
-  mp_draw$lambda_e <- lambda
-  mp_draw$lambda_e_log_det <- log(det(lambda))
-  
-  for (g in 1:(vp_reg$n_g)) {
-    mp_draw$mu_g[[g]]$e_vec <- mu_g[g, ]
-    mp_draw$mu_g[[g]]$e_outer <- mu_g[g, ] %*% t(mu_g[g, ])
-    mp_draw$tau[[g]]$e <- tau[g]
-    mp_draw$tau[[g]]$e_log <- log(tau[g])
-  }
-  
-  GetVectorFromMoments(mp_draw)
-  
-  mp_draws[[draw]] <- mp_draw
-}
-
-
+draws_mat <- do.call(rbind, lapply(mp_draws, GetVectorFromMoments))
 log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
 log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
-dim(log_prior_grad_mat)
-
-mu_draws <- mcmc_sample$mu
-mu_sens <- cov(mu_draws, log_prior_grad_mat)
-
-
-foo <- matrix(runif(100 * 2), 100, 2)
-bar <- matrix(runif(100 * 3), 100, 3)
-cov(foo, bar)
-
-# Evidently Rcpp ignores all but the last index for NumericVectors.
-library(Rcpp)
-cppFunction(
-"
-void FooFun8(Rcpp::NumericVector foo, int i, int j, int k) {
-  Rcpp::Rcout << foo[0, 1, 0] << \"\\n\";
-  Rcpp::Rcout << foo[0, 1, 1] << \"\\n\";
-  Rcpp::Rcout << foo[0, 1, 2] << \"\\n\";
-  Rcpp::Rcout << foo[0, 1, 3] << \"\\n\";
-  Rcpp::Rcout << foo[0, 0, 0] << \"\\n\";
-  Rcpp::Rcout << foo[0, 0, 1] << \"\\n\";
-  Rcpp::Rcout << foo[1, 1, 0] << \"\\n\";
-  Rcpp::Rcout << foo[1, 1, 1] << \"\\n\";
-  Rcpp::Rcout << foo[10000, 23, 1001010011, 1, 1, 1] << \"\\n\";
-  Rcpp::Rcout << foo.size() << \"\\n\";
-  Rcpp::NumericVector foo_dims = foo.attr(\"dim\");
-  Rcpp::Rcout << foo_dims << \"\\n\";
-}"
-)
-
-foo <- array(as.numeric(1:24), dim=c(2, 3, 4))
-attr(x, "dim")
-FooFun8(foo)
-foo[1, 2, 3]
-
-
-cppFunction(
-  "
-void IndexIntoFoo(Rcpp::NumericVector foo, int i, int j, int k) {
-  Rcpp::NumericVector foo_dims = foo.attr(\"dim\");
-  if (foo_dims.size() != 3) {
-    throw std::runtime_error(\"no way jose\");
-  }
-  int ind = i + foo_dims[0] * j + foo_dims[0] * foo_dims[1] * k;
-  Rcpp::Rcout << foo[ind] << \"\\n\";
-}"
-)
-
-
-foo <- array(as.numeric(1:24), dim=c(2, 3, 4))
-attr(x, "dim")
-IndexIntoFoo(foo, 0, 1, 3)
-foo[1, 2, 4]
-
-
-# This is over-designing.  Put the draws into an array of lists of moment parameters.
-
 
 ###########################
 # Summarize results
@@ -224,5 +133,44 @@ ggplot(filter(mean_pert_results, par != "mu_g")) +
 ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
+
+
+# Prior sensitivity results with respect to a particular prior parameter.
+prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
+#prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
+#prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
+
+mcmc_subset_size <- 1000
+mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ], log_prior_grad_mat[1:mcmc_subset_size, ])
+
+mcmc_prior_sens <- cov(draws_mat, log_prior_grad_mat)
+
+vb_prior_sens_mom <- GetMomentsFromVector(mp_reg, prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_mom <- GetMomentsFromVector(mp_reg, mcmc_prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_subset <- GetMomentsFromVector(mp_reg, mcmc_prior_sens_subset[, prior_sensitivity_ind])
+prior_sens_results <-
+  rbind(SummarizeRawMomentParameters(vb_prior_sens_mom, metric=ind_name, method="lrvb") %>%
+          mutate(draws=""),
+        SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
+          mutate(draws=nrow(draws_mat)),
+        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, "mcmc") %>%
+          mutate(draws=subset_size)
+  )
+
+
+prior_sens_results_graph <-
+  inner_join(
+  filter(prior_sens_results, method == "lrvb") %>%
+    dcast(par + component + group + metric ~ method, value.var="val"),
+  filter(prior_sens_results, method == "mcmc") %>%
+    dcast(par + component + group + metric + draws ~ method, value.var="val"),
+  by=c("par", "component", "group", "metric"))
+
+
+ggplot(prior_sens_results_graph) +
+  geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  facet_grid(~ draws)
+
 
 

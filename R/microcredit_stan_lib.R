@@ -268,6 +268,50 @@ GetSensitivity <- function(vp_opt, pp, jac, elbo_hess) {
 }
 
 
+###################################
+# Pack MCMC draws into a list of moment parameters to interact with C++.
+# mp_reg provides only a template for the moment parameters.
+
+PackMCMCSamplesIntoMoments <- function(mcmc_sample, mp_reg) {
+  n_draws <- dim(mcmc_sample$mu)[1]
+  mp_draws <- list()
+  zero_mp <- GetMomentsFromVector(mp_reg, rep(NaN, mp_reg$encoded_size))
+  
+  draw <- 1
+  for (draw in 1:n_draws) {
+    if (draw %% 100 == 0) {
+      cat("Writing draw ", draw, " of ", n_draws, "(", 100 * draw / n_draws, "%)\n")
+    }
+    mp_draw <- zero_mp
+    
+    mu <- mcmc_sample$mu[draw, ]
+    lambda <- mcmc_sample$lambda[draw, , ]
+    tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
+    mu_g <- mcmc_sample$mu1[draw, , ]
+    
+    mp_draw$mu_e_vec <- mu
+    mp_draw$mu_e_outer <- mu %*% t(mu)
+    
+    mp_draw$lambda_e <- lambda
+    mp_draw$lambda_e_log_det <- log(det(lambda))
+    
+    for (g in 1:(vp_reg$n_g)) {
+      mp_draw$mu_g[[g]]$e_vec <- mu_g[g, ]
+      mp_draw$mu_g[[g]]$e_outer <- mu_g[g, ] %*% t(mu_g[g, ])
+      mp_draw$tau[[g]]$e <- tau[g]
+      mp_draw$tau[[g]]$e_log <- log(tau[g])
+    }
+    
+    GetVectorFromMoments(mp_draw)
+    
+    mp_draws[[draw]] <- mp_draw
+  }
+
+  return(mp_draws)
+}
+
+
+
 
 #################################################
 # Formatting:
@@ -299,7 +343,7 @@ SummarizeNaturalParameters <- function(vp_nat) {
 }
 
 
-SummarizeMomentParameters <- function(vp_mom, mfvb_sd, lrvb_sd) {
+SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
   k_reg <- vp_mom$k_reg
   n_g <- vp_mom$n_g
   
@@ -307,33 +351,44 @@ SummarizeMomentParameters <- function(vp_mom, mfvb_sd, lrvb_sd) {
   for (k in 1:k_reg) {
     Accessor <- function(vp) { vp[["mu_e_vec"]][k] }
     results_list[[length(results_list) + 1]] <-
-      SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, Accessor, par="mu", component=k, group=-1)
+      ResultRow(par="mu", component=k, group=-1,
+                method=method, metric=metric, val=Accessor(vp_mom))
   }
-
+  
   for (k1 in 1:k_reg) {
     for (k2 in 1:k_reg) {
       Accessor <- function(vp) { vp[["lambda_e"]][k1, k2] }
       component <- paste(k1, k2, sep="_")
       results_list[[length(results_list) + 1]] <-
-        SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, Accessor, par="lambda", component=component, group=-1)
-    }
+        ResultRow(par="lambda", component=component, group=-1,
+                  method=method, metric=metric, val=Accessor(vp_mom))
+      }
   }
   
   for (g in 1:n_g) {
     for (k in 1:k_reg) {
       Accessor <- function(vp) { vp[["mu_g"]][[g]][["e_vec"]][k] }
       results_list[[length(results_list) + 1]] <-
-        SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, Accessor, par="mu_g", component=k, group=g)
+        ResultRow(par="mu_g", component=k, group=g,
+                  method=method, metric=metric, val=Accessor(vp_mom))
     }
   }
   
   for (g in 1:n_g) {
     Accessor <- function(vp) { vp[["tau"]][[g]][["e"]] }
     results_list[[length(results_list) + 1]] <-
-      SummarizeVBVariable(vp_mom, mfvb_sd, lrvb_sd, Accessor, par="tau", component=-1, group=g)
+      ResultRow(par="tau", component=-1, group=g,
+                method=method, metric=metric, val=Accessor(vp_mom))
   }
   
   return(do.call(rbind, results_list))
+}
+
+
+SummarizeMomentParameters <- function(vp_mom, mfvb_sd, lrvb_sd) {
+  rbind(SummarizeRawMomentParameters(vp_mom, metric="mean", method="mfvb"),
+        SummarizeRawMomentParameters(mfvb_sd, metric="sd", method="mfvb"),
+        SummarizeRawMomentParameters(lrvb_sd, metric="sd", method="lrvb"))
 }
 
 
