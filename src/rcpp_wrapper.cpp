@@ -4,14 +4,14 @@
 # include <vector>
 # include <ctime>
 
-# include <stan/math.hpp>
-# include <stan/math/mix/mat/functor/hessian.hpp>
+// # include <stan/math.hpp>
+// # include <stan/math/mix/mat/functor/hessian.hpp>
 
 // # include "variational_parameters.h"
 // # include "exponential_families.h"
 # include "microcredit_model.h"
 
-# include "differentiate_jacobian.h"
+// # include "differentiate_jacobian.h"
 # include "transform_hessian.h"
 
 typedef Eigen::Triplet<double> Triplet; // For populating sparse matrices
@@ -485,19 +485,42 @@ GetSparseELBOHessian(const Eigen::Map<Eigen::MatrixXd> r_x,
 
 // [[Rcpp::export]]
 Rcpp::List GetLogPriorDerivatives(
-        const Rcpp::List r_vp, const Rcpp::List r_pp,
-        const bool calculate_gradient,
-        const bool calculate_hessian,
-        const bool unconstrained) {
+    const Rcpp::List r_vp, const Rcpp::List r_pp,
+    const bool calculate_gradient,
+    const bool calculate_hessian,
+    const bool unconstrained) {
 
-        VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-        PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
 
-        Derivatives derivs = GetLogPriorDerivatives(vp, pp, unconstrained,
-                                                                                                calculate_gradient,
-                                                                                                calculate_hessian);
-        Rcpp::List ret = ConvertDerivativesToList(derivs);
-        return ret;
+    Derivatives derivs = GetLogPriorDerivatives(vp, pp, unconstrained,
+                                            calculate_gradient,
+                                            calculate_hessian);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List GetLogVariationalDensityDerivatives(
+    const Rcpp::List r_obs_mp, const Rcpp::List r_vp, const Rcpp::List r_pp,
+    bool const include_mu,
+    bool const include_lambda,
+    const Eigen::Map<Eigen::VectorXi> r_include_mu_groups,
+    const Eigen::Map<Eigen::VectorXi> r_include_tau_groups,
+    bool const calculate_gradient) {
+
+    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
+    MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    Eigen::VectorXi include_mu_groups = r_include_mu_groups;
+    Eigen::VectorXi include_tau_groups = r_include_tau_groups;
+
+    Derivatives derivatives = GetLogVariationalDensityDerivatives(
+        mp_obs, vp, include_mu, include_lambda,
+        include_mu_groups, include_tau_groups, calculate_gradient);
+    Rcpp::List ret = ConvertDerivativesToList(derivatives);
+    return ret;
 }
 
 

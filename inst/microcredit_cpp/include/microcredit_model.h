@@ -13,7 +13,7 @@
 # include "microcredit_model_parameters.h"
 
 # include <stan/math.hpp>
-# include <stan/math/fwd/scal.hpp>
+# include <stan/math/fwd/mat.hpp>
 # include <stan/math/mix/mat/functor/hessian.hpp>
 
 using Eigen::MatrixXd;
@@ -205,6 +205,7 @@ struct MicroCreditElbo {
 };
 
 
+
 // Likelihood + entropy for lambda only.
 struct NaturalToMomentParameters {
     VariationalParameters<double> base_vp;
@@ -216,6 +217,68 @@ struct NaturalToMomentParameters {
         MomentParameters<T> mp(vp);
         VectorXT<T> moment_vec = GetParameterVector(mp);
         return moment_vec;
+    }
+};
+
+
+// Likelihood + entropy for lambda only.
+struct VariationalLogDensity {
+    // The observation is encoded in a MomentParameters object.
+    MomentParameters<double> const &obs;
+    VariationalParameters<double> const &base_vp;
+    bool include_mu;
+    bool include_lambda;
+    VectorXi include_mu_groups;
+    VectorXi include_tau_groups;
+
+    VariationalLogDensity(
+        VariationalParameters<double> vp,
+        MomentParameters<double> _obs): base_vp(vp), obs(_obs) {
+
+        include_mu = true;
+        include_lambda = true;
+        VectorXd include_mu_groups(base_vp.n_g);
+        VectorXd include_tau_groups(base_vp.n_g);
+        for (int g = 0; g < base_vp.n_g; g++) {
+          include_mu_groups(g) = g;
+          include_tau_groups(g) = g;
+        }
+    };
+
+    template <typename T> T operator()(VectorXT<T> const &theta) const {
+        VariationalParameters<T> vp(base_vp);
+
+        SetFromVector(theta, vp);
+        T q_log_dens = 0.0;
+        if (include_mu) {
+          VectorXT<T> mu_obs = obs.mu.e_vec.template cast<T>();
+          q_log_dens += vp.mu.log_lik(mu_obs);
+        }
+
+        if (include_lambda) {
+          MatrixXT<T> lambda_obs = obs.lambda.e.mat.template cast<T>();
+          q_log_dens += vp.lambda.log_lik(lambda_obs);
+        }
+
+        for (int g_ind = 0; g_ind < include_mu_groups.size(); g_ind++) {
+          int g = include_mu_groups(g_ind);
+          if (g < 0 || g > vp.n_g) {
+            throw std::runtime_error("mu_g q log density: g out of bounds.");
+          }
+          VectorXT<T> mu_g_obs = obs.mu_g[g].e_vec.template cast<T>();
+          q_log_dens += vp.mu_g[g].log_lik(mu_g_obs);
+        }
+
+        for (int g_ind = 0; g_ind < include_tau_groups.size(); g_ind++) {
+          int g = include_tau_groups(g_ind);
+          if (g < 0 || g > vp.n_g) {
+            throw std::runtime_error("tau q log density: g out of bounds.");
+          }
+          T tau_obs = obs.tau[g].e;
+          q_log_dens += vp.tau[g].log_lik(tau_obs);
+        }
+
+        return q_log_dens;
     }
 };
 
@@ -313,9 +376,21 @@ SparseMatrix<double> GetSparseELBOHessian(
     VariationalParameters<double> vp,
     PriorParameters<double> pp);
 
+
 Derivatives GetLogPriorDerivativesFromDraw(
     MomentParameters<double> const &draw,
     PriorParameters<double> const &pp,
     bool const calculate_gradient);
+
+
+Derivatives GetLogVariationalDensityDerivatives(
+    MomentParameters<double> const &obs,
+    VariationalParameters<double> const &vp,
+    bool const include_mu,
+    bool const include_lambda,
+    VectorXi const include_mu_groups,
+    VectorXi const include_tau_groups,
+    bool const calculate_gradient);
+
 
 # endif

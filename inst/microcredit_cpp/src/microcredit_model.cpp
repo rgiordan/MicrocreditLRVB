@@ -267,8 +267,6 @@ SparseMatrix<double> GetSparseELBOHessian(
 };
 
 
-
-
 // Convert index from a "local" vector containing first the global variables
 // and then a single local variable to indices into a "global" vector containing
 // first the global variables and then all the local variables.
@@ -282,3 +280,36 @@ int GlobalIndex(int index, int g, Offsets offsets) {
         return index + g * offsets.local_encoded_size;
     }
 };
+
+
+
+Derivatives GetLogVariationalDensityDerivatives(
+    MomentParameters<double> const &obs,
+    VariationalParameters<double> const &vp,
+    bool const include_mu,
+    bool const include_lambda,
+    VectorXi const include_mu_groups,
+    VectorXi const include_tau_groups,
+    bool const calculate_gradient) {
+
+    VariationalLogDensity EvalQ(vp, obs);
+    EvalQ.include_mu = include_mu;
+    EvalQ.include_lambda = include_lambda;
+    EvalQ.include_mu_groups = include_mu_groups;
+    EvalQ.include_tau_groups = include_tau_groups;
+
+    VectorXd theta = GetParameterVector(vp);
+
+    double val;
+    VectorXd grad = VectorXd::Zero(theta.size());
+    // The Hessian is not calculated.
+    MatrixXd hess = MatrixXd::Zero(0, 0);
+
+    if (calculate_gradient) {
+        stan::math::gradient(EvalQ, theta, val, grad);
+    } else {
+        val = EvalQ(theta);
+    }
+
+    return Derivatives(val, grad, hess);
+}

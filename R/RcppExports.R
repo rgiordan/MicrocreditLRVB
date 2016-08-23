@@ -69,6 +69,10 @@ GetLogPriorDerivatives <- function(r_vp, r_pp, calculate_gradient, calculate_hes
     .Call('MicrocreditLRVB_GetLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', r_vp, r_pp, calculate_gradient, calculate_hessian, unconstrained)
 }
 
+GetLogVariationalDensityDerivatives <- function(r_obs_mp, r_vp, r_pp, include_mu, include_lambda, r_include_mu_groups, r_include_tau_groups, calculate_gradient) {
+    .Call('MicrocreditLRVB_GetLogVariationalDensityDerivatives', PACKAGE = 'MicrocreditLRVB', r_obs_mp, r_vp, r_pp, include_mu, include_lambda, r_include_mu_groups, r_include_tau_groups, calculate_gradient)
+}
+
 GetMCMCLogPriorDerivatives <- function(draw_list, r_pp) {
     .Call('MicrocreditLRVB_GetMCMCLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', draw_list, r_pp)
 }

@@ -246,12 +246,3 @@ GetEntropy(VariationalParameters<T> const &vp) {
         }
         return entropy;
 }
-
-///////////////////////////////////////
-// Variational density
-
-
-template <typename T> T
-GetLogVariationalDensity(VariationalParameters<T> const &vp) {
-
-}
