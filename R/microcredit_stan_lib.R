@@ -479,6 +479,21 @@ EvaluateOnGrid <- function(FUN, theta, dir, grid_min, grid_max, len) {
 }
 
 
+EvaluateOn2dGrid <- function(FUN, theta, grid_min1, grid_max1, grid_min2, grid_max2, len) {
+  result <- list()
+  grid_points1 <- seq(grid_min1, grid_max1, length.out=len)
+  grid_points2 <- seq(grid_min2, grid_max2, length.out=len)
+  for (i in 1:len) {   for (j in 1:len) {
+    deli <- grid_points1[i]
+    delj <- grid_points2[j]
+    theta_eval <- theta + c(deli, delj)
+    val <- FUN(theta_eval)
+    result[[length(result) + 1]] <- data.frame(theta1=theta_eval[1], theta2=theta_eval[2], val=val)
+  }}
+  return(do.call(rbind, result))
+}
+
+
 EntropyFun <- function(x, y, y_g, vp, pp) {
   GetCustomElboDerivatives(x, y, y_g, vp, pp,
                            include_obs=FALSE,

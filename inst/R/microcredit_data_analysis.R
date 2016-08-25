@@ -46,17 +46,17 @@ vb_fit <- FitVariationalModel(x, y, y_g, vp_reg, pp)
 print(vb_fit$bfgs_time + vb_fit$tr_time)
 
 vp_opt <- vb_fit$vp_opt
-vp_mom <- GetMoments(vp_opt)
+mp_opt <- GetMoments(vp_opt)
 mfvb_cov <- GetCovariance(vp_opt)
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 lrvb_cov <- lrvb_terms$lrvb_cov
 prior_sens <- GetSensitivity(vp_opt, pp, lrvb_terms$jac, lrvb_terms$elbo_hess)
 
 # Calculate vb perturbed estimates
-vp_mom_vec <- GetVectorFromMoments(vp_mom)
+mp_opt_vec <- GetVectorFromMoments(mp_opt)
 mu_info_offdiag_sens <- prior_sens[, pp_indices$mu_info[1, 2]]
-vp_mom_vec_pert <- vp_mom_vec + stan_results$perturb_epsilon * mu_info_offdiag_sens
-vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
+mp_opt_vec_pert <- mp_opt_vec + stan_results$perturb_epsilon * mu_info_offdiag_sens
+mp_opt_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 
 
 ##########################################
@@ -66,12 +66,70 @@ mcmc_sample <- extract(stan_results$stan_sim)
 draw <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg, n_draws=1)[[1]]
 
 #include_tau_groups <- include_mu_groups <- as.integer(c())
-include_tau_groups <- include_mu_groups <- as.integer(1:(vp_opt$n_g))
+include_tau_groups <- include_mu_groups <- as.integer(1:(vp_opt$n_g) - 1)
 q_derivs <- GetLogVariationalDensityDerivatives(
     draw, vp_opt, pp, include_mu=TRUE, include_lambda=TRUE,
     include_mu_groups, include_tau_groups, calculate_gradient=TRUE)
 
 q_derivs$grad
+
+###############################
+# Get the mu prior influence function
+
+library(mvtnorm)
+
+GetMuLogPrior <- function(mu) {
+  # You can't use the VB priors because they are
+  # (1) a function of the natural parameters whose variance would have to be zero and
+  # (2) not normalized.
+  dmvnorm(mu, mean=pp$mu_loc, sigma=solve(pp$mu_info), log=TRUE)
+}
+
+
+GetMuLogDensity <- function(mu, calculate_gradient) {
+  draw_local <- draw  
+  draw_local$mu_e_vec <- mu
+  include_tau_groups <- include_mu_groups <- as.integer(c())
+  q_derivs <- GetLogVariationalDensityDerivatives(
+    draw_local, vp_opt, pp, include_mu=TRUE, include_lambda=FALSE,
+    include_mu_groups, include_tau_groups, calculate_gradient=calculate_gradient)
+  return(q_derivs)
+}
+
+
+mu <- mp_opt$mu_e_vec + c(0.1, 0.2)
+GetInfluenceFunction <- function(mu, k) {
+  mu_prior_val <- GetMuLogPrior(mu)
+  mu_q_res <- GetMuLogDensity(mu, TRUE)
+  mu_q_res_grad <- mu_q_res$grad[mp_indices$mu_e_vec][k]
+  exp(mu_q_res$val - mu_prior_val) * mu_q_res_grad
+}
+
+component <- 1
+GetInfluenceFunctionComponent <- function(mu) GetInfluenceFunction(mu, component)
+
+width <- 2
+mu_influence <- EvaluateOn2dGrid(GetInfluenceFunctionComponent,
+                                 mp_opt$mu_e_vec, -width, width, -width, width, len=30)
+ggplot(mu_influence) +
+  geom_tile(aes(x=theta1, y=theta2, fill=val)) +
+  geom_point(aes(x=mp_opt$mu_e_vec[1], y=mp_opt$mu_e_vec[2], color="posterior mean"), size=2) +
+  scale_fill_gradient2() +
+  xlab("mu[1]") + ylab("mu[2]") +
+  ggtitle("Centered on the posterior")
+
+
+width <- 15
+mu_influence <- EvaluateOn2dGrid(GetInfluenceFunctionComponent,
+                                 pp$mu_loc, -width, width, -width, width, len=30)
+ggplot(mu_influence) +
+  geom_tile(aes(x=theta1, y=theta2, fill=val)) +
+  geom_point(aes(x=pp$mu_loc[1], y=pp$mu_loc[2], color="prior mean"), size=2) +
+  xlab("mu[1]") + ylab("mu[2]") +
+  scale_fill_gradient2()  +
+  ggtitle("Centered on the prior")
+
+
 
 ##########################################
 # Get MCMC sensitivity measures
@@ -89,11 +147,11 @@ log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
 # Summarize results
 
 # Pack the standard deviations into readable forms.
-mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
-lrvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(lrvb_cov)))
+mfvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(mfvb_cov)))
+lrvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(lrvb_cov)))
 
-results_vb <- SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd)
-results_vb_pert <- SummarizeMomentParameters(vp_mom_pert, mfvb_sd, lrvb_sd)
+results_vb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
+results_vb_pert <- SummarizeMomentParameters(mp_opt_pert, mfvb_sd, lrvb_sd)
 results_vb_pert$method <- "mfvb_perturbed"
 
 results_mcmc <- SummarizeMCMCResults(mcmc_sample)
