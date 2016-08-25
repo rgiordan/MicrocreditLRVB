@@ -60,14 +60,30 @@ vp_mom_pert <- GetMomentsFromVector(vp_mom, vp_mom_vec_pert)
 
 
 ##########################################
+# Get functional sensitivity measures
+
+mcmc_sample <- extract(stan_results$stan_sim)
+draw <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg, n_draws=1)[[1]]
+
+#include_tau_groups <- include_mu_groups <- as.integer(c())
+include_tau_groups <- include_mu_groups <- as.integer(1:(vp_opt$n_g))
+q_derivs <- GetLogVariationalDensityDerivatives(
+    draw, vp_opt, pp, include_mu=TRUE, include_lambda=TRUE,
+    include_mu_groups, include_tau_groups, calculate_gradient=TRUE)
+
+q_derivs$grad
+
+##########################################
 # Get MCMC sensitivity measures
 
 mcmc_sample <- extract(stan_results$stan_sim)
 mcmc_sample_perturbed <- extract(stan_results$stan_sim_perturb)
+mp_draws <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg) # A little slow
 
 draws_mat <- do.call(rbind, lapply(mp_draws, GetVectorFromMoments))
 log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
 log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
+
 
 ###########################
 # Summarize results
@@ -135,7 +151,9 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_abline(aes(slope=1, intercept=0))
 
 
+#######################
 # Prior sensitivity results with respect to a particular prior parameter.
+
 prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
 #prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
 #prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
@@ -154,7 +172,7 @@ prior_sens_results <-
         SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
           mutate(draws=nrow(draws_mat)),
         SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, "mcmc") %>%
-          mutate(draws=subset_size)
+          mutate(draws=mcmc_subset_size)
   )
 
 

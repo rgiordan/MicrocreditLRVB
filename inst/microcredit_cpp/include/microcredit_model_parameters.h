@@ -27,24 +27,24 @@ using std::vector;
 // Offset types
 
 struct Offsets {
-        int mu;
-        int lambda;
-        vector<int> tau;
-        vector<int> mu_g;
+    int mu;
+    int lambda;
+    vector<int> tau;
+    vector<int> mu_g;
 
-        int local_offset;
-        int encoded_size;
-        int local_encoded_size;
+    int local_offset;
+    int encoded_size;
+    int local_encoded_size;
 
-        Offsets() {
-                mu = 0;
-                lambda = 0;
-                tau.resize(0);
-                mu_g.resize(0);
-                local_offset = 0;
-                local_encoded_size = 0;
-                encoded_size = 0;
-        }
+    Offsets() {
+        mu = 0;
+        lambda = 0;
+        tau.resize(0);
+        mu_g.resize(0);
+        local_offset = 0;
+        local_encoded_size = 0;
+        encoded_size = 0;
+    }
 };
 
 
@@ -75,10 +75,10 @@ struct PriorOffsets {
 template <class T>
 class VariationalParameters {
 private:
-    void Initialize(int _k, int _n_g, bool unconstrained) {
+    void Initialize(int _k, int _n_g, bool _unconstrained) {
         k = _k;
         n_g = _n_g;
-        unconstrained = unconstrained;
+        unconstrained = _unconstrained;
 
         mu = MultivariateNormalNatural<T>(k);
         lambda = WishartNatural<T>(k);
@@ -149,24 +149,24 @@ public:
 template <class T>
 class MomentParameters {
 private:
-        void Initialize(int _k, int _n_g) {
-                k = _k;
-                n_g = _n_g;
-                unconstrained = true;
+    void Initialize(int _k, int _n_g) {
+        k = _k;
+        n_g = _n_g;
+        unconstrained = true;
 
-                mu = MultivariateNormalMoments<T>(k);
-                lambda = WishartMoments<T>(k);
+        mu = MultivariateNormalMoments<T>(k);
+        lambda = WishartMoments<T>(k);
 
-                // Per-observation parameters
-                mu_g.resize(n_g);
-                tau.resize(n_g);
+        // Per-observation parameters
+        mu_g.resize(n_g);
+        tau.resize(n_g);
 
-                for (int g = 0; g < n_g; g++) {
-                    mu_g[g] = MultivariateNormalMoments<T>(k);
-                    tau[g] = GammaMoments<T>();
-                }
-                offsets = GetOffsets(*this);
+        for (int g = 0; g < n_g; g++) {
+            mu_g[g] = MultivariateNormalMoments<T>(k);
+            tau[g] = GammaMoments<T>();
         }
+        offsets = GetOffsets(*this);
+    }
 public:
     // Parameters:
     int n_g;    // The number of groups
@@ -203,7 +203,7 @@ public:
     };
 
     MomentParameters() {
-        Initialize(1, 1, false);
+        Initialize(1, 1);
     }
 
     /////////////////
@@ -303,10 +303,10 @@ struct MicroCreditData {
         int min_g = y_g.minCoeff(&min_g_index);
         int max_g = y_g.maxCoeff(&max_g_index);
         if (min_g < 1) {
-                std::ostringstream error_msg;
-                error_msg <<
-                    "Error -- y_g must have integers between 1 and n_groups. " <<
-                    "Got min(y_g) = "  << min_g << " and max(y_g)  = " << max_g;
+            std::ostringstream error_msg;
+            error_msg <<
+                "Error -- y_g must have integers between 1 and n_groups. " <<
+                "Got min(y_g) = "  << min_g << " and max(y_g)  = " << max_g;
             throw std::runtime_error(error_msg.str());
         }
 

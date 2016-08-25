@@ -224,17 +224,19 @@ struct NaturalToMomentParameters {
 // Likelihood + entropy for lambda only.
 struct VariationalLogDensity {
     // The observation is encoded in a MomentParameters object.
-    MomentParameters<double> const &obs;
-    VariationalParameters<double> const &base_vp;
+    MomentParameters<double> obs;
+    VariationalParameters<double> base_vp;
     bool include_mu;
     bool include_lambda;
     VectorXi include_mu_groups;
     VectorXi include_tau_groups;
 
     VariationalLogDensity(
-        VariationalParameters<double> vp,
-        MomentParameters<double> _obs): base_vp(vp), obs(_obs) {
+        VariationalParameters<double> const &vp,
+        MomentParameters<double> const & _obs) {
 
+        base_vp = VariationalParameters<double>(vp);
+        obs = MomentParameters<double>(_obs);
         include_mu = true;
         include_lambda = true;
         VectorXd include_mu_groups(base_vp.n_g);
@@ -247,8 +249,8 @@ struct VariationalLogDensity {
 
     template <typename T> T operator()(VectorXT<T> const &theta) const {
         VariationalParameters<T> vp(base_vp);
-
         SetFromVector(theta, vp);
+
         T q_log_dens = 0.0;
         if (include_mu) {
           VectorXT<T> mu_obs = obs.mu.e_vec.template cast<T>();
@@ -262,7 +264,7 @@ struct VariationalLogDensity {
 
         for (int g_ind = 0; g_ind < include_mu_groups.size(); g_ind++) {
           int g = include_mu_groups(g_ind);
-          if (g < 0 || g > vp.n_g) {
+          if (g < 0 || g >= vp.n_g) {
             throw std::runtime_error("mu_g q log density: g out of bounds.");
           }
           VectorXT<T> mu_g_obs = obs.mu_g[g].e_vec.template cast<T>();
@@ -271,7 +273,7 @@ struct VariationalLogDensity {
 
         for (int g_ind = 0; g_ind < include_tau_groups.size(); g_ind++) {
           int g = include_tau_groups(g_ind);
-          if (g < 0 || g > vp.n_g) {
+          if (g < 0 || g >= vp.n_g) {
             throw std::runtime_error("tau q log density: g out of bounds.");
           }
           T tau_obs = obs.tau[g].e;

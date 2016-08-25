@@ -510,9 +510,9 @@ Rcpp::List GetLogVariationalDensityDerivatives(
     const Eigen::Map<Eigen::VectorXi> r_include_tau_groups,
     bool const calculate_gradient) {
 
-    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
     MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
     Eigen::VectorXi include_mu_groups = r_include_mu_groups;
     Eigen::VectorXi include_tau_groups = r_include_tau_groups;
 

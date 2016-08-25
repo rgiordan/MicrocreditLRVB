@@ -272,8 +272,7 @@ GetSensitivity <- function(vp_opt, pp, jac, elbo_hess) {
 # Pack MCMC draws into a list of moment parameters to interact with C++.
 # mp_reg provides only a template for the moment parameters.
 
-PackMCMCSamplesIntoMoments <- function(mcmc_sample, mp_reg) {
-  n_draws <- dim(mcmc_sample$mu)[1]
+PackMCMCSamplesIntoMoments <- function(mcmc_sample, mp_reg, n_draws=dim(mcmc_sample$mu)[1]) {
   mp_draws <- list()
   zero_mp <- GetMomentsFromVector(mp_reg, rep(NaN, mp_reg$encoded_size))
   

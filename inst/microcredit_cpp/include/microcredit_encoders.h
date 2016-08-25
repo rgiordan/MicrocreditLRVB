@@ -66,30 +66,51 @@ template <typename T, template<typename> class VPType>
 VectorXT<T> GetParameterVector(VPType<T> vp) {
     VectorXT<T> theta(vp.offsets.encoded_size);
 
-        theta.segment(vp.offsets.mu, vp.mu.encoded_size) =
-                vp.mu.encode_vector(vp.unconstrained);
+    theta.segment(vp.offsets.mu, vp.mu.encoded_size) =
+        vp.mu.encode_vector(vp.unconstrained);
 
-        theta.segment(vp.offsets.lambda, vp.lambda.encoded_size) =
-                vp.lambda.encode_vector(vp.unconstrained);
+    theta.segment(vp.offsets.lambda, vp.lambda.encoded_size) =
+        vp.lambda.encode_vector(vp.unconstrained);
 
-        for (int g = 0; g < vp.tau.size(); g++) {
-                theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size) =
-                        vp.tau[g].encode_vector(vp.unconstrained);
-        }
+    for (int g = 0; g < vp.tau.size(); g++) {
+        theta.segment(vp.offsets.tau[g], vp.tau[g].encoded_size) =
+            vp.tau[g].encode_vector(vp.unconstrained);
+    }
 
-        for (int g = 0; g < vp.mu_g.size(); g++) {
-                theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size) =
-                        vp.mu_g[g].encode_vector(vp.unconstrained);
-        }
+    for (int g = 0; g < vp.mu_g.size(); g++) {
+        theta.segment(vp.offsets.mu_g[g], vp.mu_g[g].encoded_size) =
+            vp.mu_g[g].encode_vector(vp.unconstrained);
+    }
 
-        return theta;
+    return theta;
 }
 
 
 template <typename T, template<typename> class VPType>
 void SetFromVector(VectorXT<T> const &theta, VPType<T> &vp) {
     if (theta.size() != vp.offsets.encoded_size) {
-        throw std::runtime_error("SetFromVector vp: Vector is wrong size.");
+        std::ostringstream error_msg;
+        error_msg <<
+            "SetFromVector vp: Vector is the wrong size.  " <<
+            "Expected " << vp.offsets.encoded_size << ", got " <<
+            theta.size() << "\n";
+        throw std::runtime_error(error_msg.str());
+    }
+    if (vp.tau.size() != vp.n_g) {
+        std::ostringstream error_msg;
+        error_msg <<
+            "SetFromVector vp: tau is the wrong size.  " <<
+            "Expected " << vp.n_g << ", got " <<
+            vp.tau.size() << "\n";
+        throw std::runtime_error(error_msg.str());
+    }
+    if (vp.mu_g.size() != vp.n_g) {
+        std::ostringstream error_msg;
+        error_msg <<
+            "SetFromVector vp: mu_g is the wrong size.  " <<
+            "Expected " << vp.n_g << ", got " <<
+            vp.mu_g.size() << "\n";
+        throw std::runtime_error(error_msg.str());
     }
 
     VectorXT<T> theta_sub;
