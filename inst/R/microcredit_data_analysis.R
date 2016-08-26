@@ -97,16 +97,24 @@ GetMuLogDensity <- function(mu, calculate_gradient) {
 }
 
 
+lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+
 mu <- mp_opt$mu_e_vec + c(0.1, 0.2)
-GetInfluenceFunction <- function(mu, k) {
+GetInfluenceFunctionVector <- function(mu) {
   mu_prior_val <- GetMuLogPrior(mu)
   mu_q_res <- GetMuLogDensity(mu, TRUE)
-  mu_q_res_grad <- mu_q_res$grad[mp_indices$mu_e_vec][k]
-  exp(mu_q_res$val - mu_prior_val) * mu_q_res_grad
+  exp(mu_q_res$val - mu_prior_val) * lrvb_pre_factor %*% mu_q_res$grad
 }
 
-component <- 1
-GetInfluenceFunctionComponent <- function(mu) GetInfluenceFunction(mu, component)
+system.time(GetInfluenceFunctionComponent(mu))
+
+component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
+component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
+component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
+component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
+component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
+GetInfluenceFunctionComponent <-
+  function(mu) GetInfluenceFunctionVector(mu)[component]
 
 width <- 2
 mu_influence <- EvaluateOn2dGrid(GetInfluenceFunctionComponent,
@@ -116,7 +124,8 @@ ggplot(mu_influence) +
   geom_point(aes(x=mp_opt$mu_e_vec[1], y=mp_opt$mu_e_vec[2], color="posterior mean"), size=2) +
   scale_fill_gradient2() +
   xlab("mu[1]") + ylab("mu[2]") +
-  ggtitle("Centered on the posterior")
+  ggtitle(paste("Influence of mu prior on ", component_name,
+                "\nCentered on the posterior", sep=""))
 
 
 width <- 15
@@ -127,7 +136,8 @@ ggplot(mu_influence) +
   geom_point(aes(x=pp$mu_loc[1], y=pp$mu_loc[2], color="prior mean"), size=2) +
   xlab("mu[1]") + ylab("mu[2]") +
   scale_fill_gradient2()  +
-  ggtitle("Centered on the prior")
+  ggtitle(paste("Influence of mu prior on ", component_name,
+                "\nCentered on the prior", sep=""))
 
 
 

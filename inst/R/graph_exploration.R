@@ -1,4 +1,34 @@
-# This is just screwing around.
+# This is a place to store some experimentation.
+
+
+#################################3
+# Compare the time saving pre-computing the cholesky decomposition.
+
+# Pre-computing the cholesky decomposition saves perhaps a factor of 2 in time.
+neg_elbo_hess_chol <- Matrix(chol(-1 * lrvb_terms$elbo_hess))
+neg_elbo_hess_chol_t <- t(elbo_hess_chol)
+
+chol_time <- Sys.time()
+lrvb_cov_chol <-
+  lrvb_terms$jac %*%
+  forwardsolve(neg_elbo_hess_chol,
+               backsolve(neg_elbo_hess_chol_t, t(lrvb_terms$jac)))
+chol_time <- Sys.time() - chol_time
+
+solve_time <- Sys.time()
+bar <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, t(lrvb_terms$jac))
+solve_time <- Sys.time() - solve_time
+
+solve_time - chol_time
+as.numeric(solve_time) / as.numeric(chol_time)
+
+max(abs(lrvb_cov_chol - lrvb_terms$lrvb_cov))
+
+
+
+
+
+
 
 ###############################
 # Optimization visualization
