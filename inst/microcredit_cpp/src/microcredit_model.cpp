@@ -152,8 +152,9 @@ Derivatives GetLogPriorDerivatives(
     MicroCreditLogPrior LogPrior(vp, pp);
 
     double val;
-    VectorXd grad = VectorXd::Zero(vp.offsets.encoded_size);
-    MatrixXd hess = MatrixXd::Zero(vp.offsets.encoded_size, vp.offsets.encoded_size);
+    int vec_size = vp.offsets.encoded_size + pp.offsets.encoded_size;
+    VectorXd grad = VectorXd::Zero(vec_size);
+    MatrixXd hess = MatrixXd::Zero(vec_size, vec_size);
     VectorXd theta = GetParameterVector(vp, pp);
 
     if (calculate_hessian) {

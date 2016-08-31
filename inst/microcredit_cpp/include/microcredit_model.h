@@ -221,7 +221,6 @@ struct NaturalToMomentParameters {
 };
 
 
-// Likelihood + entropy for lambda only.
 struct VariationalLogDensity {
     // The observation is encoded in a MomentParameters object.
     MomentParameters<double> obs;
