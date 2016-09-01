@@ -294,7 +294,7 @@ PackMCMCSamplesIntoMoments <- function(mcmc_sample, mp_reg, n_draws=dim(mcmc_sam
     mp_draw$lambda_e <- lambda
     mp_draw$lambda_e_log_det <- log(det(lambda))
     
-    for (g in 1:(vp_reg$n_g)) {
+    for (g in 1:(mp_reg$n_g)) {
       mp_draw$mu_g[[g]]$e_vec <- mu_g[g, ]
       mp_draw$mu_g[[g]]$e_outer <- mu_g[g, ] %*% t(mu_g[g, ])
       mp_draw$tau[[g]]$e <- tau[g]

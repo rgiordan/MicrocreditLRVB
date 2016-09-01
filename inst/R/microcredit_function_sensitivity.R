@@ -3,7 +3,7 @@ library(dplyr)
 library(reshape2)
 library(rstan)
 library(Matrix)
-
+library(mvtnorm)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
@@ -25,6 +25,7 @@ fit_env <- as.list(fit_env)
 
 vp_opt <- fit_env$vb_fit$vp_opt
 
+lrvb_terms <- fit_env$lrvb_terms
 lrvb_cov <- fit_env$lrvb_terms$lrvb_cov
 prior_sens <- fit_env$prior_sens
 
@@ -38,11 +39,10 @@ vp_indices <- GetParametersFromVector(vp_opt, as.numeric(1:vp_opt$encoded_size),
 mp_indices <- GetMomentsFromVector(mp_opt, as.numeric(1:mp_opt$encoded_size))
 pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
-
 ##########################################
 # Get functional sensitivity measures
 
-draw <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg, n_draws=1)[[1]]
+draw <- PackMCMCSamplesIntoMoments(fit_env$stan_results$mcmc_sample, mp_opt, n_draws=1)[[1]]
 
 #include_tau_groups <- include_mu_groups <- as.integer(c())
 include_tau_groups <- include_mu_groups <- as.integer(1:(vp_opt$n_g) - 1)
@@ -54,8 +54,6 @@ q_derivs$grad
 
 ###############################
 # Get the mu prior influence function
-
-library(mvtnorm)
 
 GetMuLogPrior <- function(mu) {
   # You can't use the VB priors because they are
@@ -96,8 +94,20 @@ GetInfluenceFunctionComponent <-
 
 width <- 2
 mu_influence <- EvaluateOn2dGrid(GetInfluenceFunctionComponent,
-                                 mp_opt$mu_e_vec, -width, width, -width, width, len=50)
+                                 mp_opt$mu_e_vec, -width, width, -width, width, len=30)
 ggplot(mu_influence) +
+  geom_tile(aes(x=theta1, y=theta2, fill=val)) +
+  geom_point(aes(x=mp_opt$mu_e_vec[1], y=mp_opt$mu_e_vec[2], color="posterior mean"), size=2) +
+  scale_fill_gradient2() +
+  xlab("mu[1]") + ylab("mu[2]") +
+  ggtitle(paste("Influence of mu prior on ", component_name,
+                "\nCentered on the posterior", sep=""))
+
+
+width <- 2
+q_mu <- EvaluateOn2dGrid(function(mu) { exp(GetMuLogDensity(mu, FALSE)$val) },
+                         mp_opt$mu_e_vec, -width, width, -width, width, len=30)
+ggplot(q_mu) +
   geom_tile(aes(x=theta1, y=theta2, fill=val)) +
   geom_point(aes(x=mp_opt$mu_e_vec[1], y=mp_opt$mu_e_vec[2], color="posterior mean"), size=2) +
   scale_fill_gradient2() +
