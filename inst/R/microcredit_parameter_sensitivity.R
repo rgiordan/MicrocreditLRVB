@@ -6,8 +6,8 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_easy"
-analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_robust"
+#analysis_name <- "simulated_data_nonrobust"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -84,6 +84,10 @@ ggplot(filter(mean_results, par == "tau")) +
   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
+ggplot(filter(mean_results, par == "lambda")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
 
 sd_results <-
   filter(results, metric == "sd") %>%
@@ -117,18 +121,31 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
 #######################
 # Prior sensitivity results with respect to a particular prior parameter.
 
+draws_mat <- fit_env$stan_results$draws_mat
+log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
+
+# NOTE: the sign is wrong for the mu_info and tau derivatives 
+# but not the lambda_eta derivatives.
+# This points to a possible bug in my priors?
+
 prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
 #prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
 #prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
+#prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
+#prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
+#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
+#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
+#prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
 
 mcmc_subset_size <- 1000
-mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ], log_prior_grad_mat[1:mcmc_subset_size, ])
+mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ],
+                              log_prior_grad_mat[1:mcmc_subset_size, ])
 
 mcmc_prior_sens <- cov(draws_mat, log_prior_grad_mat)
 
-vb_prior_sens_mom <- GetMomentsFromVector(mp_reg, prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_mom <- GetMomentsFromVector(mp_reg, mcmc_prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_subset <- GetMomentsFromVector(mp_reg, mcmc_prior_sens_subset[, prior_sensitivity_ind])
+vb_prior_sens_mom <- GetMomentsFromVector(mp_opt, prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_mom <- GetMomentsFromVector(mp_opt, mcmc_prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_subset <- GetMomentsFromVector(mp_opt, mcmc_prior_sens_subset[, prior_sensitivity_ind])
 prior_sens_results <-
   rbind(SummarizeRawMomentParameters(vb_prior_sens_mom, metric=ind_name, method="lrvb") %>%
           mutate(draws=""),
@@ -151,7 +168,8 @@ prior_sens_results_graph <-
 ggplot(prior_sens_results_graph) +
   geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0)) +
-  facet_grid(~ draws)
+  facet_grid(~ draws) +
+  ggtitle(ind_name)
 
 
 

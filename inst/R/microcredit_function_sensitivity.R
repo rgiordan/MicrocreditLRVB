@@ -7,8 +7,8 @@ library(mvtnorm)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_easy"
-analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_robust"
+#analysis_name <- "simulated_data_nonrobust"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -63,6 +63,15 @@ GetMuLogPrior <- function(mu) {
 }
 
 
+DrawFromQMu <- function(n_draws, vp_opt, double_var=FALSE) {
+  mu_info <- vp_opt$mu_info
+  if (double_var) {
+    mu_info <- 0.5 * mu_info
+  }
+  return(rmvnorm(n_draws, vp_opt$mu_loc, solve(mu_info)))
+}
+
+
 GetMuLogDensity <- function(mu, calculate_gradient) {
   draw_local <- draw  
   draw_local$mu_e_vec <- mu
@@ -85,10 +94,11 @@ GetInfluenceFunctionVector <- function(mu) {
 }
 
 component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
-component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
-component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
-component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
-component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
+# component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
+# component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
+# component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
+# component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
+
 GetInfluenceFunctionComponent <-
   function(mu) GetInfluenceFunctionVector(mu)[component]
 
@@ -116,9 +126,9 @@ ggplot(q_mu) +
                 "\nCentered on the posterior", sep=""))
 
 
-width <- 15
+width <- 5
 mu_influence <- EvaluateOn2dGrid(GetInfluenceFunctionComponent,
-                                 pp$mu_loc, -width, width, -width, width, len=30)
+                                 pp$mu_loc, -width, width, -width, width, len=40)
 ggplot(mu_influence) +
   geom_tile(aes(x=theta1, y=theta2, fill=val)) +
   geom_point(aes(x=pp$mu_loc[1], y=pp$mu_loc[2], color="prior mean"), size=2) +

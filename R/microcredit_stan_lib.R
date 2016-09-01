@@ -48,25 +48,25 @@ GetVectorBounds <- function(vp_base, loc_bound=100, info_bound=10, tau_bound=7) 
   # Get sensible extreme bounds, for example for L-BFGS-B
   #info_lower <- diag(vp_base$k_reg) * vp_base$diag_min * (1 + min_bound)
   #info_upper <- diag(vp_base$k_reg) * info_bound
-  
+
   info_lower <- matrix(-1 * info_bound, vp_base$k_reg, vp_base$k_reg)
 
   vp_nat_lower <- vp_base
   vp_nat_lower$mu_loc[] <- -1 * loc_bound
   vp_nat_lower$mu_info[,] <- info_lower
   vp_nat_lower$lambda_v <- info_lower
-  vp_nat_lower$lambda_n <- -1 * info_bound 
+  vp_nat_lower$lambda_n <- -1 * info_bound
   for (g in 1:vp_nat_lower$n_g) {
     vp_nat_lower$mu_g[[g]][["loc"]][] <- -1 * loc_bound
     vp_nat_lower$mu_g[[g]][["info"]] <- info_lower
     vp_nat_lower$tau[[g]][["alpha"]] <- -1 * tau_bound
     vp_nat_lower$tau[[g]][["beta"]] <- -1 * info_bound
   }
-  
+
   theta_lower <- GetVectorFromParameters(vp_nat_lower, FALSE)
   theta_upper <- -1 * theta_lower
-  
-  return(list(theta_lower=theta_lower, theta_upper=theta_upper))  
+
+  return(list(theta_lower=theta_lower, theta_upper=theta_upper))
 }
 
 
@@ -90,13 +90,13 @@ GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
                                   DerivFun, VectorFromParameters, ParametersFromVector) {
 
   theta_base <- VectorFromParameters(vp_base, TRUE)
-  
+
   GetLocalVP <- function(theta) {
     full_theta <- theta_base
     full_theta[mask] <- theta
     return(ParametersFromVector(vp_base, full_theta, TRUE))
   }
-  
+
   OptimVal <- function(theta) {
     ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=FALSE, calculate_hessian=FALSE,
@@ -104,14 +104,14 @@ GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
     cat(ret$val, "\n")
     ret$val
   }
-  
+
   OptimGrad <- function(theta) {
     ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=FALSE,
                 unconstrained=TRUE)
     ret$grad[mask]
   }
-  
+
   OptimHess <- function(theta) {
     ret <- DerivFun(x, y, y_g, GetLocalVP(theta), pp,
                 calculate_gradient=TRUE, calculate_hessian=TRUE,
@@ -124,7 +124,7 @@ GetOptimFunctionsBase <- function(x, y, y_g, vp_base, pp, mask,
 
 GetTrustRegionELBO <- function(x, y, y_g, vp_base, pp,
                                verbose=FALSE, mask=rep(TRUE, vp_base$encoded_size)) {
-  
+
   theta_base <- GetVectorFromParameters(vp_base, TRUE)
 
   TrustFun <- function(theta) {
@@ -139,10 +139,10 @@ GetTrustRegionELBO <- function(x, y, y_g, vp_base, pp,
 
     if (verbose) {
       cat("Value: ", ret$val, "\n")
-    }    
+    }
     list(value=ret$val, gradient=ret$grad[mask], hessian=hess)
   }
-  
+
   return(list(TrustFun=TrustFun, mask=mask, theta_base=theta_base, theta_init=theta_base[mask]))
 }
 
@@ -155,7 +155,7 @@ InitializeVariationalParameters <-
   vp$lambda_diag_min <- lambda_diag_min
   vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
   vp$lambda_n_min <- lambda_n_min
-    
+
   vp$mu_loc <- summary(lm(y ~ x - 1))$coefficients[,"Estimate"]
   mu_cov <- vp$mu_loc %*% t(vp$mu_loc) + 10 * diag(vp$k)
   vp$mu_info <- solve(mu_cov) + diag(vp$k_reg) * mu_diag_min
@@ -183,7 +183,7 @@ InitializeZeroVariationalParameters <-
   vp <- GetEmptyVariationalParameters(ncol(x), max(y_g))
   vp$tau_alpha_min <- vp$tau_beta_min <- tau_min
   min_info <- diag(vp$k_reg)
-  
+
   vp$mu_loc <- rep(0, vp$k_reg)
   vp$mu_info <- diag(vp$k_reg) + min_info
   vp$mu_diag_min <- mu_diag_min
@@ -195,7 +195,7 @@ InitializeZeroVariationalParameters <-
   vp$lambda_n <- vp$k + 1
   vp$lambda_v <- diag(vp$k_reg) + min_info
   vp$lambda_n_min <- 0.5
-  
+
   return(vp)
 }
 
@@ -210,7 +210,7 @@ FitVariationalModel <- function(x, y, y_g, vp_reg, pp) {
   bfgs_opt_fns <- GetOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=GetElboDerivatives, mask=mask)
   theta_init <- GetVectorFromParameters(vp_reg, TRUE)
   bounds <- GetVectorBounds(vp_reg, loc_bound=60, info_bound=10, tau_bound=100)
-  
+
   bfgs_time <- Sys.time()
   bfgs_result <- optim(theta_init[mask],
                        bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
@@ -220,7 +220,7 @@ FitVariationalModel <- function(x, y, y_g, vp_reg, pp) {
   print(bfgs_result$message)
   bfgs_time <- Sys.time() - bfgs_time
   vp_bfgs <- GetParametersFromVector(vp_reg, bfgs_result$par, TRUE)
-  
+
   # then trust region
   tr_time <- Sys.time()
   trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_bfgs, pp, verbose=TRUE)
@@ -229,11 +229,11 @@ FitVariationalModel <- function(x, y, y_g, vp_reg, pp) {
   tr_time <- Sys.time() - tr_time
   trust_result$converged
   trust_result$value
-  
+
   bfgs_time + tr_time
-  
+
   vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
-  
+
   return(list(bfgs_time=bfgs_time, tr_time=tr_time,
               bfgs_result=bfgs_result, trust_result=trust_result,
               vp_opt=vp_opt))
@@ -241,15 +241,15 @@ FitVariationalModel <- function(x, y, y_g, vp_reg, pp) {
 
 
 GetLRVB <- function(x, y, y_g, vp_opt, pp) {
-  unconstrained <- TRUE # This seems to have a better condition number. 
+  unconstrained <- TRUE # This seems to have a better condition number.
   moment_derivs <- GetMomentJacobian(vp_opt, unconstrained)
   jac <- Matrix(moment_derivs$hess)
   elbo_hess <- GetSparseELBOHessian(x, y, y_g, vp_opt, pp, unconstrained)
   lrvb_cov <- -1 * jac %*% Matrix::solve(elbo_hess, Matrix::t(jac))
   stopifnot(min(diag(lrvb_cov)) > 0)
-  
+
   return(list(lrvb_cov=lrvb_cov, jac=jac, elbo_hess=elbo_hess))
-  
+
 }
 
 # Sensitivity
@@ -259,10 +259,10 @@ GetSensitivity <- function(vp_opt, pp, jac, elbo_hess) {
     vp_opt, pp, as.numeric(1:(vp_opt$encoded_size + pp$encoded_size)))
   comb_prior_ind <- GetVectorFromPriors(comb_indices$pp)
   comb_vp_ind <- GetVectorFromParameters(comb_indices$vp, FALSE)
-  
+
   log_prior_derivs <- GetLogPriorDerivatives(vp_opt, pp, TRUE, TRUE, TRUE)
   log_prior_param_prior <- Matrix(log_prior_derivs$hess[comb_vp_ind, comb_prior_ind])
-  
+
   prior_sens <- -1 * jac %*% Matrix::solve(elbo_hess, log_prior_param_prior)
   return(prior_sens)
 }
@@ -275,34 +275,35 @@ GetSensitivity <- function(vp_opt, pp, jac, elbo_hess) {
 PackMCMCSamplesIntoMoments <- function(mcmc_sample, mp_reg, n_draws=dim(mcmc_sample$mu)[1]) {
   mp_draws <- list()
   zero_mp <- GetMomentsFromVector(mp_reg, rep(NaN, mp_reg$encoded_size))
-  
+
   draw <- 1
   for (draw in 1:n_draws) {
     if (draw %% 100 == 0) {
-      cat("Writing draw ", draw, " of ", n_draws, "(", 100 * draw / n_draws, "%)\n")
+      cat("Writing draw ", draw, " of ", n_draws,
+          "(", 100 * draw / n_draws, "%)\n")
     }
     mp_draw <- zero_mp
-    
+
     mu <- mcmc_sample$mu[draw, ]
-    lambda <- mcmc_sample$lambda[draw, , ]
-    tau <- 1 / mcmc_sample$sigma_y[draw, ]^2
+    lambda <- mcmc_sample$lambda_mu[draw, , ]
+    tau <- 1 / mcmc_sample$sigma_y[draw, ] ^ 2
     mu_g <- mcmc_sample$mu1[draw, , ]
-    
+
     mp_draw$mu_e_vec <- mu
     mp_draw$mu_e_outer <- mu %*% t(mu)
-    
+
     mp_draw$lambda_e <- lambda
     mp_draw$lambda_e_log_det <- log(det(lambda))
-    
+
     for (g in 1:(mp_reg$n_g)) {
       mp_draw$mu_g[[g]]$e_vec <- mu_g[g, ]
       mp_draw$mu_g[[g]]$e_outer <- mu_g[g, ] %*% t(mu_g[g, ])
       mp_draw$tau[[g]]$e <- tau[g]
       mp_draw$tau[[g]]$e_log <- log(tau[g])
     }
-    
+
     GetVectorFromMoments(mp_draw)
-    
+
     mp_draws[[draw]] <- mp_draw
   }
 
@@ -338,14 +339,14 @@ SummarizeNaturalParameters <- function(vp_nat) {
   mfvb_cov <- GetCovariance(vp_nat)
   mfvb_sd <- GetMomentsFromVector(vp_mom, sqrt(diag(mfvb_cov)))
   lrvb_sd <- GetMomentsFromVector(vp_mom, rep(0, vp_nat$encoded_size))
-  return(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd))  
+  return(SummarizeMomentParameters(vp_mom, mfvb_sd, lrvb_sd))
 }
 
 
 SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
   k_reg <- vp_mom$k_reg
   n_g <- vp_mom$n_g
-  
+
   results_list <- list()
   for (k in 1:k_reg) {
     Accessor <- function(vp) { vp[["mu_e_vec"]][k] }
@@ -353,7 +354,7 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
       ResultRow(par="mu", component=k, group=-1,
                 method=method, metric=metric, val=Accessor(vp_mom))
   }
-  
+
   for (k1 in 1:k_reg) {
     for (k2 in 1:k_reg) {
       Accessor <- function(vp) { vp[["lambda_e"]][k1, k2] }
@@ -363,7 +364,7 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
                   method=method, metric=metric, val=Accessor(vp_mom))
       }
   }
-  
+
   for (g in 1:n_g) {
     for (k in 1:k_reg) {
       Accessor <- function(vp) { vp[["mu_g"]][[g]][["e_vec"]][k] }
@@ -372,14 +373,14 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
                   method=method, metric=metric, val=Accessor(vp_mom))
     }
   }
-  
+
   for (g in 1:n_g) {
     Accessor <- function(vp) { vp[["tau"]][[g]][["e"]] }
     results_list[[length(results_list) + 1]] <-
       ResultRow(par="tau", component=-1, group=g,
                 method=method, metric=metric, val=Accessor(vp_mom))
   }
-  
+
   return(do.call(rbind, results_list))
 }
 
@@ -393,15 +394,15 @@ SummarizeMomentParameters <- function(vp_mom, mfvb_sd, lrvb_sd) {
 
 SummarizeMCMCResults <- function(mcmc_sample) {
   results_list <- list()
-  
+
   k_reg <- ncol(mcmc_sample$mu)
   n_g <- ncol(mcmc_sample$mu1)
-  
+
   for (k in 1:k_reg) {
     results_list[[length(results_list) + 1]] <-
         SummarizeMCMCColumn(mcmc_sample$mu[, k], par="mu", component=k)
   }
-  
+
   for (k1 in 1:k_reg) {
     for (k2 in 1:k_reg) {
       component <- paste(k1, k2, sep="_")
@@ -419,7 +420,7 @@ SummarizeMCMCResults <- function(mcmc_sample) {
         SummarizeMCMCColumn(mcmc_sample$mu1[, g, k], par="mu_g", component=k, group=g)
     }
   }
-  
+
   return(do.call(rbind, results_list))
 }
 

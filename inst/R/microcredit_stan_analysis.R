@@ -11,7 +11,9 @@ project_directory <-
 # library_location <- file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/")
 # source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
-analysis_name <- "simulated_data_nonrobust"
+# Choose one.
+#analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_robust"
 
 set.seed(42)
 
@@ -39,7 +41,12 @@ true_params <- list()
 # Set parameters similar to the microcredit data.  Note that the true mean is
 # an unlikely value relative to the prior.  This will result in a non-robust
 # posterior.
-true_params$true_mu <- c(4 * mu_prior_sd, -4 * mu_prior_sd)
+
+if (analysis_name == "simulated_data_nonrobust") {
+  true_params$true_mu <- c(4 * mu_prior_sd, -4 * mu_prior_sd)
+} else if (analysis_name == "simulated_data_robust") {
+  true_params$true_mu <- c(1 * mu_prior_sd, -1 * mu_prior_sd)
+}
 true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
 true_params$true_lambda <- solve(true_params$true_sigma)
 true_params$true_tau <- 1e-2
