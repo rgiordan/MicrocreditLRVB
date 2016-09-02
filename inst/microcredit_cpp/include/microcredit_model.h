@@ -15,6 +15,7 @@
 # include <stan/math.hpp>
 # include <stan/math/fwd/mat.hpp>
 # include <stan/math/mix/mat/functor/hessian.hpp>
+# include <boost/math/complex/fabs.hpp> // Why not included in stan?
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;

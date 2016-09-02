@@ -7,8 +7,8 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_nonrobust"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -57,6 +57,7 @@ draws_mat <- do.call(rbind, lapply(mp_draws, GetVectorFromMoments))
 log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
 log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
 
+stan_results$mp_draws <- mp_draws
 stan_results$draws_mat <- draws_mat
 stan_results$log_prior_grad_mat <- log_prior_grad_mat
 stan_results$mcmc_sample_perturbed <- mcmc_sample_perturbed

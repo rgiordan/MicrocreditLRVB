@@ -1,5 +1,33 @@
 # This is a place to store some experimentation.
 
+library(MicrocreditLRVB)
+
+
+alpha <- 20
+beta <- 21
+eta <- 15
+
+n <- 100000
+
+n_sim <- 1000
+sims <- list()
+for (sim in 1:n_sim) {
+  cat(".")
+  k <- 3
+  sigma <- matrix(runif(k * k), k, k)
+  sigma <- sigma %*% t(sigma) + diag(k) * 3
+  scale <- diag(1 / sqrt(diag(sigma)))
+  sigma_corr <- scale %*% sigma %*% scale
+  
+  v <- solve(sigma) / n
+  sims[[sim]] <-
+    data.frame(draw=EvaluateLKJPriorDraw(sigma, log(det(sigma)), alpha, beta, eta),
+               vb=EvaluateLKJPriorVB(v, n, alpha, beta, eta))
+}
+
+res <- do.call(rbind, sims)
+var(res$draw - res$vb)
+plot(res$draw, res$vb)
 
 #################################3
 # Compare the time saving pre-computing the cholesky decomposition.

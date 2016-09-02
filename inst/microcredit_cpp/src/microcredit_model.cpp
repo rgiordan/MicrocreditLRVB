@@ -193,7 +193,6 @@ Derivatives GetLogPriorDerivativesFromDraw(
 };
 
 
-
 // Get the covariance of the moment parameters from the natural parameters.
 SparseMatrix<double> GetCovariance(
     const VariationalParameters<double> &vp,
@@ -281,7 +280,6 @@ int GlobalIndex(int index, int g, Offsets offsets) {
         return index + g * offsets.local_encoded_size;
     }
 };
-
 
 
 Derivatives GetLogVariationalDensityDerivatives(

@@ -6,8 +6,8 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_nonrobust"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -66,6 +66,72 @@ results_mcmc_pert$method <- "mcmc_perturbed"
 results <- rbind(results_vb, results_mcmc)
 result_pert <- rbind(results_vb, results_vb_pert, results_mcmc, results_mcmc_pert)
 
+##########################################
+# Get MCMC sensitivity measures
+mcmc_sample <- fit_env$stan_results$mcmc_sample
+draws_mat <- fit_env$stan_results$draws_mat
+mp_draws <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_opt) # A little slow
+
+log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
+log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
+
+
+#######################
+# Prior sensitivity results with respect to a particular prior parameter.
+
+# TODO: use these after you've fixed the LKJ prior
+# draws_mat <- fit_env$stan_results$draws_mat
+# log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
+
+# Note: the LKJ alpha and beta are looking suspicious.
+
+#prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
+#prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
+#prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
+#prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
+prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
+#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
+#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
+#prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
+
+mcmc_subset_size <- 1000
+mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ],
+                              log_prior_grad_mat[1:mcmc_subset_size, ])
+
+mcmc_prior_sens <- cov(draws_mat, log_prior_grad_mat)
+
+vb_prior_sens_mom <- GetMomentsFromVector(mp_opt, prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_mom <- GetMomentsFromVector(mp_opt, mcmc_prior_sens[, prior_sensitivity_ind])
+mcmc_prior_sens_subset <- GetMomentsFromVector(mp_opt, mcmc_prior_sens_subset[, prior_sensitivity_ind])
+prior_sens_results <-
+  rbind(SummarizeRawMomentParameters(vb_prior_sens_mom, metric=ind_name, method="lrvb") %>%
+          mutate(draws=""),
+        SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
+          mutate(draws=nrow(draws_mat)),
+        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, "mcmc") %>%
+          mutate(draws=mcmc_subset_size)
+  )
+
+
+prior_sens_results_graph <-
+  inner_join(
+  filter(prior_sens_results, method == "lrvb") %>%
+    dcast(par + component + group + metric ~ method, value.var="val"),
+  filter(prior_sens_results, method == "mcmc") %>%
+    dcast(par + component + group + metric + draws ~ method, value.var="val"),
+  by=c("par", "component", "group", "metric"))
+
+
+ggplot(prior_sens_results_graph) +
+  geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  facet_grid(~ draws) +
+  ggtitle(paste("Local sensitivity to", ind_name,
+                "as measured by VB and MCMC, grouped by # of MCMC draws"))
+
+#######################
+# Graphs
+
 stop("Graphs follow -- not executing.")
 
 mean_results <-
@@ -116,60 +182,5 @@ ggplot(filter(mean_pert_results, par != "mu_g")) +
 ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
-
-
-#######################
-# Prior sensitivity results with respect to a particular prior parameter.
-
-draws_mat <- fit_env$stan_results$draws_mat
-log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
-
-# NOTE: the sign is wrong for the mu_info and tau derivatives 
-# but not the lambda_eta derivatives.
-# This points to a possible bug in my priors?
-
-prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
-#prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
-#prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
-#prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
-#prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
-#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
-#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
-#prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
-
-mcmc_subset_size <- 1000
-mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ],
-                              log_prior_grad_mat[1:mcmc_subset_size, ])
-
-mcmc_prior_sens <- cov(draws_mat, log_prior_grad_mat)
-
-vb_prior_sens_mom <- GetMomentsFromVector(mp_opt, prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_mom <- GetMomentsFromVector(mp_opt, mcmc_prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_subset <- GetMomentsFromVector(mp_opt, mcmc_prior_sens_subset[, prior_sensitivity_ind])
-prior_sens_results <-
-  rbind(SummarizeRawMomentParameters(vb_prior_sens_mom, metric=ind_name, method="lrvb") %>%
-          mutate(draws=""),
-        SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
-          mutate(draws=nrow(draws_mat)),
-        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, "mcmc") %>%
-          mutate(draws=mcmc_subset_size)
-  )
-
-
-prior_sens_results_graph <-
-  inner_join(
-  filter(prior_sens_results, method == "lrvb") %>%
-    dcast(par + component + group + metric ~ method, value.var="val"),
-  filter(prior_sens_results, method == "mcmc") %>%
-    dcast(par + component + group + metric + draws ~ method, value.var="val"),
-  by=c("par", "component", "group", "metric"))
-
-
-ggplot(prior_sens_results_graph) +
-  geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  facet_grid(~ draws) +
-  ggtitle(ind_name)
-
 
 

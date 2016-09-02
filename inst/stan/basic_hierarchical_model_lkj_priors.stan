@@ -51,8 +51,10 @@ model {
 
   // parameter variance priors
   for (k in 1:K) {
+    // S[k] is the square root of the diagonals of the covariance matrix.
     S[k] ~ gamma(scale_prior_alpha, scale_prior_beta); // E(S) = prior_alpha / prior_beta
   }
+  // Just a note: ljk_cov uses lognormal scales, not inverse gamma scales.
   R ~ lkj_corr(lkj_prior_eta);
 
   // hyperparameter priors

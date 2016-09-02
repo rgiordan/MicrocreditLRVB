@@ -4,7 +4,7 @@
 # include <vector>
 # include <ctime>
 
-// # include <stan/math.hpp>
+# include <stan/math.hpp>
 // # include <stan/math/mix/mat/functor/hessian.hpp>
 
 // # include "variational_parameters.h"
@@ -13,6 +13,7 @@
 
 // # include "differentiate_jacobian.h"
 # include "transform_hessian.h"
+# include "boost/math/complex/fabs.hpp" // Why not included in stan?
 
 typedef Eigen::Triplet<double> Triplet; // For populating sparse matrices
 
@@ -551,4 +552,32 @@ Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp) {
         VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
         MomentParameters<double> mp(vp);
         return GetCovariance(vp, mp.offsets);
+}
+
+
+
+////////////////////////////////////
+// For debugging
+
+// [[Rcpp::export]]
+double EvaluateLKJPriorVB(
+    const Eigen::Map<Eigen::MatrixXd> r_v,
+    double n,
+    double alpha, double beta, double eta) {
+
+    MatrixXd v = r_v;
+    WishartNatural<double> lambda(n, v);
+
+    return EvaluateLKJPrior(lambda, alpha, beta, eta);
+}
+
+
+// [[Rcpp::export]]
+double EvaluateLKJPriorDraw(
+    const Eigen::Map<Eigen::MatrixXd> r_sigma,
+    double log_det_sigma,
+    double alpha, double beta, double eta) {
+
+    MatrixXd sigma = r_sigma;
+    return EvaluateLKJPrior(sigma, log_det_sigma, alpha, beta, eta);
 }

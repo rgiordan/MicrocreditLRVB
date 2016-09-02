@@ -274,3 +274,33 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
+// EvaluateLKJPriorVB
+double EvaluateLKJPriorVB(const Eigen::Map<Eigen::MatrixXd> r_v, double n, double alpha, double beta, double eta);
+RcppExport SEXP MicrocreditLRVB_EvaluateLKJPriorVB(SEXP r_vSEXP, SEXP nSEXP, SEXP alphaSEXP, SEXP betaSEXP, SEXP etaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type r_v(r_vSEXP);
+    Rcpp::traits::input_parameter< double >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
+    __result = Rcpp::wrap(EvaluateLKJPriorVB(r_v, n, alpha, beta, eta));
+    return __result;
+END_RCPP
+}
+// EvaluateLKJPriorDraw
+double EvaluateLKJPriorDraw(const Eigen::Map<Eigen::MatrixXd> r_sigma, double log_det_sigma, double alpha, double beta, double eta);
+RcppExport SEXP MicrocreditLRVB_EvaluateLKJPriorDraw(SEXP r_sigmaSEXP, SEXP log_det_sigmaSEXP, SEXP alphaSEXP, SEXP betaSEXP, SEXP etaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type r_sigma(r_sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type log_det_sigma(log_det_sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
+    __result = Rcpp::wrap(EvaluateLKJPriorDraw(r_sigma, log_det_sigma, alpha, beta, eta));
+    return __result;
+END_RCPP
+}

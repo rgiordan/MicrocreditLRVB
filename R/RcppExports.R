@@ -81,3 +81,11 @@ GetCovariance <- function(r_vp) {
     .Call('MicrocreditLRVB_GetCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }
 
+EvaluateLKJPriorVB <- function(r_v, n, alpha, beta, eta) {
+    .Call('MicrocreditLRVB_EvaluateLKJPriorVB', PACKAGE = 'MicrocreditLRVB', r_v, n, alpha, beta, eta)
+}
+
+EvaluateLKJPriorDraw <- function(r_sigma, log_det_sigma, alpha, beta, eta) {
+    .Call('MicrocreditLRVB_EvaluateLKJPriorDraw', PACKAGE = 'MicrocreditLRVB', r_sigma, log_det_sigma, alpha, beta, eta)
+}
+

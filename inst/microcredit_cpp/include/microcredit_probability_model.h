@@ -92,58 +92,80 @@ typename promote_args<Tlik, Tprior>::type GetGroupPriorLogLikelihood(
 
 // TODO: put this in libLinearResponseVariationalBayes.cpp
 template <typename T> T EvaluateLKJPrior(
-        WishartNatural<T> lambda, T lambda_alpha, T lambda_beta, T lambda_eta) {
+    WishartNatural<T> lambda, T lambda_alpha, T lambda_beta, T lambda_eta) {
 
-        MatrixXT<T> v_inv = lambda.v.mat.inverse();
-        WishartMoments<T> lambda_mom(lambda);
+    MatrixXT<T> v_inv = lambda.v.mat.inverse();
+    WishartMoments<T> lambda_mom(lambda);
 
-        T e_log_sigma_term = digamma(0.5 * (lambda.n - lambda.dim + 1));
-        T e_s_term = exp(lgamma(0.5 * (lambda.n - lambda.dim)) -
-                                  lgamma(0.5 * (lambda.n - lambda.dim + 1)));
+    T e_log_sigma_term = digamma(0.5 * (lambda.n - lambda.dim + 1));
+    T e_s_term = exp(lgamma(0.5 * (lambda.n - lambda.dim)) -
+                     lgamma(0.5 * (lambda.n - lambda.dim + 1)));
 
-        T e_log_s, e_s, e_log_sigma_diag;
-        T e_log_det_r = -1 * lambda_mom.e_log_det;
-        T diag_prior = 0.0;
-        for (int k=0; k < lambda.dim; k++) {
-                e_log_sigma_diag =log(0.5 * v_inv(k, k)) - e_log_sigma_term;
-                e_s = sqrt(0.5 * v_inv(k, k)) * e_s_term;
-                e_log_s = 0.5 * e_log_sigma_diag;
-                e_log_det_r -= e_log_sigma_diag;
-                diag_prior += (lambda_alpha - 1) * e_log_s -
-                                              lambda_beta * e_s;
-        }
+    T e_log_s, e_s, e_log_sigma_diag;
+    T e_log_det_r = -1 * lambda_mom.e_log_det;
+    T diag_prior = 0.0;
+    for (int k=0; k < lambda.dim; k++) {
+        e_log_sigma_diag = log(0.5 * v_inv(k, k)) - e_log_sigma_term;
+        e_s = sqrt(0.5 * v_inv(k, k)) * e_s_term;
+        e_log_s = 0.5 * e_log_sigma_diag;
+        e_log_det_r -= e_log_sigma_diag;
+        diag_prior += (lambda_alpha - 1) * e_log_s - lambda_beta * e_s;
+    }
 
-        T lkj_prior = (lambda_eta - 1) * e_log_det_r;
+    T lkj_prior = (lambda_eta - 1) * e_log_det_r;
 
-        return lkj_prior + diag_prior;
+    return lkj_prior + diag_prior;
 };
 
 
 // Evaluate the LKJ prior for a draw.
 // TODO: put this in libLinearResponseVariationalBayes.cpp
 template <typename T> T EvaluateLKJPrior(
-        MatrixXT<T> sigma, T log_det_sigma, T alpha, T beta, T eta) {
+    MatrixXT<T> sigma, T log_det_sigma, T alpha, T beta, T eta) {
 
-        if (sigma.rows() != sigma.cols()) {
-                throw std::runtime_error("sigma must be square.");
+    // Note: stan::math::lkj_cov_log uses lognormal scales, not inverse
+    // gamma scales.
+
+    if (sigma.rows() != sigma.cols()) {
+            throw std::runtime_error("sigma must be square.");
+    }
+
+    int k_reg = sigma.rows();
+    T scale_prior = 0;
+    // GammaMoments<T> gamma_moment(0, 0);
+    MatrixXT<T> scale_mat = MatrixXT<T>::Zero(k_reg, k_reg);
+    for (int k = 0; k < k_reg; k++) {
+        if (sigma(k, k) < 0) {
+            throw std::runtime_error("sigma must have non-negative diagonals");
         }
-        int k_reg = sigma.rows();
+        T s = sqrt(sigma(k, k));
+        scale_mat(k, k) = 1 / s;
 
-        T log_det_r = log_det_sigma;
-        T log_prior = 0.0;
-        GammaMoments<T> gamma_moment(0, 0);
-        for (int k = 0; k < k_reg; k++) {
-                T s = sigma(k, k);
-                if (s < 0) {
-                        throw std::runtime_error("sigma must have non-negative diagonals");
-                }
-                gamma_moment.set(s, log(s));
-                log_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
-                log_det_r -= 2 * log(s);
-        }
+        scale_prior += stan::math::gamma_log(s, alpha, beta);
+        // gamma_moment.set(s, log(s));
+        // scale_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
+    }
 
-        log_prior += (eta - 1) * log_det_r;
-        return log_prior;
+    MatrixXT<T> sigma_corr = scale_mat * sigma * scale_mat;
+    T corr_prior = stan::math::lkj_corr_log(sigma_corr, eta);
+
+    return scale_prior + corr_prior;
+
+    // T log_det_r = log_det_sigma;
+    // T log_prior = 0.0;
+    // GammaMoments<T> gamma_moment(0, 0);
+    // for (int k = 0; k < k_reg; k++) {
+    //     T s = sigma(k, k);
+    //     if (s < 0) {
+    //             throw std::runtime_error("sigma must have non-negative diagonals");
+    //     }
+    //     gamma_moment.set(s, log(s));
+    //     log_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
+    //     log_det_r -= 2 * log(s);
+    // }
+    //
+    // log_prior += (eta - 1) * log_det_r;
+    // return log_prior;
 };
 
 
