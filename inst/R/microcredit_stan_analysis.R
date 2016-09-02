@@ -96,7 +96,7 @@ if (file.exists(model_file_rdata)) {
 pp_perturb <- pp
 if (analysis_name == "simulated_data_lambda_beta") {
   perturb_epsilon <- 1.0
-  pp_perturb$scale_prior_beta <- pp_peturb$scale_prior_beta + perturb_epsilon
+  pp_perturb$lambda_beta <- pp_perturb$lambda_beta + perturb_epsilon
 } else {
   perturb_epsilon <- 0.05
   mu_prior_info_perturb <- pp$mu_info
@@ -151,7 +151,7 @@ stan_advi_full <- vb(model, data=stan_dat,  algorithm="fullrank", output_samples
 stan_advi_full_perturb <- vb(model, data=stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
 
 save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
-     stan_dat, stan_dat_perturbed, true_params, pp,
+     stan_dat, stan_dat_perturbed, true_params, pp, pp_perturb,
      stan_advi, stan_advi_perturb, stan_advi_full, stan_advi_full_perturb,
      file=stan_draws_file)
 

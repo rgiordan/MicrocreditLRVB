@@ -8,7 +8,8 @@ library(MicrocreditLRVB)
 
 # Load previously computed Stan results
 #analysis_name <- "simulated_data_robust"
-analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_lambda_beta"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -39,11 +40,13 @@ mp_reg <- GetMoments(vp_reg)
 # Fit and LRVB
 
 vb_fit <- FitVariationalModel(x, y, y_g, vp_reg, pp)
-print(vb_fit$bfgs_time + vb_fit$tr_time)
-
 vp_opt <- vb_fit$vp_opt
+print(vb_fit$bfgs_time + vb_fit$tr_time)
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 prior_sens <- GetSensitivity(vp_opt, pp, lrvb_terms$jac, lrvb_terms$elbo_hess)
+
+vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, stan_results$pp_perturb)
+
 
 
 ##########################################
@@ -70,4 +73,4 @@ stan_results$mcmc_sample <- mcmc_sample
 fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdata", sep=""))
 print(paste("Saving fits to ", fit_file))
 
-save(stan_results, vb_fit, lrvb_terms, prior_sens, file=fit_file)
+save(stan_results, vb_fit, vb_fit_perturb, lrvb_terms, prior_sens, file=fit_file)

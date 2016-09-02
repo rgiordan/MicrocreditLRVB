@@ -7,7 +7,8 @@ library(MicrocreditLRVB)
 
 # Load previously computed Stan results
 #analysis_name <- "simulated_data_robust"
-analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_lambda_beta"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -43,9 +44,13 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
 # Calculate vb perturbed estimates
 mp_opt_vec <- GetVectorFromMoments(mp_opt)
-mu_info_offdiag_sens <- prior_sens[, pp_indices$mu_info[1, 2]]
-mp_opt_vec_pert <- mp_opt_vec + stan_results$perturb_epsilon * mu_info_offdiag_sens
-mp_opt_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
+if (analysis_name == "simulated_data_lambda_beta") {
+  vb_sens_vec <- prior_sens[, pp_indices$lambda_beta]
+} else {
+  vb_sens_vec <- prior_sens[, pp_indices$mu_info[1, 2]]
+}
+mp_opt_vec_pert <- mp_opt_vec + stan_results$perturb_epsilon * vb_sens_vec
+mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 
 
 ###########################
@@ -54,6 +59,17 @@ mp_opt_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 # Pack the standard deviations into readable forms.
 mfvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(mfvb_cov)))
 lrvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(lrvb_cov)))
+
+results_lrvb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
+results_lrvb_pert <- SummarizeMomentParameters(mp_opt_lrvb_pert, mfvb_sd, lrvb_sd)
+results_lrvb_pert$method <- "lrvb_perturbed"
+
+# Get the VB result from manually perturbing and refitting
+vp_opt_pert <- fit_env$vb_fit_perturb$vp_opt
+mp_opt_pert <- GetMoments(vp_opt_pert)
+pp_perturb <- fit_env$stan_results$pp_perturb
+lrvb_terms_pert <- GetLRVB(x, y, y_g, vp_opt_pert, pp_perturb)
+prior_sens_pert <- GetSensitivity(vp_opt_pert, pp_perturb, lrvb_terms_pert$jac, lrvb_terms_pert$elbo_hess)
 
 results_vb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
 results_vb_pert <- SummarizeMomentParameters(mp_opt_pert, mfvb_sd, lrvb_sd)
@@ -64,16 +80,17 @@ results_mcmc_pert <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample_pertu
 results_mcmc_pert$method <- "mcmc_perturbed"
 
 results <- rbind(results_vb, results_mcmc)
-result_pert <- rbind(results_vb, results_vb_pert, results_mcmc, results_mcmc_pert)
+result_pert <- rbind(results_vb, results_lrvb_pert, results_vb_pert, results_mcmc, results_mcmc_pert)
 
 ##########################################
 # Get MCMC sensitivity measures
 mcmc_sample <- fit_env$stan_results$mcmc_sample
 draws_mat <- fit_env$stan_results$draws_mat
-mp_draws <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_opt) # A little slow
+mp_draws <- fit_env$stan_results$mp_draws
+log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
 
-log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
-log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
+# log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
+# log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
 
 
 #######################
@@ -170,12 +187,17 @@ ggplot(filter(sd_results, par == "mu_g")) +
   geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
+###################
+# Perturbations
 
 mean_pert_results <-
   filter(result_pert, metric == "mean") %>%
   dcast(par + component + group ~ method, value.var="val") %>%
-  mutate(mfvb_diff = mfvb_perturbed - mfvb, mcmc_diff = mcmc_perturbed - mcmc)
+  mutate(mfvb_diff = mfvb_perturbed - mfvb,
+         lrvb_diff = lrvb_perturbed - mfvb,
+         mcmc_diff = mcmc_perturbed - mcmc)
 
+# MCMC vs MFVB after manually perturbing and refitting.
 ggplot(filter(mean_pert_results, par != "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
@@ -184,4 +206,23 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
+
+# MCMC vs predicted change.
+ggplot(filter(mean_pert_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc_diff, y=lrvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_pert_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc_diff, y=lrvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+
+# LRVB predicted vs actual change.  This should be spot on.
+ggplot(filter(mean_pert_results, par != "mu_g")) +
+  geom_point(aes(x=mfvb_diff, y=lrvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_pert_results, par == "mu_g")) +
+  geom_point(aes(x=mfvb_diff, y=lrvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
