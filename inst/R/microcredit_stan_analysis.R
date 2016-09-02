@@ -13,7 +13,8 @@ project_directory <-
 
 # Choose one.
 #analysis_name <- "simulated_data_nonrobust"
-analysis_name <- "simulated_data_robust"
+#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_lambda_beta"
 
 set.seed(42)
 
@@ -44,7 +45,7 @@ true_params <- list()
 
 if (analysis_name == "simulated_data_nonrobust") {
   true_params$true_mu <- c(4 * mu_prior_sd, -4 * mu_prior_sd)
-} else if (analysis_name == "simulated_data_robust") {
+} else {
   true_params$true_mu <- c(1 * mu_prior_sd, -1 * mu_prior_sd)
 }
 true_params$true_sigma <- matrix(c(12, 0, 0, 12), 2, 2)
@@ -89,36 +90,51 @@ if (file.exists(model_file_rdata)) {
   save(model, file=model_file_rdata)
 }
 
-# Stan data.
-stan_dat <- list(NG = n_g,
-                 N = length(y),
-                 K = ncol(x),
-                 y_group = y_g,
-                 y = y,
-                 x = x,
-                 mu_prior_sigma = solve(pp$mu_info),
-                 mu_prior_mean = pp$mu_loc,
-                 use_mu1_prior = FALSE,
-                 mu1_prior_sigma = solve(pp$mu_info),
-                 mu1_prior_mean = pp$mu_loc,
-                 scale_prior_alpha = pp$lambda_alpha,
-                 scale_prior_beta = pp$lambda_beta,
-                 lkj_prior_eta = pp$lambda_eta,
-                 tau_prior_alpha = pp$tau_alpha,
-                 tau_prior_beta = pp$tau_beta)
 
-perturb_epsilon <- 0.05
-stan_dat_perturbed <- stan_dat
-mu_prior_info_perturb <- pp$mu_info
-mu_prior_info_perturb[1,2] <- mu_prior_info_perturb[2,1] <-
-  mu_prior_info_perturb[1,2] + perturb_epsilon
-stan_dat_perturbed$mu_prior_sigma <- solve(mu_prior_info_perturb)
-stan_dat$mu_prior_sigma
+
+# Perturb the prior.
+pp_perturb <- pp
+if (analysis_name == "simulated_data_lambda_beta") {
+  perturb_epsilon <- 1.0
+  pp_perturb$scale_prior_beta <- pp_peturb$scale_prior_beta + perturb_epsilon
+} else {
+  perturb_epsilon <- 0.05
+  mu_prior_info_perturb <- pp$mu_info
+  mu_prior_info_perturb[1,2] <- mu_prior_info_perturb[2,1] <-
+    mu_prior_info_perturb[1,2] + perturb_epsilon
+  pp_perturb$mu_info <- mu_prior_info_perturb
+}
+
+
+
+# Stan data.
+SetStanDat <- function(prior_params) {
+  list(NG = n_g,
+       N = length(y),
+       K = ncol(x),
+       y_group = y_g,
+       y = y,
+       x = x,
+       mu_prior_sigma = solve(prior_params$mu_info),
+       mu_prior_mean = prior_params$mu_loc,
+       use_mu1_prior = FALSE,
+       mu1_prior_sigma = solve(prior_params$mu_info),
+       mu1_prior_mean = prior_params$mu_loc,
+       scale_prior_alpha = prior_params$lambda_alpha,
+       scale_prior_beta = prior_params$lambda_beta,
+       lkj_prior_eta = prior_params$lambda_eta,
+       tau_prior_alpha = prior_params$tau_alpha,
+       tau_prior_beta = prior_params$tau_beta)
+}
+
+stan_dat <- SetStanDat(pp)
+stan_dat_perturbed <- SetStanDat(pp_perturb)
+
 
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 50000
+iters <- 10000
 seed <- 42
 
 # Note: this takes a while.

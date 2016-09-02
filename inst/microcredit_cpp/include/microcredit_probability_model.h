@@ -132,7 +132,6 @@ template <typename T> T EvaluateLKJPrior(
 
     int k_reg = sigma.rows();
     T scale_prior = 0;
-    // GammaMoments<T> gamma_moment(0, 0);
     MatrixXT<T> scale_mat = MatrixXT<T>::Zero(k_reg, k_reg);
     for (int k = 0; k < k_reg; k++) {
         if (sigma(k, k) < 0) {
@@ -142,30 +141,12 @@ template <typename T> T EvaluateLKJPrior(
         scale_mat(k, k) = 1 / s;
 
         scale_prior += stan::math::gamma_log(s, alpha, beta);
-        // gamma_moment.set(s, log(s));
-        // scale_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
     }
 
     MatrixXT<T> sigma_corr = scale_mat * sigma * scale_mat;
     T corr_prior = stan::math::lkj_corr_log(sigma_corr, eta);
 
     return scale_prior + corr_prior;
-
-    // T log_det_r = log_det_sigma;
-    // T log_prior = 0.0;
-    // GammaMoments<T> gamma_moment(0, 0);
-    // for (int k = 0; k < k_reg; k++) {
-    //     T s = sigma(k, k);
-    //     if (s < 0) {
-    //             throw std::runtime_error("sigma must have non-negative diagonals");
-    //     }
-    //     gamma_moment.set(s, log(s));
-    //     log_prior += gamma_moment.ExpectedLogLikelihood(alpha, beta);
-    //     log_det_r -= 2 * log(s);
-    // }
-    //
-    // log_prior += (eta - 1) * log_det_r;
-    // return log_prior;
 };
 
 
@@ -217,8 +198,8 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihoodDraw(
         T lambda_alpha = pp.lambda_alpha;
         T lambda_beta = pp.lambda_beta;
         T lambda_eta = pp.lambda_eta;
-        log_prior += EvaluateLKJPrior(sigma, log_det_sigma, lambda_alpha, lambda_beta, lambda_eta);
-
+        log_prior += EvaluateLKJPrior(sigma, log_det_sigma,
+                                      lambda_alpha, lambda_beta, lambda_eta);
         return log_prior;
 };
 

@@ -129,6 +129,7 @@ ggplot(prior_sens_results_graph) +
   ggtitle(paste("Local sensitivity to", ind_name,
                 "as measured by VB and MCMC, grouped by # of MCMC draws"))
 
+
 #######################
 # Graphs
 
