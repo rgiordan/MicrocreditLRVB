@@ -230,8 +230,8 @@ template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
     theta.segment(pp.offsets.tau, pp.tau.encoded_size) = pp.tau.encode_vector(false);
 
     theta(pp.offsets.lambda_eta) = pp.lambda_eta;
-    theta(pp.offsets.lambda_alpha) = pp.lambda_eta;
-    theta(pp.offsets.lambda_beta) = pp.lambda_eta;
+    theta(pp.offsets.lambda_alpha) = pp.lambda_alpha;
+    theta(pp.offsets.lambda_beta) = pp.lambda_beta;
 
     return theta;
 }

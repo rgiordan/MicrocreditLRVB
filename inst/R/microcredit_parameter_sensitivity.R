@@ -19,6 +19,9 @@ print(paste("Loading fits from ", fit_file))
 fit_env <- environment()
 load(fit_file, envir=fit_env)
 fit_env <- as.list(fit_env)
+x <- fit_env$stan_results$stan_dat$x
+y <- fit_env$stan_results$stan_dat$y
+y_g <- fit_env$stan_results$stan_dat$y_g
 
 ###########################################
 # Extract results
@@ -204,6 +207,14 @@ ggplot(filter(mean_pert_results, par != "mu_g")) +
 
 ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_pert_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc_perturbed, y=mfvb_perturbed, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_pert_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc_perturbed, y=mfvb_perturbed, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
 

@@ -93,12 +93,13 @@ GetInfluenceFunctionVector <- function(mu) {
   exp(mu_q_res$val - mu_prior_val) * lrvb_pre_factor %*% mu_q_res$grad
 }
 
-component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
+#component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
 # component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
 # component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
 # component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
 # component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
-
+component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
+ 
 GetInfluenceFunctionComponent <-
   function(mu) GetInfluenceFunctionVector(mu)[component]
 
