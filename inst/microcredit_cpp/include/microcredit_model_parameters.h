@@ -6,6 +6,7 @@
 # include <iostream>
 
 # include "variational_parameters.h"
+# include "monte_carlo_parameters.h"
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -49,22 +50,26 @@ struct Offsets {
 
 
 struct PriorOffsets {
-        int mu;
-        int tau;
+    // We will encode all the prior parameters whether we use them or not.
+    int mu;
+    int mu_t_loc;
+    int mu_t_scale;
+    int mu_t_df;
+    int tau;
 
-        int lambda_eta;
-        int lambda_alpha;
-        int lambda_beta;
+    int lambda_eta;
+    int lambda_alpha;
+    int lambda_beta;
 
-        int encoded_size;
+    int encoded_size;
 
-        PriorOffsets() {
-                mu = 0;
-                tau = 0;
-                lambda_eta = 0;
-                lambda_alpha = 0;
-                lambda_beta =0;
-        }
+    PriorOffsets() {
+        mu = mu_t_loc = mu_t_scale = mu_t_df = 0;
+        tau = 0;
+        lambda_eta = 0;
+        lambda_alpha = 0;
+        lambda_beta =0;
+    }
 };
 
 
@@ -75,7 +80,7 @@ struct PriorOffsets {
 template <class T>
 class VariationalParameters {
 private:
-    void Initialize(int _k, int _n_g, bool _unconstrained) {
+    void Initialize(int _k, int _n_g, int n_sim, bool _unconstrained) {
         k = _k;
         n_g = _n_g;
         unconstrained = _unconstrained;
@@ -83,6 +88,7 @@ private:
         mu = MultivariateNormalNatural<T>(k);
         lambda = WishartNatural<T>(k);
         mu.info.scale_cholesky = lambda.v.scale_cholesky = false;
+        mu_draws = MonteCarloNormalParameter(n_sim);
 
         // Per-observation parameters
         mu_g.resize(n_g);
@@ -98,6 +104,11 @@ private:
         }
         offsets = GetOffsets(*this);
     }
+
+    void Initialize(int _k, int _n_g, bool _unconstrained) {
+        Initialize(_k, _n_g, 20, _unconstrained);
+    }
+
 public:
     // Parameters:
     int n_g;    // The number of groups
@@ -108,6 +119,7 @@ public:
 
     // The global mean parameter.
     MultivariateNormalNatural<T> mu;
+    MonteCarloNormalParameter mu_draws;
 
     // The precision matrix of the grou p means.
     WishartNatural<T> lambda;
@@ -230,7 +242,11 @@ template <class T> class PriorParameters {
 private:
     void Initialize(int k) {
         k = k;
+        mu_student_t_prior = false;
         mu = MultivariateNormalNatural<T>(k);
+        mu_t_loc = 0;
+        mu_t_scale = 1;
+        mu_t_df = 50;
 
         lambda_eta = 1;
         lambda_alpha = 1;
@@ -245,7 +261,17 @@ public:
     int k;      // The dimension of the means
     PriorOffsets offsets;
 
+    // Mu prior which can be student t or multivariate normal.
+    bool mu_student_t_prior;    // If true, use a t prior.  Otherwise use a MVN prior.
+
+    // Mu MVN parameters
     MultivariateNormalNatural<T> mu;
+
+    // Mu student t parameters.  Each location, scale, and df are the same.
+    T mu_t_loc;
+    T mu_t_scale;
+    T mu_t_df;
+
     GammaNatural<T> tau;
 
     // lambda ~ LKJ(eta), scale ~ Gamma(alpha, beta)
@@ -255,12 +281,12 @@ public:
 
     // Methods:
     PriorParameters(int k): k(k) {
-            Initialize(k);
+        Initialize(k);
     };
 
 
     PriorParameters() {
-            Initialize(1);
+        Initialize(1);
     };
 
 
@@ -268,6 +294,10 @@ public:
         PriorParameters<Tnew> pp = PriorParameters<Tnew>(k);
 
         pp.mu = mu;
+        pp.mu_student_t_prior = mu_student_t_prior;
+        pp.mu_t_loc = mu_t_loc;
+        pp.mu_t_scale = mu_t_scale;
+        pp.mu_t_df = mu_t_df;
 
         pp.lambda_eta = lambda_eta;
         pp.lambda_alpha = lambda_alpha;

@@ -10,6 +10,7 @@
 
 # include "variational_parameters.h"
 # include "exponential_families.h"
+# include "monte_carlo_parameters.h"
 # include "microcredit_model_parameters.h"
 
 # include <stan/math.hpp>

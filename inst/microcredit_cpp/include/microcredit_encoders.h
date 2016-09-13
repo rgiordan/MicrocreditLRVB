@@ -41,18 +41,21 @@ Offsets GetOffsets(VPType<T> vp) {
 
 
 template <typename T> PriorOffsets GetPriorOffsets(PriorParameters<T> pp) {
-        PriorOffsets offsets;
-        int encoded_size = 0;
+    PriorOffsets offsets;
+    int encoded_size = 0;
 
-        offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
-        offsets.tau = encoded_size; encoded_size += pp.tau.encoded_size;
-        offsets.lambda_eta = encoded_size; encoded_size += 1;
-        offsets.lambda_alpha = encoded_size; encoded_size += 1;
-        offsets.lambda_beta = encoded_size; encoded_size += 1;
+    offsets.mu = encoded_size; encoded_size += pp.mu.encoded_size;
+    offsets.mu_t_loc = encoded_size; encoded_size += 1;
+    offsets.mu_t_scale = encoded_size; encoded_size += 1;
+    offsets.mu_t_df = encoded_size; encoded_size += 1;
+    offsets.tau = encoded_size; encoded_size += pp.tau.encoded_size;
+    offsets.lambda_eta = encoded_size; encoded_size += 1;
+    offsets.lambda_alpha = encoded_size; encoded_size += 1;
+    offsets.lambda_beta = encoded_size; encoded_size += 1;
 
-        offsets.encoded_size = encoded_size;
+    offsets.encoded_size = encoded_size;
 
-        return offsets;
+    return offsets;
 };
 
 
@@ -227,6 +230,10 @@ template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
     VectorXT<T> theta(pp.offsets.encoded_size);
 
     theta.segment(pp.offsets.mu, pp.mu.encoded_size) = pp.mu.encode_vector(false);
+    theta(pp.offsets.mu_t_loc) = pp.mu_t_loc;
+    theta(pp.offsets.mu_t_scale) = pp.mu_t_scale;
+    theta(pp.offsets.mu_t_df) = pp.mu_t_df;
+
     theta.segment(pp.offsets.tau, pp.tau.encoded_size) = pp.tau.encode_vector(false);
 
     theta(pp.offsets.lambda_eta) = pp.lambda_eta;
@@ -247,6 +254,9 @@ void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
 
     theta_sub = theta.segment(pp.offsets.mu, pp.mu.encoded_size);
     pp.mu.decode_vector(theta_sub, false);
+    pp.mu_t_loc = theta(pp.offsets.mu_t_loc);
+    pp.mu_t_scale = theta(pp.offsets.mu_t_scale);
+    pp.mu_t_df = theta(pp.offsets.mu_t_df);
 
     theta_sub = theta.segment(pp.offsets.tau, pp.tau.encoded_size);
     pp.tau.decode_vector(theta_sub, false);
@@ -266,8 +276,7 @@ VectorXT<T> GetParameterVector(VariationalParameters<T> &vp,
     int encoded_size = vp.offsets.encoded_size + pp.offsets.encoded_size;
     VectorXT<T> theta(encoded_size);
     theta.segment(0, vp.offsets.encoded_size) = GetParameterVector(vp);
-    theta.segment(vp.offsets.encoded_size, pp.offsets.encoded_size) =
-        GetParameterVector(pp);
+    theta.segment(vp.offsets.encoded_size, pp.offsets.encoded_size) = GetParameterVector(pp);
 
     return theta;
 }

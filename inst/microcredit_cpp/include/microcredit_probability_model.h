@@ -7,60 +7,60 @@
 
 template <typename T>
 T GetGroupHierarchyLogLikelihood(VariationalParameters<T> const &vp, int g) {
-        // TODO: cache the moment calculations.
-        WishartMoments<T> lambda_moments(vp.lambda);
-        MultivariateNormalMoments<T> mu_moments(vp.mu);
-        MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
-        T log_lik = mu_g_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
-        return log_lik;
+    // TODO: cache the moment calculations.
+    WishartMoments<T> lambda_moments(vp.lambda);
+    MultivariateNormalMoments<T> mu_moments(vp.mu);
+    MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
+    T log_lik = mu_g_moments.ExpectedLogLikelihood(mu_moments, lambda_moments);
+    return log_lik;
 };
 
 
 template <typename T>
 T GetHierarchyLogLikelihood(VariationalParameters<T> const &vp) {
-        T log_lik = 0.0;
-        for (int g = 0; g < vp.n_g; g++) {
-                log_lik += GetGroupHierarchyLogLikelihood(vp, g);
-        }
-        return log_lik;
+    T log_lik = 0.0;
+    for (int g = 0; g < vp.n_g; g++) {
+        log_lik += GetGroupHierarchyLogLikelihood(vp, g);
+    }
+    return log_lik;
 };
 
 
 template <typename T>
 T GetGroupObservationLogLikelihood(
-        MicroCreditData const &data, VariationalParameters<T> const &vp, int g) {
+    MicroCreditData const &data, VariationalParameters<T> const &vp, int g) {
 
-        UnivariateNormalMoments<T> y_obs_mean;
+    UnivariateNormalMoments<T> y_obs_mean;
 
-        T log_lik = 0.0;
-        GammaMoments<T> tau_moments(vp.tau[g]);
-        MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
+    T log_lik = 0.0;
+    GammaMoments<T> tau_moments(vp.tau[g]);
+    MultivariateNormalMoments<T> mu_g_moments(vp.mu_g[g]);
 
-        for (int n = 0; n < data.n; n++) {
-                int row_g = data.y_g(n) - 1; // The group that this observation belongs to.
-                if (row_g == g) {
-                        UnivariateNormalMoments<T> y_obs;
-                        VectorXT<T> x_row = data.x.row(n).template cast<T>();
-                        y_obs.e = data.y(n);
-                        y_obs.e2 = pow(data.y(n), 2);
-                        y_obs_mean.e = x_row.dot(mu_g_moments.e_vec);
-                        y_obs_mean.e2 = x_row.dot(mu_g_moments.e_outer.mat * x_row);
-                        log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, tau_moments);
-                }
+    for (int n = 0; n < data.n; n++) {
+        int row_g = data.y_g(n) - 1; // The group that this observation belongs to.
+        if (row_g == g) {
+            UnivariateNormalMoments<T> y_obs;
+            VectorXT<T> x_row = data.x.row(n).template cast<T>();
+            y_obs.e = data.y(n);
+            y_obs.e2 = pow(data.y(n), 2);
+            y_obs_mean.e = x_row.dot(mu_g_moments.e_vec);
+            y_obs_mean.e2 = x_row.dot(mu_g_moments.e_outer.mat * x_row);
+            log_lik += y_obs.ExpectedLogLikelihood(y_obs_mean, tau_moments);
         }
-        return log_lik;
+    }
+    return log_lik;
 };
 
 
 template <typename T>
 T GetObservationLogLikelihood(
-        MicroCreditData const &data, VariationalParameters<T> const &vp) {
-        T log_lik = 0.0;
-        for (int g = 0; g < vp.n_g; g++) {
-                // TODO: This is a little redundant.
-                log_lik += GetGroupObservationLogLikelihood(data, vp, g);
-        }
-        return log_lik;
+    MicroCreditData const &data, VariationalParameters<T> const &vp) {
+    T log_lik = 0.0;
+    for (int g = 0; g < vp.n_g; g++) {
+        // TODO: This is a little redundant.
+        log_lik += GetGroupObservationLogLikelihood(data, vp, g);
+    }
+    return log_lik;
 };
 
 /////////////////////////////////
@@ -70,23 +70,23 @@ T GetObservationLogLikelihood(
 // This can also be evaulated for a draw of tau..
 template <typename T>
 T GetGroupPriorLogLikelihood(GammaMoments<T> &mp_tau, GammaNatural<T> const &pp_tau) {
-        // Tau is the only group parameter with a prior.
-        T log_prior = mp_tau.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
-        return log_prior;
+    // Tau is the only group parameter with a prior.
+    T log_prior = mp_tau.ExpectedLogLikelihood(pp_tau.alpha, pp_tau.beta);
+    return log_prior;
 };
 
 
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type GetGroupPriorLogLikelihood(
-        VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp, int g) {
+    VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp, int g) {
 
-        typedef typename promote_args<Tlik, Tprior>::type T;
+    typedef typename promote_args<Tlik, Tprior>::type T;
 
-        // Tau is the only group parameter with a prior.
-        GammaNatural<T> pp_tau(pp.tau);
-        GammaNatural<T> vp_tau(vp.tau[g]);
-        GammaMoments<T> mp_tau(vp_tau);
-        return GetGroupPriorLogLikelihood(mp_tau, pp_tau);
+    // Tau is the only group parameter with a prior.
+    GammaNatural<T> pp_tau(pp.tau);
+    GammaNatural<T> vp_tau(vp.tau[g]);
+    GammaMoments<T> mp_tau(vp_tau);
+    return GetGroupPriorLogLikelihood(mp_tau, pp_tau);
 };
 
 
@@ -150,72 +150,99 @@ template <typename T> T EvaluateLKJPrior(
 };
 
 
+template <typename T> T EvaluateStudentTPrior(
+    MonteCarloNormalParameter mu_draws, T mu_mean, T mu_var,
+    T prior_loc, T prior_scale, T prior_df) {
+
+    VectorXT<T> draws = mu_draws.Evaluate(mu_mean, mu_var);
+    T e_log_prior = 0;
+    for (int ind = 0; ind < draws.size(); ind++) {
+        T log_t = stan::math::student_t_log(draws(ind), prior_df, prior_loc, prior_scale);
+        e_log_prior += log_t;
+    }
+    return e_log_prior;
+};
+
+
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
-        VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp) {
+    VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp) {
 
-        typedef typename promote_args<Tlik, Tprior>::type T;
+    typedef typename promote_args<Tlik, Tprior>::type T;
 
-        T log_prior = 0.0;
+    T log_prior = 0.0;
 
-        // Mu:
+    // Mu:
+    if (pp.mu_student_t_prior) {
+        // Each component has an independent student t prior.
+        T pp_mu_t_loc = pp.mu_t_loc;
+        T pp_mu_t_scale = pp.mu_t_scale;
+        T pp_mu_t_df = pp.mu_t_df;
+        for (int k = 0; k < vp.k; k++) {
+            T mu_loc = vp.mu.loc(k);
+            T mu_var = 1 / vp.mu.info.mat(k, k);
+            log_prior += EvaluateStudentTPrior(
+                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
+        }
+    } else {
         MultivariateNormalNatural<T> vp_mu(vp.mu);
         MultivariateNormalMoments<T> vp_mu_moments(vp_mu);
         MultivariateNormalNatural<T> pp_mu = pp.mu;
         log_prior += vp_mu_moments.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+    }
 
-        WishartNatural<T> vp_lambda(vp.lambda);
-        T lambda_alpha = pp.lambda_alpha;
-        T lambda_beta = pp.lambda_beta;
-        T lambda_eta = pp.lambda_eta;
-        log_prior += EvaluateLKJPrior(vp_lambda, lambda_alpha, lambda_beta, lambda_eta);
+    WishartNatural<T> vp_lambda(vp.lambda);
+    T lambda_alpha = pp.lambda_alpha;
+    T lambda_beta = pp.lambda_beta;
+    T lambda_eta = pp.lambda_eta;
+    log_prior += EvaluateLKJPrior(vp_lambda, lambda_alpha, lambda_beta, lambda_eta);
 
-        return log_prior;
+    return log_prior;
 };
 
 
 // The global prior for a draw.
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihoodDraw(
-        MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu, PriorParameters<Tprior> const &pp) {
+    MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu, PriorParameters<Tprior> const &pp) {
 
-        typedef typename promote_args<Tlik, Tprior>::type T;
+    typedef typename promote_args<Tlik, Tprior>::type T;
 
-        T log_prior = 0.0;
+    T log_prior = 0.0;
 
-        // Mu:
-        VectorXT<T> mu_e = mu.template cast<T>();
-        MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
-        MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
+    // Mu:
+    VectorXT<T> mu_e = mu.template cast<T>();
+    MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
+    MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
 
-        MultivariateNormalNatural<T> pp_mu = pp.mu;
-        log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+    MultivariateNormalNatural<T> pp_mu = pp.mu;
+    log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
 
-        // Lambda
-        MatrixXT<T> lambda_t = lambda.template cast<T>();
-        MatrixXT<T> sigma = lambda_t.inverse();
-        T log_det_sigma = log(sigma.determinant());
-        T lambda_alpha = pp.lambda_alpha;
-        T lambda_beta = pp.lambda_beta;
-        T lambda_eta = pp.lambda_eta;
-        log_prior += EvaluateLKJPrior(sigma, log_det_sigma,
-                                      lambda_alpha, lambda_beta, lambda_eta);
-        return log_prior;
+    // Lambda
+    MatrixXT<T> lambda_t = lambda.template cast<T>();
+    MatrixXT<T> sigma = lambda_t.inverse();
+    T log_det_sigma = log(sigma.determinant());
+    T lambda_alpha = pp.lambda_alpha;
+    T lambda_beta = pp.lambda_beta;
+    T lambda_eta = pp.lambda_eta;
+    log_prior += EvaluateLKJPrior(sigma, log_det_sigma,
+                                  lambda_alpha, lambda_beta, lambda_eta);
+    return log_prior;
 };
 
 
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
-        VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp) {
+    VariationalParameters<Tlik> const &vp, PriorParameters<Tprior> const &pp) {
 
-        typedef typename promote_args<Tlik, Tprior>::type T;
-        T log_prior = 0.0;
-        log_prior += GetGlobalPriorLogLikelihood(vp, pp);
+    typedef typename promote_args<Tlik, Tprior>::type T;
+    T log_prior = 0.0;
+    log_prior += GetGlobalPriorLogLikelihood(vp, pp);
 
-        for (int g = 0; g < vp.n_g; g++) {
-                log_prior += GetGroupPriorLogLikelihood(vp, pp, g);
-        }
-        return log_prior;
+    for (int g = 0; g < vp.n_g; g++) {
+            log_prior += GetGroupPriorLogLikelihood(vp, pp, g);
+    }
+    return log_prior;
 };
 
 
@@ -224,28 +251,28 @@ typename promote_args<Tlik, Tprior>::type  GetPriorLogLikelihood(
 
 template <typename T> T
 GetGroupEntropy(VariationalParameters<T> const &vp, int g) {
-        T entropy = 0;
-        entropy += GetMultivariateNormalEntropy(vp.mu_g[g].info.mat);
-        entropy += GetGammaEntropy(vp.tau[g].alpha, vp.tau[g].beta);
-        return entropy;
+    T entropy = 0;
+    entropy += GetMultivariateNormalEntropy(vp.mu_g[g].info.mat);
+    entropy += GetGammaEntropy(vp.tau[g].alpha, vp.tau[g].beta);
+    return entropy;
 }
 
 
 template <typename T> T
 GetGlobalEntropy(VariationalParameters<T> const &vp) {
-        T entropy = 0;
-        entropy += GetMultivariateNormalEntropy(vp.mu.info.mat);
-        entropy += GetWishartEntropy(vp.lambda.v.mat, vp.lambda.n);
-        return entropy;
+    T entropy = 0;
+    entropy += GetMultivariateNormalEntropy(vp.mu.info.mat);
+    entropy += GetWishartEntropy(vp.lambda.v.mat, vp.lambda.n);
+    return entropy;
 }
 
 
 template <typename T> T
 GetEntropy(VariationalParameters<T> const &vp) {
-        T entropy = 0;
-        entropy += GetGlobalEntropy(vp);
-        for (int g = 0; g < vp.n_g; g++) {
-                entropy += GetGroupEntropy(vp, g);
-        }
-        return entropy;
+    T entropy = 0;
+    entropy += GetGlobalEntropy(vp);
+    for (int g = 0; g < vp.n_g; g++) {
+        entropy += GetGroupEntropy(vp, g);
+    }
+    return entropy;
 }
