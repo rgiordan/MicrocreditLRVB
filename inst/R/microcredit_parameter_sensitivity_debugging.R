@@ -82,6 +82,28 @@ results <-
   rbind(SummarizeRawMomentParameters(mp_opt, metric="mean", method="mfvb_norm"),
         SummarizeRawMomentParameters(mp_opt_perturb, metric="mean", method="mfvb_t"))
 
+
+###############################
+# Epsilon sensitivity by monte carlo
+
+n_sim <- 100
+t_draws <- rt(n_sim, pp_perturb$mu_t_df) * pp_perturb$mu_t_scale + pp_perturb$mu_t_loc
+hist(t_draws, 50)
+
+mp_draw <- mp_opt
+for (sim in 1:n_sim){
+  
+}
+
+mp_draw$mu_e_vec[1] <- mp_draw$mu_e_vec[2] <- t_draws[sim]
+mp_draw$mu_e_outer <- mp_draw$mu_e_vec %*% t(mp_draw$mu_e_vec)
+log_q_derivs <- GetLogVariationalDensityDerivatives(mp_draw, vp_opt, pp,
+                                                    include_mu=TRUE, include_lambda=FALSE,
+                                                    r_include_mu_groups=integer(),
+                                                    r_include_tau_groups=integer(),
+                                                    calculate_gradient=TRUE)
+
+
 #######################
 # Graphs
 

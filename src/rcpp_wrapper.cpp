@@ -516,7 +516,8 @@ Rcpp::List GetLogPriorDerivatives(
 
 // [[Rcpp::export]]
 Rcpp::List GetLogVariationalDensityDerivatives(
-    const Rcpp::List r_obs_mp, const Rcpp::List r_vp, const Rcpp::List r_pp,
+    const Rcpp::List r_obs_mp, const Rcpp::List r_vp,
+    const Rcpp::List r_pp, // TOOD: remove this, it's not necessary.
     bool const include_mu,
     bool const include_lambda,
     const Eigen::Map<Eigen::VectorXi> r_include_mu_groups,
@@ -525,7 +526,7 @@ Rcpp::List GetLogVariationalDensityDerivatives(
 
     MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
-    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
+    // PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
     Eigen::VectorXi include_mu_groups = r_include_mu_groups;
     Eigen::VectorXi include_tau_groups = r_include_tau_groups;
 
@@ -537,6 +538,7 @@ Rcpp::List GetLogVariationalDensityDerivatives(
 }
 
 
+// TODO: rewrite this to return the values as well.
 // [[Rcpp::export]]
 Rcpp::List GetMCMCLogPriorDerivatives(
     const Rcpp::List draw_list, const Rcpp::List r_pp) {
