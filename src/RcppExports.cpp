@@ -263,6 +263,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// GetObsLogPriorDerivatives
+Rcpp::List GetObsLogPriorDerivatives(const Rcpp::List r_obs_mp, const Rcpp::List r_pp, bool include_mu, bool include_lambda, bool include_tau);
+RcppExport SEXP MicrocreditLRVB_GetObsLogPriorDerivatives(SEXP r_obs_mpSEXP, SEXP r_ppSEXP, SEXP include_muSEXP, SEXP include_lambdaSEXP, SEXP include_tauSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_obs_mp(r_obs_mpSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_pp(r_ppSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_mu(include_muSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_lambda(include_lambdaSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_tau(include_tauSEXP);
+    rcpp_result_gen = Rcpp::wrap(GetObsLogPriorDerivatives(r_obs_mp, r_pp, include_mu, include_lambda, include_tau));
+    return rcpp_result_gen;
+END_RCPP
+}
 // GetCovariance
 Eigen::SparseMatrix<double> GetCovariance(const Rcpp::List r_vp);
 RcppExport SEXP MicrocreditLRVB_GetCovariance(SEXP r_vpSEXP) {

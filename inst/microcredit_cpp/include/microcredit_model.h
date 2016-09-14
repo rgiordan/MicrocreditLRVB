@@ -50,10 +50,17 @@ struct MicroCreditLogPriorDraw {
     MomentParameters<double> draw;
     PriorParameters<double> base_pp;
 
+    bool include_mu;
+    bool include_lambda;
+    bool include_tau;
+
     MicroCreditLogPriorDraw(
         MomentParameters<double> const &draw,
         PriorParameters<double> const &base_pp):
-    draw(draw), base_pp(base_pp) {};
+        draw(draw), base_pp(base_pp) {
+
+        include_mu = include_lambda = include_tau = true;
+    };
 
     template <typename T> T operator()(VectorXT<T> const &theta) const {
         PriorParameters<T> pp(base_pp);
@@ -63,13 +70,16 @@ struct MicroCreditLogPriorDraw {
 
         // Prior for global variables.
         log_prior += GetGlobalPriorLogLikelihoodDraw(
-            draw.lambda.e.mat, draw.mu.e_vec, pp);
+            draw.lambda.e.mat, draw.mu.e_vec, pp, include_mu, include_lambda);
 
         // Prior for group variables.
-        for (int g = 0; g < draw.n_g; g++) {
-            GammaMoments<T> mp_tau(draw.tau[g]);
-            log_prior += GetGroupPriorLogLikelihood(mp_tau, pp.tau);
+        if (include_tau) {
+            for (int g = 0; g < draw.n_g; g++) {
+                GammaMoments<T> mp_tau(draw.tau[g]);
+                log_prior += GetGroupPriorLogLikelihood(mp_tau, pp.tau);
+            }
         }
+
         return log_prior;
     }
 };
@@ -383,6 +393,9 @@ SparseMatrix<double> GetSparseELBOHessian(
 Derivatives GetLogPriorDerivativesFromDraw(
     MomentParameters<double> const &draw,
     PriorParameters<double> const &pp,
+    bool const include_mu,
+    bool const include_lambda,
+    bool const include_tau,
     bool const calculate_gradient);
 
 

@@ -77,6 +77,10 @@ GetMCMCLogPriorDerivatives <- function(draw_list, r_pp) {
     .Call('MicrocreditLRVB_GetMCMCLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', draw_list, r_pp)
 }
 
+GetObsLogPriorDerivatives <- function(r_obs_mp, r_pp, include_mu, include_lambda, include_tau) {
+    .Call('MicrocreditLRVB_GetObsLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', r_obs_mp, r_pp, include_mu, include_lambda, include_tau)
+}
+
 GetCovariance <- function(r_vp) {
     .Call('MicrocreditLRVB_GetCovariance', PACKAGE = 'MicrocreditLRVB', r_vp)
 }

@@ -550,10 +550,23 @@ Rcpp::List GetMCMCLogPriorDerivatives(
     for (int draw = 0; draw < n_draws; draw++) {
         Rcpp::List this_draw_list = draw_list[draw];
         MomentParameters<double> mp_draw = ConvertMomentsFromList(this_draw_list);
-        Derivatives derivs = GetLogPriorDerivativesFromDraw(mp_draw, pp, true);
+        Derivatives derivs = GetLogPriorDerivativesFromDraw(mp_draw, pp, true, true, true, true);
         log_prior_gradients[draw] = derivs.grad;
     }
     return log_prior_gradients;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List GetObsLogPriorDerivatives(const Rcpp::List r_obs_mp, const Rcpp::List r_pp,
+    bool include_mu, bool include_lambda, bool include_tau) {
+
+    MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
+    PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
+    Derivatives derivs =
+        GetLogPriorDerivativesFromDraw(mp_obs, pp, include_mu, include_lambda, include_tau, true);
+    Rcpp::List ret = ConvertDerivativesToList(derivs);
+    return ret;
 }
 
 

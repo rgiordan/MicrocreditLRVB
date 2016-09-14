@@ -86,22 +86,33 @@ results <-
 ###############################
 # Epsilon sensitivity by monte carlo
 
-n_sim <- 100
+n_sim <- 10000
 t_draws <- rt(n_sim, pp_perturb$mu_t_df) * pp_perturb$mu_t_scale + pp_perturb$mu_t_loc
-hist(t_draws, 50)
 
 mp_draw <- mp_opt
+terms_list <- list()
+debug_list <- list()
 for (sim in 1:n_sim){
+  cat(".")
+  mp_draw$mu_e_vec[1] <- mp_draw$mu_e_vec[2] <- t_draws[sim]
+  mp_draw$mu_e_outer <- mp_draw$mu_e_vec %*% t(mp_draw$mu_e_vec)
+  log_q_derivs <- GetLogVariationalDensityDerivatives(mp_draw, vp_opt, pp,
+                                                      include_mu=TRUE, include_lambda=FALSE,
+                                                      r_include_mu_groups=integer(),
+                                                      r_include_tau_groups=integer(),
+                                                      calculate_gradient=TRUE)
+
+  # TODO: this is wrong because my prior values do not have the normalizing constants.
+  log_prior_derivs <-
+    GetObsLogPriorDerivatives(mp_draw, pp,
+                              include_mu=TRUE, include_lambda=FALSE, include_tau=FALSE)
   
+  terms_list[[sim]] <- exp(log_q_derivs$val - log_prior_derivs$val) * log_q_derivs$grad
+  debug_list[[sim]] <- data.frame(log_q=log_q_derivs$val, log_prior=log_prior_derivs$val)
 }
 
-mp_draw$mu_e_vec[1] <- mp_draw$mu_e_vec[2] <- t_draws[sim]
-mp_draw$mu_e_outer <- mp_draw$mu_e_vec %*% t(mp_draw$mu_e_vec)
-log_q_derivs <- GetLogVariationalDensityDerivatives(mp_draw, vp_opt, pp,
-                                                    include_mu=TRUE, include_lambda=FALSE,
-                                                    r_include_mu_groups=integer(),
-                                                    r_include_tau_groups=integer(),
-                                                    calculate_gradient=TRUE)
+debug_df <- do.call(rbind, debug_list)
+
 
 
 #######################

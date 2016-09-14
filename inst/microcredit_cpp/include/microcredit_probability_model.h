@@ -204,29 +204,36 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
 // The global prior for a draw.
 template <typename Tlik, typename Tprior>
 typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihoodDraw(
-    MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu, PriorParameters<Tprior> const &pp) {
+    MatrixXT<Tlik> const &lambda, VectorXT<Tlik> mu,
+    PriorParameters<Tprior> const &pp,
+    bool include_mu, bool include_lambda) {
 
     typedef typename promote_args<Tlik, Tprior>::type T;
 
     T log_prior = 0.0;
 
-    // Mu:
-    VectorXT<T> mu_e = mu.template cast<T>();
-    MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
-    MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
+    if (include_mu) {
+        // Mu:
+        VectorXT<T> mu_e = mu.template cast<T>();
+        MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
+        MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
 
-    MultivariateNormalNatural<T> pp_mu = pp.mu;
-    log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+        MultivariateNormalNatural<T> pp_mu = pp.mu;
+        log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+    }
 
-    // Lambda
-    MatrixXT<T> lambda_t = lambda.template cast<T>();
-    MatrixXT<T> sigma = lambda_t.inverse();
-    T log_det_sigma = log(sigma.determinant());
-    T lambda_alpha = pp.lambda_alpha;
-    T lambda_beta = pp.lambda_beta;
-    T lambda_eta = pp.lambda_eta;
-    log_prior += EvaluateLKJPrior(sigma, log_det_sigma,
-                                  lambda_alpha, lambda_beta, lambda_eta);
+    if (include_lambda) {
+        // Lambda
+        MatrixXT<T> lambda_t = lambda.template cast<T>();
+        MatrixXT<T> sigma = lambda_t.inverse();
+        T log_det_sigma = log(sigma.determinant());
+        T lambda_alpha = pp.lambda_alpha;
+        T lambda_beta = pp.lambda_beta;
+        T lambda_eta = pp.lambda_eta;
+        log_prior += EvaluateLKJPrior(sigma, log_det_sigma,
+                                      lambda_alpha, lambda_beta, lambda_eta);
+    }
+
     return log_prior;
 };
 

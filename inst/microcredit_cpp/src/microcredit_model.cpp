@@ -173,11 +173,18 @@ Derivatives GetLogPriorDerivatives(
 Derivatives GetLogPriorDerivativesFromDraw(
     MomentParameters<double> const &draw,
     PriorParameters<double> const &pp,
+    bool const include_mu,
+    bool const include_lambda,
+    bool const include_tau,
     bool const calculate_gradient) {
 
     MicroCreditLogPriorDraw LogPrior(draw, pp);
+    LogPrior.include_mu = include_mu;
+    LogPrior.include_lambda = include_lambda;
+    LogPrior.include_tau = include_tau;
 
     double val;
+
     VectorXd grad = VectorXd::Zero(pp.offsets.encoded_size);
     MatrixXd hess = MatrixXd::Zero(0, 0);  // Do not return the Hessian.
     VectorXd theta = GetParameterVector(pp);
