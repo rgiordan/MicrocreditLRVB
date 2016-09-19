@@ -84,8 +84,7 @@ if (file.exists(model_file_rdata)) {
   load(model_file_rdata)
 } else {
   print("Compiling Stan model.")
-  model_file <-
-    file.path(stan_directory, paste(stan_model_name, "stan", sep="."))
+  model_file <- file.path(stan_directory, paste(stan_model_name, "stan", sep="."))
   model <- stan_model(model_file)
   save(model, file=model_file_rdata)
 }

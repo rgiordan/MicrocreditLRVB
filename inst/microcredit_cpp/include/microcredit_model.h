@@ -6,16 +6,16 @@
 # include <boost/math/tools/promotion.hpp>
 
 // Special functions for the Hessian.
-#include "stan_lrvb_headers.h"
+// #include "stan_lrvb_headers.h"
 
 # include "variational_parameters.h"
 # include "exponential_families.h"
 # include "monte_carlo_parameters.h"
 # include "microcredit_model_parameters.h"
 
-# include <stan/math.hpp>
-# include <stan/math/fwd/mat.hpp>
-# include <stan/math/mix/mat/functor/hessian.hpp>
+// # include <stan/math.hpp>
+# include <stan/math/mix/mat.hpp>
+// # include <stan/math/mix/mat/functor/hessian.hpp>
 # include <boost/math/complex/fabs.hpp> // Why not included in stan?
 
 using Eigen::MatrixXd;
