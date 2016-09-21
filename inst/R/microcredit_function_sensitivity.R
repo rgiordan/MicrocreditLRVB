@@ -80,95 +80,55 @@ vp_opt_perturb$mu_loc
 # Calculate epsilon sensitivity
 
 
-#########################################
-# Monte Carlo integrate using q
-
-# You could also do this more numerically stably with a Cholesky decomposition.
-lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
-
-GetWeightedInfuenceFunctionVector <- function(mu) {
-  mu_prior_val <- GetMuLogPrior(mu, pp)
-  mu_q_res <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
-  mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
-  sens_pre_factor <- exp(mu_t_prior_val - mu_prior_val)
-  # sens_lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_res$grad)
-  # sens <- sens_pre_factor * sens_lrvb_term
-  sens <- sens_pre_factor * lrvb_pre_factor %*% mu_q_res$grad
-  weight <- exp(mu_t_prior_val - mu_q_res$val)
-  return(list(sens=sens, weight=weight, sens_pre_factor=sens_pre_factor))
-}
-
-
-q_draws <- DrawFromQMu(100000, vp_opt, rescale=1)
-q_sens_list <- list()
-pb <- txtProgressBar(min=1, max=nrow(q_draws), style=3)
-for (ind in 1:nrow(q_draws)) {
-  setTxtProgressBar(pb, ind)
-  q_sens_list[[ind]] <- GetWeightedInfuenceFunctionVector(q_draws[ind, ])
-}
-close(pb)
-
-q_weights <- unlist(lapply(q_sens_list, function(entry) { entry$weight} ))
-max(q_weights) / median(q_weights)
-# hist(log10(weights), 1000)
-q_sens_pre_factors <- unlist(lapply(q_sens_list, function(entry) { entry$sens_pre_factor} ))
-q_sens_vec_list <- lapply(q_sens_list, function(entry) { as.numeric(entry$sens) } )
-# q_sens_vec_mean <- Reduce(`+`, q_sens_vec_list) / sum(weights)
-q_sens_vec_mean <- Reduce(`+`, q_sens_vec_list) / nrow(q_draws)
-sum(q_weights) / nrow(q_draws)
-
-q_diagnostic_df <- data.frame(sens_pre_factor=q_sens_pre_factors, weight=q_weights)
-q_diagnostic_df <- cbind(q_diagnostic_df, data.frame(q_draws))
-ggplot(q_diagnostic_df) + geom_point(aes(x=X1, y=X2, color=sens_pre_factor))
-mean(sens_pre_factors)
-
-
-
-diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
-
-foo <-
-  rbind(
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, q_sens_vec_mean), metric="mean", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),      metric="mean", method="diff"))
-bar <- dcast(foo, par + component + group ~ method, value.var="val")
-
-ggplot(bar) +
-  geom_point(aes(x=sens, y=diff, color=par)) +
-  geom_abline((aes(intercept=0, slope=1)))
-
 
 #########################################
-# Monte Carlo integrate using a uniform
+# Monte Carlo integrate using a importance sampling
 
-# Samples per dimension
+# Monte Carlo samples
 n_samples <- 10000
-grid_range <- 3 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
-grid_center <- mp_opt$mu_e_vec
 
 # You could also do this more numerically stably with a Cholesky decomposition.
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
-u_draws <- matrix(NA, n_samples, vp_opt$k_reg)
-for (k in 1:vp_opt$k_reg) {
-  # Rescale and center uniform draws
-  u_draws[, k] <- grid_range[k] * (2 * runif(n_samples) - 1) + grid_center[k]
+
+if (FALSE) {
+  # Uniform proposals
+  grid_range <- 3 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
+  grid_center <- mp_opt$mu_e_vec
+  
+  GetULogDensity <- function(mu) {
+    log(prod(1 / (2 * grid_range)))
+  }
+  
+  u_draws <- matrix(NA, n_samples, vp_opt$k_reg)
+  for (k in 1:vp_opt$k_reg) {
+    # Rescale and center uniform draws
+    u_draws[, k] <- grid_range[k] * (2 * runif(n_samples) - 1) + grid_center[k]
+  }
+} else {
+  grid_range <- 1.5 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
+  u_cov <- diag(grid_range ^ 2)
+  grid_center <- mp_opt$mu_e_vec
+  
+  GetULogDensity <- function(mu) {
+    dmvnorm(mu, mean=grid_center, sigma=u_cov, log=TRUE)  
+  }
+  
+  u_draws <- rmvnorm(n_samples, mean=grid_center, sigma=u_cov)
 }
 
-u_density <- prod(1 / (2 * grid_range))
 
 GetUniformWeightedInfuenceFunctionVector <- function(mu) {
   mu_prior_val <- GetMuLogPrior(mu, pp)
   mu_q_res <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
   mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
-  weight <- exp(mu_t_prior_val) / u_density
-  sens_pre_factor <- exp(mu_t_prior_val + mu_q_res$val - mu_prior_val) / u_density # This includes the weight.
-  # sens_lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_res$grad)
-  # sens <- sens_pre_factor * sens_lrvb_term
-  sens <- sens_pre_factor * lrvb_pre_factor %*% mu_q_res$grad
+  u_log_density <- GetULogDensity(mu)
+  weight <- exp(mu_t_prior_val- u_log_density)
+  sens_pre_factor <- exp(mu_q_res$val - mu_prior_val)
+  sens <- sens_pre_factor * weight * lrvb_pre_factor %*% mu_q_res$grad
   return(list(sens=sens, weight=weight, sens_pre_factor=sens_pre_factor))
 }
 
-sens_sum <- 0
 sens_list <- list()
 pb <- txtProgressBar(min=1, max=nrow(u_draws), style=3)
 for (ind in 1:nrow(u_draws)) {
@@ -180,62 +140,70 @@ close(pb)
 weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
 max(weights) / median(weights)
 # hist(log10(weights), 1000)
+summary(weights)
 mean(weights)
+sum(weights) / n_samples
 
 sens_pre_factors <- unlist(lapply(sens_list, function(entry) { entry$sens_pre_factor} ))
-hist(log10(sens_pre_factors), 1000)
+max(sens_pre_factors) / median(sens_pre_factors)
+summary(sens_pre_factors)
+
+
+# hist(log10(sens_pre_factors), 1000)
 sens_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$sens) } )
+sens_vec_list_squared <- lapply(sens_list, function(entry) { as.numeric(entry$sens) ^ 2 } )
 length(sens_vec_list)
 # sens_vec_mean <- Reduce(`+`, sens_vec_list) / sum(weights)
-sens_vec_mean <- Reduce(`+`, sens_vec_list) / n_samples
+sens_vec_mean <- Reduce(`+`, sens_vec_list) / n_samples # TODO: why this and not the sum of the weights?
+sens_vec_mean_square <- Reduce(`+`, sens_vec_list_squared) / n_samples
+sens_vec_sd <- sqrt(sens_vec_mean_square - sens_vec_mean^2) / sqrt(n_samples)
 
 diagnostic_df <- data.frame(sens_pre_factor=sens_pre_factors, weight=weights)
 diagnostic_df <- cbind(diagnostic_df, data.frame(u_draws))
-ggplot(diagnostic_df) + geom_point(aes(x=X1, y=X2, color=sens_pre_factor))
 mean(sens_pre_factors)
 sd(sens_pre_factors)
-hist((sens_pre_factors), 100)
-hist(log10(weights))
+# ggplot(diagnostic_df) + geom_point(aes(x=X1, y=X2, color=sens_pre_factor))
+# hist((sens_pre_factors), 100)
+# hist(log10(weights))
 
 
 diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
 
-foo <-
+sens_results <-
   rbind(
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, q_sens_vec_mean), metric="mean", method="q_sens"),
     SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sens_vec_mean), metric="mean", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),      metric="mean", method="diff"))
-bar <- dcast(foo, par + component + group ~ method, value.var="val")
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sens_vec_sd), metric="sd", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),      metric="mean", method="diff")) %>%
+  dcast(par + component + group ~ method + metric, value.var="val")
 
-ggplot(bar) +
-  geom_point(aes(x=sens, y=diff, color=par)) +
+ggplot(sens_results) +
+  geom_errorbar(aes(x=diff_mean, y=sens_mean, ymax=sens_mean + 2 * sens_sd, ymin = sens_mean - 2 * sens_sd), color="gray") +
+  geom_point(aes(x=diff_mean, y=sens_mean, color=par)) +
   geom_abline((aes(intercept=0, slope=1)))
 
 
+# Look at one component in detail
 
 component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
-sens_vec_mean[component]
-diff_vec[component]
-
-foo <- unlist(lapply(sens_list, function(entry) { as.numeric(entry$sens[component]) } ))
-
-
-# component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
 # component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
 # component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
 # component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
 # component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
 # component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
-component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+# component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
 
-comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { entry[component] }))
-q_comp_sens_vec <- unlist(lapply(q_sens_vec_list, function(entry) { entry[component] }))
-hist(comp_sens_vec, 1000)
-hist(q_comp_sens_vec, 1000)
-mean(comp_sens_vec)
-sd(comp_sens_vec) / sqrt(n_samples)
-filter(bar, par == "mu_g", component == 1, group == 7)
+comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
+q_comp_sens_vec <- unlist(lapply(q_sens_vec_list, function(entry) { as.numeric(entry[component]) }))
 
+component_df <- cbind(data.frame(sens_vec=comp_sens_vec), diagnostic_df)
+
+ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) +
+  scale_color_gradient2()
+
+# ggplot(component_df) + geom_histogram(aes(x=log10(sens_vec)), bins=1000)
+
+mean(component_df$sens_vec)
+sens_vec_sd[component]
 
 #########################################
 # Grid integrate
