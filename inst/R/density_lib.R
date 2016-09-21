@@ -8,9 +8,7 @@ GetMuLogPrior <- function(mu, pp) {
 
 DrawFromQMu <- function(n_draws, vp_opt, rescale=1) {
   mu_info <- vp_opt$mu_info
-  if (double_var) {
-    mu_info <- mu_info / (rescale ^ 2)
-  }
+  mu_info <- mu_info / (rescale ^ 2)
   return(rmvnorm(n_draws, vp_opt$mu_loc, solve(mu_info)))
 }
 
