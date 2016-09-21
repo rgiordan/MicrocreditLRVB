@@ -319,3 +319,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// student_t_log
+double student_t_log(double obs, double prior_df, double prior_loc, double prior_scale);
+RcppExport SEXP MicrocreditLRVB_student_t_log(SEXP obsSEXP, SEXP prior_dfSEXP, SEXP prior_locSEXP, SEXP prior_scaleSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type obs(obsSEXP);
+    Rcpp::traits::input_parameter< double >::type prior_df(prior_dfSEXP);
+    Rcpp::traits::input_parameter< double >::type prior_loc(prior_locSEXP);
+    Rcpp::traits::input_parameter< double >::type prior_scale(prior_scaleSEXP);
+    rcpp_result_gen = Rcpp::wrap(student_t_log(obs, prior_df, prior_loc, prior_scale));
+    return rcpp_result_gen;
+END_RCPP
+}

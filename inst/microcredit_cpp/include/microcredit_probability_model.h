@@ -160,7 +160,23 @@ template <typename T> T EvaluateStudentTPrior(
         T log_t = stan::math::student_t_log(draws(ind), prior_df, prior_loc, prior_scale);
         e_log_prior += log_t;
     }
-    return e_log_prior;
+    return e_log_prior / draws.size();
+};
+
+
+// Use simulation to estimate an independent normal prior.  Even though it
+// has a closed form, this will be more comparable with the student t prior.
+template <typename T> T EvaluateNormalPrior(
+    MonteCarloNormalParameter mu_draws, T mu_mean, T mu_var,
+    T prior_loc, T prior_scale) {
+
+    VectorXT<T> draws = mu_draws.Evaluate(mu_mean, mu_var);
+    T e_log_prior = 0;
+    for (int ind = 0; ind < draws.size(); ind++) {
+        T log_norm = stan::math::normal_log(draws(ind), prior_loc, prior_scale);
+        e_log_prior += log_norm;
+    }
+    return e_log_prior / draws.size();
 };
 
 
@@ -181,8 +197,17 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
         for (int k = 0; k < vp.k; k++) {
             T mu_loc = vp.mu.loc(k);
             T mu_var = 1 / vp.mu.info.mat(k, k);
-            log_prior += EvaluateStudentTPrior(
-                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
+
+            // TODO: document carefully if you're going to do this.
+            // Negative degrees of freedom will encode independent normal
+            // priors.
+            if (pp.mu_t_df < 0) {
+              log_prior += EvaluateNormalPrior(
+                  vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale);
+            } else {
+              log_prior += EvaluateStudentTPrior(
+                  vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
+            }
         }
     } else {
         MultivariateNormalNatural<T> vp_mu(vp.mu);

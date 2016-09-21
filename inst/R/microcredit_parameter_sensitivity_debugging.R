@@ -120,6 +120,10 @@ debug_df <- do.call(rbind, debug_list)
 
 # stop("Graphs follow -- not executing.")
 
+results <-
+  rbind(SummarizeRawMomentParameters(mp_opt, metric="mean", method="mfvb_norm"),
+        SummarizeRawMomentParameters(mp_opt_perturb, metric="mean", method="mfvb_t"))
+
 mean_results <-
   dcast(results, par + component + group ~ method, value.var="val")
 

@@ -148,6 +148,7 @@ public:
 
         vp.mu = mu;
         vp.lambda = lambda;
+        vp.mu_draws = mu_draws;
 
         for (int g = 0; g < n_g; g++) {
             vp.mu_g[g] = mu_g[g];

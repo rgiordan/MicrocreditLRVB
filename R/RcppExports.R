@@ -93,3 +93,7 @@ EvaluateLKJPriorDraw <- function(r_sigma, log_det_sigma, alpha, beta, eta) {
     .Call('MicrocreditLRVB_EvaluateLKJPriorDraw', PACKAGE = 'MicrocreditLRVB', r_sigma, log_det_sigma, alpha, beta, eta)
 }
 
+student_t_log <- function(obs, prior_df, prior_loc, prior_scale) {
+    .Call('MicrocreditLRVB_student_t_log', PACKAGE = 'MicrocreditLRVB', obs, prior_df, prior_loc, prior_scale)
+}
+

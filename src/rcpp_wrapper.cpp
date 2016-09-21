@@ -608,3 +608,10 @@ double EvaluateLKJPriorDraw(
     MatrixXd sigma = r_sigma;
     return EvaluateLKJPrior(sigma, log_det_sigma, alpha, beta, eta);
 }
+
+
+// [[Rcpp::export]]
+double student_t_log(double obs, double prior_df,
+                     double prior_loc, double prior_scale) {
+    return stan::math::student_t_log(obs, prior_df, prior_loc, prior_scale);
+}
