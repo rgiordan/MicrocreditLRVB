@@ -56,13 +56,13 @@ vb_fit <- FitVariationalModel(x, y, y_g, fit_env$vb_fit$vp_opt, pp)
 vp_opt <- vb_fit$vp_opt
 mp_opt <- GetMoments(vp_opt)
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
+lrvb_cov <- lrvb_terms$lrvb_cov
 
 fit_env$vb_fit$vp_opt$mu_loc
 vp_opt$mu_loc
 
-
 pp_perturb <- pp
-pp_perturb$mu_t_df <- 10000
+pp_perturb$mu_t_df <- 2
 pp_perturb$mu_student_t_prior <- TRUE
 
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, fit_env$vb_fit$vp_opt, pp_perturb, fit_bfgs=FALSE)
@@ -87,13 +87,13 @@ vp_opt_perturb$mu_loc
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
 GetWeightedInfuenceFunctionVector <- function(mu) {
-  mu_prior_val <- GetMuLogPrior(mu)
-  mu_q_res <- GetMuLogDensity(mu, TRUE)
-  mu_t_prior_val <- GetMuLogStudentTPrior(mu)
+  mu_prior_val <- GetMuLogPrior(mu, pp)
+  mu_q_res <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
+  mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
   sens_pre_factor <- exp(mu_t_prior_val - mu_prior_val)
-  sens_lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_res$grad)
-  # sens <- sens_pre_factor * lrvb_pre_factor %*% mu_q_res$grad
-  sens <- sens_pre_factor * sens_lrvb_term
+  # sens_lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_res$grad)
+  # sens <- sens_pre_factor * sens_lrvb_term
+  sens <- sens_pre_factor * lrvb_pre_factor %*% mu_q_res$grad
   weight <- exp(mu_t_prior_val - mu_q_res$val)
   return(list(sens=sens, weight=weight, sens_pre_factor=sens_pre_factor))
 }
@@ -101,28 +101,43 @@ GetWeightedInfuenceFunctionVector <- function(mu) {
 
 weight_sum <- 0
 sens_sum <- 0
-q_draws <- DrawFromQMu(1000, vp_opt)
+q_draws <- DrawFromQMu(50000, vp_opt, rescale=1)
 sens_list <- list()
 for (ind in 1:nrow(q_draws)) {
+  if (ind %% 100 == 0) {
+    cat(".")
+  }
   sens_list[[ind]] <- GetWeightedInfuenceFunctionVector(q_draws[ind, ])
 }
 
 weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
+max(weights) / median(weights)
+hist(log10(weights), 1000)
 sens_pre_factors <- unlist(lapply(sens_list, function(entry) { entry$sens_pre_factor} ))
 sens_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$sens) } )
-sens_vec_mean <- Reduce(`+`, sens_vec_list) / sum(weights)
-# sens_vec_mean <- Reduce(`+`, sens_vec_list) / nrow(q_draws)
+# sens_vec_mean <- Reduce(`+`, sens_vec_list) / sum(weights)
+sens_vec_mean <- Reduce(`+`, sens_vec_list) / nrow(q_draws)
 sum(weights) / nrow(q_draws)
 
 diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
 
-plot(sens_vec_mean, diff_vec); abline(0, 1)
+foo <-
+  rbind(
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sens_vec_mean), metric="mean", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),      metric="mean", method="diff"))
+bar <- dcast(foo, par + component + group ~ method, value.var="val")
+
+ggplot(bar) +
+  geom_point(aes(x=sens, y=diff, color=par)) +
+  geom_abline((aes(intercept=0, slope=1)))
+
 
 
 component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
 sens_vec_mean[component]
 diff_vec[component]
 
+foo <- unlist(lapply(sens_list, function(entry) { as.numeric(entry$sens[component]) } ))
 
 
 #########################################
@@ -133,9 +148,9 @@ component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
 GetWeightedInfuenceFunctionVectorGrid <- function(mu) {
-  mu_prior_val <- GetMuLogPrior(mu)
-  mu_q_res <- GetMuLogDensity(mu, TRUE)
-  mu_t_prior_val <- GetMuLogStudentTPrior(mu)
+  mu_prior_val <- GetMuLogPrior(mu, pp)
+  mu_q_res <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
+  mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
 
   sens_pre_factor <- exp(mu_q_res$val + mu_t_prior_val - mu_prior_val)
   # cat(mu_q_res$val, " ", mu_t_prior_val, " ", mu_prior_val, "\n")
@@ -149,13 +164,16 @@ GetWeightedInfuenceFunctionVectorGrid <- function(mu) {
 
 grid_range <- 3 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
 
-grid_n <- 30
+grid_n <- 50
 mu_influence <- EvaluateOn2dGrid(FUN=GetWeightedInfuenceFunctionVectorGrid,
                                  mp_opt$mu_e_vec, -grid_range[1], grid_range[1], -grid_range[2], grid_range[2],
                                  len=grid_n)
 sum(mu_influence$val) * (2 * grid_range[1] / grid_n) * (2 * grid_range[2] / grid_n)
 diff_vec[component]
 sens_vec_mean[component]
+
+
+
 
 # val_clip <- 10
 # mu_influence$val <- ifelse(abs(mu_influence$val) > val_clip, val_clip * sign(mu_influence$val), mu_influence$val)
@@ -201,8 +219,8 @@ lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
 mu <- mp_opt$mu_e_vec + c(0.1, 0.2)
 GetInfluenceFunctionVector <- function(mu) {
-  mu_prior_val <- GetMuLogPrior(mu)
-  mu_q_res <- GetMuLogDensity(mu, TRUE)
+  mu_prior_val <- GetMuLogPrior(mu, pp)
+  mu_q_res <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
   exp(mu_q_res$val - mu_prior_val) * lrvb_pre_factor %*% mu_q_res$grad
 }
 
@@ -227,7 +245,7 @@ ggplot(mu_influence) +
                 "\nCentered on the posterior", sep=""))
 
 width <- 2
-q_mu <- EvaluateOn2dGrid(function(mu) { exp(GetMuLogDensity(mu, FALSE)$val) },
+q_mu <- EvaluateOn2dGrid(function(mu) { exp(GetMuLogDensity(mu, vp_opt, pp, FALSE)$val) },
                          mp_opt$mu_e_vec, -width, width, -width, width, len=30)
 ggplot(q_mu) +
   geom_tile(aes(x=theta1, y=theta2, fill=val)) +
