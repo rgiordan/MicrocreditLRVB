@@ -77,14 +77,19 @@ epsilon_vec <- seq(0, 1e-3, length.out=20)
 for (epsilon in epsilon_vec) {
   cat("-------------   ", epsilon , "\n")
   pp_perturb$epsilon <- epsilon
-  vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
-  vp_opt_perturb <- vb_fit_perturb$vp_opt
-  mp_opt_perturb <- GetMoments(vp_opt_perturb)
-  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb
+  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+  vp_opt_perturb_eps <- vb_fit_perturb_eps$vp_opt
+  mp_opt_perturb_eps <- GetMoments(vp_opt_perturb_eps)
+  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb_eps
 }
-plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
-plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
-
+# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
+# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
+epsilon_df <- data.frame(epsilon=epsilon_vec,
+                         val=unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )),
+                         parameter_name="mu_g[1][1]")
+ggplot(epsilon_df) +
+  geom_point(aes(x=epsilon, y=val)) +
+  ggtitle(unique(epsilon_df$parameter_name))
 
 pp_perturb$epsilon <- 1
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
@@ -280,20 +285,19 @@ component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
 influence_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$influence_fun) } )
 comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
 comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
+weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
 
 component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), diagnostic_df)
 component_df$component_name <- component_name
 
-p1 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) + scale_color_gradient2() + ggtitle("Sensitivity")
-p2 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence)) + scale_color_gradient2() + ggtitle("Influence")
-p3 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) + scale_color_gradient2() + ggtitle("prior ratio")
-
-mean(component_df$influence)
+p1 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) +
+  scale_color_gradient2() + ggtitle("Sensitivity")
+p2 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence)) +
+  scale_color_gradient2() + ggtitle("Influence")
+p3 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) +
+  scale_color_gradient2() + ggtitle("prior ratio")
 
 multiplot(p1, p2, p3)
-
-mean(component_df$sens_vec)
-sens_vec_sd[component]
 
 # Estimate error
 u_dist <- u_draws - rep(colMeans(u_draws), each=nrow(u_draws))
@@ -303,9 +307,40 @@ max(abs(comp_influence_vec[u_extreme]))
 ggplot(component_df[u_extreme, ]) + geom_point(aes(x=X1, y=X2, color=abs(influence))) + scale_color_gradient2()
 
 
+
+############################################
+# Worst-case
+
+# component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
+# component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
+# component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
+# component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
+# component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
+# component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
+component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+
+influence_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$influence_fun) } )
+comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
+comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
+weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
+
+component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), diagnostic_df)
+component_df$component_name <- component_name
+
+component_df$influence2plus <- ifelse(component_df$influence > 0, component_df$influence^2, 0)
+component_df$influence2minus <- ifelse(component_df$influence < 0, component_df$influence^2, 0)
+
+# Worst-case
+ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence2plus)) + scale_color_gradient2() + ggtitle("Influence squared")
+ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence2minus)) + scale_color_gradient2() + ggtitle("Influence")
+
+sum(component_df$influence2plus * weights)
+sum(component_df$influence2minus * weights)
+
+
 ##############################
 # Save selected results
 
 if (save_results) {
-  save(sens_results, pp, pp_perturb, component_df, file=results_file)
+  save(sens_results, pp, pp_perturb, component_df, epsilon_df, file=results_file)
 }
