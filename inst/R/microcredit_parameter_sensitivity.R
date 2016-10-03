@@ -6,22 +6,37 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_robust"
 #analysis_name <- "simulated_data_nonrobust"
-analysis_name <- "simulated_data_lambda_beta"
+#analysis_name <- "simulated_data_lambda_beta"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
+# If true, save the results to a file readable by knitr.
+save_results <- TRUE
+results_file <- file.path(project_directory,
+                          paste(analysis_name, "parameteric_sensitivity.Rdata", sep="_"))
+
+
+#################################################
+# Load MCMC and VB results.
+
 fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdata", sep=""))
 print(paste("Loading fits from ", fit_file))
 
-fit_env <- environment()
-load(fit_file, envir=fit_env)
-fit_env <- as.list(fit_env)
-x <- fit_env$stan_results$stan_dat$x
-y <- fit_env$stan_results$stan_dat$y
-y_g <- fit_env$stan_results$stan_dat$y_g
+LoadIntoEnvironment <- function(filename) {
+  my_env <- environment()
+  load(filename, envir=my_env)
+  return(my_env)
+}
+
+fit_env <- LoadIntoEnvironment(fit_file)
+stan_results <- fit_env$stan_results
+x <- stan_results$stan_dat$x
+y <- stan_results$stan_dat$y
+y_g <- stan_results$stan_dat$y_g
+
 
 ###########################################
 # Extract results
@@ -83,7 +98,27 @@ results_mcmc_pert <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample_pertu
 results_mcmc_pert$method <- "mcmc_perturbed"
 
 results <- rbind(results_vb, results_mcmc)
-result_pert <- rbind(results_vb, results_lrvb_pert, results_vb_pert, results_mcmc, results_mcmc_pert)
+results_pert <- rbind(results_vb, results_lrvb_pert, results_vb_pert, results_mcmc, results_mcmc_pert)
+
+# A result summarizing the VB prior sensitivity
+vb_sensitivity_results <- data.frame()
+AppendVBSensitivityResults <- function(ind, prior_param, display_expression) {
+  this_mp <- GetMomentsFromVector(mp_opt, prior_sens[, ind])
+  vb_sensitivity_results <<- rbind(
+    vb_sensitivity_results,
+    SummarizeRawMomentParameters(this_mp, metric=prior_param, method="lrvb") %>%
+      mutate(expression=display_expression))
+}
+AppendVBSensitivityResults(pp_indices$mu_info[1, 2], "mu_info_offdiag", "Lambda[12]^mu")
+AppendVBSensitivityResults(pp_indices$mu_info[1, 1], "mu_info_11", "Lambda[11]^mu")
+AppendVBSensitivityResults(pp_indices$mu_info[1, 1], "mu_info_22", "Lambda[22]^mu")
+AppendVBSensitivityResults(pp_indices$lambda_eta, "lambda_eta", "eta")
+AppendVBSensitivityResults(pp_indices$lambda_alpha, "lambda_alpha", "Lambda^alpha")
+AppendVBSensitivityResults(pp_indices$lambda_beta, "lambda_beta", "Lambda^beta")
+AppendVBSensitivityResults(pp_indices$tau_alpha, "tau_alpha", "tau[alpha]")
+AppendVBSensitivityResults(pp_indices$tau_beta, "tau_beta", "tau[beta]")
+
+
 
 ##########################################
 # Get MCMC sensitivity measures
@@ -141,12 +176,13 @@ prior_sens_results_graph <-
     dcast(par + component + group + metric + draws ~ method, value.var="val"),
   by=c("par", "component", "group", "metric"))
 
+prior_sens_results_graph$ind_name <- ind_name
 
 ggplot(prior_sens_results_graph) +
   geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0)) +
   facet_grid(~ draws) +
-  ggtitle(paste("Local sensitivity to", ind_name,
+  ggtitle(paste("Local sensitivity to", unique(prior_sens_results_graph$ind_name),
                 "as measured by VB and MCMC, grouped by # of MCMC draws"))
 
 
@@ -194,7 +230,7 @@ ggplot(filter(sd_results, par == "mu_g")) +
 # Perturbations
 
 mean_pert_results <-
-  filter(result_pert, metric == "mean") %>%
+  filter(results_pert, metric == "mean") %>%
   dcast(par + component + group ~ method, value.var="val") %>%
   mutate(mfvb_diff = mfvb_perturbed - mfvb,
          lrvb_diff = lrvb_perturbed - mfvb,
@@ -208,15 +244,6 @@ ggplot(filter(mean_pert_results, par != "mu_g")) +
 ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mcmc_diff, y=mfvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_pert_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc_perturbed, y=mfvb_perturbed, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_pert_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc_perturbed, y=mfvb_perturbed, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
 
 # MCMC vs predicted change.
 ggplot(filter(mean_pert_results, par != "mu_g")) +
@@ -236,4 +263,37 @@ ggplot(filter(mean_pert_results, par != "mu_g")) +
 ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_point(aes(x=mfvb_diff, y=lrvb_diff, color=par), size=3) +
   geom_abline(aes(slope=1, intercept=0))
+
+
+
+# Full bar chart of the vb changes
+sens_graph_df <- filter(vb_sensitivity_results, par == "mu",
+                        metric %in% c("mu_info_11", "mu_info_12", "mu_info_22", "lambda_eta"))
+sens_breaks <- unique(sens_graph_df$metric)
+
+WrapInExpressions <- function(string_vec) {
+  ExprWrap <- function(x) { paste("expression(", x, ")", collapse="", sep="") }
+  expr_string_vec <- sapply(string_vec, ExprWrap)
+  paste("c(", paste(expr_string_vec, collapse=", "), ")", sep="")
+}
+
+
+ggplot(sens_graph_df) +
+  geom_bar(aes(x=paste(par, component), y=val, fill=metric),
+           position="dodge", stat="identity") +
+  scale_fill_discrete(name="Prior parameter",
+                      breaks=sens_breaks,
+                      labels=eval(parse(text=WrapInExpressions(unique(sens_graph_df$expression))))) +
+  scale_x_discrete(breaks=c("e_mu_1_-1", "e_mu_2_-1"),
+                   labels=c(expression(mu), expression(tau))) +
+  xlab("Prior top-level mean component") + ylab("Sensitivity") +
+  ggtitle("Derivative of the posterior mean")
+
+
+#######################################
+# Export selected results for use in the paper
+
+if (save_results) {
+  save(results_pert, pp, vb_sensitivity_results, prior_sens_results_graph, file=results_file)
+}
 
