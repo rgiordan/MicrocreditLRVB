@@ -31,7 +31,7 @@ y_g <- stan_results$stan_dat$y_group
 pp$mu_t_loc <- 0
 pp$mu_t_scale <- 1
 pp$mu_t_df <- 20
-pp$mu_student_t_prior <- FALSE
+pp$epsilon <- 0
 pp$encoded_size <- length(GetVectorFromPriors(pp))
 
 #############################
@@ -50,7 +50,7 @@ vp_reg$mu_draws <- qnorm(seq(1 / (n_mu_draws + 1), 1 - 1 / (n_mu_draws + 1),
 # Fit with a t prior
 
 pp_perturb <- pp
-pp_perturb$mu_student_t_prior <- TRUE
+pp_perturb$epsilon <- 1
 
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_reg, pp_perturb)
 vp_opt_perturb <- vb_fit_perturb$vp_opt
@@ -106,7 +106,7 @@ for (sim in 1:n_sim){
   log_prior_derivs <-
     GetObsLogPriorDerivatives(mp_draw, pp,
                               include_mu=TRUE, include_lambda=FALSE, include_tau=FALSE)
-  
+
   terms_list[[sim]] <- exp(log_q_derivs$val - log_prior_derivs$val) * log_q_derivs$grad
   debug_list[[sim]] <- data.frame(log_q=log_q_derivs$val, log_prior=log_prior_derivs$val)
 }

@@ -7,8 +7,8 @@ library(mvtnorm)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_nonrobust"
 #analysis_name <- "simulated_data_lambda_beta"
 
 project_directory <-
@@ -39,15 +39,15 @@ results_file <- file.path(project_directory,
 # Extract results
 
 pp <- fit_env$stan_results$pp
+pp$monte_carlo_prior <- TRUE
 
 # To ensure equivalence, set pp to fit using a normal prior, but evaluated using Monte Carlo.
-pp$mu_student_t_prior <- TRUE
+pp$epsilon <- 0
 pp$mu_t_loc <- 0
 pp$mu_t_scale <- 1 / sqrt(pp$mu_info[1, 1])
-pp$mu_t_df <- -1 # Negative degrees of freedom means use a normal distribution.
 
 pp_perturb <- pp
-pp_perturb$mu_student_t_prior <- TRUE
+pp_perturb$epsilon <- 1
 pp_perturb$mu_t_scale <- pp$mu_t_scale
 pp_perturb$mu_t_df <- 1
 
@@ -72,6 +72,21 @@ lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 lrvb_cov <- lrvb_terms$lrvb_cov
 
 # Fit with the t prior
+moments_list <- list()
+epsilon_vec <- seq(0, 1e-3, length.out=20)
+for (epsilon in epsilon_vec) {
+  cat("-------------   ", epsilon , "\n")
+  pp_perturb$epsilon <- epsilon
+  vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+  vp_opt_perturb <- vb_fit_perturb$vp_opt
+  mp_opt_perturb <- GetMoments(vp_opt_perturb)
+  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb
+}
+plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
+plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
+
+
+pp_perturb$epsilon <- 1
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
 vp_opt_perturb <- vb_fit_perturb$vp_opt
 mp_opt_perturb <- GetMoments(vp_opt_perturb)
@@ -79,6 +94,7 @@ mp_opt_perturb <- GetMoments(vp_opt_perturb)
 # How different are they?
 diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
 max(abs(diff_vec))
+mp_opt_perturb$mu_e_vec - mp_opt$mu_e_vec
 
 
 #############################
@@ -94,7 +110,7 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 # Monte Carlo integrate using a importance sampling
 
 # Monte Carlo samples
-n_samples <- 30000
+n_samples <- 50000
 
 # You could also do this more numerically stably with a Cholesky decomposition.
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
@@ -103,11 +119,11 @@ if (FALSE) {
   # Uniform proposals
   grid_range <- 3 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
   grid_center <- mp_opt$mu_e_vec
-  
+
   GetULogDensity <- function(mu) {
     log(prod(1 / (2 * grid_range)))
   }
-  
+
   u_draws <- matrix(NA, n_samples, vp_opt$k_reg)
   for (k in 1:vp_opt$k_reg) {
     # Rescale and center uniform draws
@@ -117,24 +133,27 @@ if (FALSE) {
   # Proposals based on q
   u_mean <- mp_opt$mu_e_vec
   # Increase the covariance for sampling.  How much is enough?
-  u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)
+  u_cov <- (1 ^ 2) * solve(vp_opt$mu_info)
   GetULogDensity <- function(mu) {
-    dmvnorm(mu, mean=u_mean, sigma=u_cov, log=TRUE)  
+    dmvnorm(mu, mean=u_mean, sigma=u_cov, log=TRUE)
   }
-  
+
   u_draws <- rmvnorm(n_samples, mean=u_mean, sigma=u_cov)
 }
 
 
+draw <- mp_opt
 GetUniformWeightedInfuenceFunctionVector <- function(mu) {
   mu_prior_val <- GetMuLogPrior(mu, pp)
-  mu_q_derivs <- GetMuLogDensity(mu, vp_opt, pp, TRUE)
+  mu_q_derivs <- GetMuLogDensity(mu, vp_opt, draw, pp, TRUE, TRUE)
   mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
   u_log_density <- GetULogDensity(mu)
-  
-  lrvb_term_pre <- lrvb_pre_factor %*% mu_q_derivs$grad
-  lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad)
-  
+
+  # It doesn't seem to matter if I just use the inverse.
+  # lrvb_term_pre <- lrvb_pre_factor %*% mu_q_derivs$grad
+  # lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad)
+  lrvb_term <- lrvb_pre_factor %*% mu_q_derivs$grad
+
   # The vector of sensitivities.
   sens <- exp(mu_t_prior_val - u_log_density + mu_q_derivs$val - mu_prior_val) * lrvb_term
 
@@ -142,20 +161,20 @@ GetUniformWeightedInfuenceFunctionVector <- function(mu) {
   weight <- exp(mu_t_prior_val- u_log_density)
   sens_pre_factor <- exp(mu_q_derivs$val - mu_prior_val)
   prior_ratio <- exp(mu_t_prior_val - mu_prior_val)
-  influence_fun <- sens_pre_factor * lrvb_term 
-  
+  influence_fun <- sens_pre_factor * lrvb_term
+
   # The "mean value theorem" sensitivity
   mv_term <- (mu_t_prior_val - mu_prior_val) * prior_ratio / (prior_ratio - 1)
   mv_sens <- lrvb_term * mv_term * exp(mu_q_derivs$val - u_log_density)
   mv_int <- (mu_t_prior_val - mu_prior_val) *
             exp(mu_t_prior_val + mu_prior_val) / (exp(mu_t_prior_val) - exp(mu_prior_val))
-  
+
   return(list(sens=sens, weight=weight, sens_pre_factor=sens_pre_factor,
               influence_fun=influence_fun, prior_ratio=prior_ratio,
-              mv_sens=mv_sens, mv_term=mv_term, mv_int=mv_int,
-              lrvb_term=lrvb_term, lrvb_term_pre=lrvb_term_pre))
+              mv_sens=mv_sens, mv_term=mv_term, mv_int=mv_int))
 }
 
+Rprof("/tmp/rprof")
 sens_list <- list()
 pb <- txtProgressBar(min=1, max=nrow(u_draws), style=3)
 for (ind in 1:nrow(u_draws)) {
@@ -163,6 +182,8 @@ for (ind in 1:nrow(u_draws)) {
   sens_list[[ind]] <- GetUniformWeightedInfuenceFunctionVector(u_draws[ind, ])
 }
 close(pb)
+summaryRprof("/tmp/rprof")
+
 
 # Unpack
 sens_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$sens) } )
@@ -191,19 +212,19 @@ sens_results <-
 
 # The "mean value" local sensitivity.  We expect this to be better.
 p1 <- ggplot(sens_results) +
-  geom_errorbar(aes(x=diff_mean, y=mv_sens_mean,
+  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean,
                     ymax=mv_sens_mean + 2 * mv_sens_sd,
                     ymin=mv_sens_mean - 2 * mv_sens_sd), color="gray") +
-  geom_point(aes(x=diff_mean, y=mv_sens_mean, color=par)) +
+  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean, color=par)) +
   geom_abline((aes(intercept=0, slope=1))) +
   ggtitle("Mean value sens")
 
 # The raw local sensitivity
 p2 <- ggplot(sens_results) +
-  geom_errorbar(aes(x=diff_mean, y=sens_mean,
+  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean,
                     ymax=sens_mean + 2 * sens_sd,
                     ymin=sens_mean - 2 * sens_sd), color="gray") +
-  geom_point(aes(x=diff_mean, y=sens_mean, color=par)) +
+  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean, color=par)) +
   geom_abline((aes(intercept=0, slope=1))) +
   ggtitle("raw sens")
 
@@ -219,8 +240,9 @@ multiplot(p1, p2, p3)
 #################################################
 # Diagnostics and debugging
 
-lrvb_term_diff_list <- lapply(sens_list, function(entry) { as.numeric(entry$lrvb_term) - as.numeric(entry$lrvb_term_pre) } )
-
+# This doesn't seem to matter ever.
+# lrvb_term_diff_list <- lapply(sens_list, function(entry) { as.numeric(entry$lrvb_term) - as.numeric(entry$lrvb_term_pre) } )
+# Reduce(max, lrvb_term_diff_list)
 
 prior_ratios <- unlist(lapply(sens_list, function(entry) { entry$prior_ratio} ))
 weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
@@ -260,6 +282,7 @@ comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry
 comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
 
 component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), diagnostic_df)
+component_df$component_name <- component_name
 
 p1 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) + scale_color_gradient2() + ggtitle("Sensitivity")
 p2 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence)) + scale_color_gradient2() + ggtitle("Influence")
@@ -277,14 +300,12 @@ u_dist <- u_draws - rep(colMeans(u_draws), each=nrow(u_draws))
 u_dist <- sqrt(rowSums(u_dist^2))
 u_extreme <- which(u_dist > quantile(u_dist, 0.95))
 max(abs(comp_influence_vec[u_extreme]))
-# ggplot(component_df[u_extreme, ]) + geom_point(aes(x=X1, y=X2, color=abs(influence))) + scale_color_gradient2()
+ggplot(component_df[u_extreme, ]) + geom_point(aes(x=X1, y=X2, color=abs(influence))) + scale_color_gradient2()
 
 
 ##############################
 # Save selected results
 
 if (save_results) {
-  save(sens_results, pp, pp_perturb, file=results_file)
+  save(sens_results, pp, pp_perturb, component_df, file=results_file)
 }
-
-

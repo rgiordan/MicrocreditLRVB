@@ -13,8 +13,8 @@ project_directory <-
 
 # Choose one.
 #analysis_name <- "simulated_data_nonrobust"
-analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_lambda_beta"
+#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_lambda_beta"
 
 set.seed(42)
 

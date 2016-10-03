@@ -61,14 +61,15 @@ struct PriorOffsets {
     int lambda_alpha;
     int lambda_beta;
 
+    int epsilon;
+
     int encoded_size;
 
     PriorOffsets() {
         mu = mu_t_loc = mu_t_scale = mu_t_df = 0;
         tau = 0;
-        lambda_eta = 0;
-        lambda_alpha = 0;
-        lambda_beta =0;
+        lambda_eta = lambda_alpha = lambda_beta = 0;
+        epsilon = 0;
     }
 };
 
@@ -243,7 +244,8 @@ template <class T> class PriorParameters {
 private:
     void Initialize(int k) {
         k = k;
-        mu_student_t_prior = false;
+        monte_carlo_prior = false;
+
         mu = MultivariateNormalNatural<T>(k);
         mu_t_loc = 0;
         mu_t_scale = 1;
@@ -253,6 +255,8 @@ private:
         lambda_alpha = 1;
         lambda_beta = 1;
 
+        epsilon = 0;
+
         tau = GammaNatural<T>();
 
         offsets = GetPriorOffsets(*this);
@@ -261,9 +265,9 @@ public:
     // Parameters:
     int k;      // The dimension of the means
     PriorOffsets offsets;
+    bool monte_carlo_prior;
 
     // Mu prior which can be student t or multivariate normal.
-    bool mu_student_t_prior;    // If true, use a t prior.  Otherwise use a MVN prior.
 
     // Mu MVN parameters
     MultivariateNormalNatural<T> mu;
@@ -280,6 +284,10 @@ public:
     T lambda_alpha;
     T lambda_beta;
 
+    // The weight given to the student t prior relative to the MVN prior.
+    T epsilon;
+
+
     // Methods:
     PriorParameters(int k): k(k) {
         Initialize(k);
@@ -293,9 +301,9 @@ public:
 
     template <typename Tnew> operator PriorParameters<Tnew>() const {
         PriorParameters<Tnew> pp = PriorParameters<Tnew>(k);
+        pp.monte_carlo_prior = monte_carlo_prior;
 
         pp.mu = mu;
-        pp.mu_student_t_prior = mu_student_t_prior;
         pp.mu_t_loc = mu_t_loc;
         pp.mu_t_scale = mu_t_scale;
         pp.mu_t_df = mu_t_df;
@@ -305,6 +313,8 @@ public:
         pp.lambda_beta = lambda_beta;
 
         pp.tau = tau;
+
+        pp.epsilon = epsilon;
 
         return pp;
     };

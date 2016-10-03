@@ -52,6 +52,7 @@ template <typename T> PriorOffsets GetPriorOffsets(PriorParameters<T> pp) {
     offsets.lambda_eta = encoded_size; encoded_size += 1;
     offsets.lambda_alpha = encoded_size; encoded_size += 1;
     offsets.lambda_beta = encoded_size; encoded_size += 1;
+    offsets.epsilon = encoded_size; encoded_size += 1;
 
     offsets.encoded_size = encoded_size;
 
@@ -240,6 +241,8 @@ template <typename T> VectorXT<T> GetParameterVector(PriorParameters<T> pp) {
     theta(pp.offsets.lambda_alpha) = pp.lambda_alpha;
     theta(pp.offsets.lambda_beta) = pp.lambda_beta;
 
+    theta(pp.offsets.epsilon) = pp.epsilon;
+
     return theta;
 }
 
@@ -264,6 +267,8 @@ void SetFromVector(VectorXT<T> const &theta, PriorParameters<T> &pp) {
     pp.lambda_eta = theta(pp.offsets.lambda_eta);
     pp.lambda_alpha = theta(pp.offsets.lambda_alpha);
     pp.lambda_beta = theta(pp.offsets.lambda_beta);
+
+    pp.epsilon = theta(pp.offsets.epsilon);
 }
 
 

@@ -200,12 +200,15 @@ ConvertMomentsFromList(Rcpp::List r_list) {
 PriorParameters<double> ConvertPriorsFromList(Rcpp::List r_list) {
     int k_reg = r_list["k_reg"];
     PriorParameters<double> pp(k_reg);
+
+    pp.monte_carlo_prior = Rcpp::as<bool>(r_list["monte_carlo_prior"]);
+
     pp.mu.loc = Rcpp::as<Eigen::VectorXd>(r_list["mu_loc"]);
     pp.mu.info.mat = Rcpp::as<Eigen::MatrixXd>(r_list["mu_info"]);
     pp.mu_t_loc = Rcpp::as<double>(r_list["mu_t_loc"]);
     pp.mu_t_scale = Rcpp::as<double>(r_list["mu_t_scale"]);
     pp.mu_t_df = Rcpp::as<double>(r_list["mu_t_df"]);
-    pp.mu_student_t_prior = Rcpp::as<bool>(r_list["mu_student_t_prior"]);
+    pp.epsilon = Rcpp::as<double>(r_list["epsilon"]);
 
     pp.lambda_eta = Rcpp::as<double>(r_list["lambda_eta"]);
     pp.lambda_alpha = Rcpp::as<double>(r_list["lambda_alpha"]);
@@ -223,12 +226,14 @@ Rcpp::List ConvertPriorsToList(PriorParameters<double> pp) {
 
     r_list["encoded_size"] = pp.offsets.encoded_size;
     r_list["k_reg"] = pp.k;
+    r_list["monte_carlo_prior"] = pp.monte_carlo_prior;
+
     r_list["mu_loc"] = pp.mu.loc;
     r_list["mu_info"] = pp.mu.info.mat;
     r_list["mu_t_loc"] = pp.mu_t_loc;
     r_list["mu_t_scale"] = pp.mu_t_scale;
     r_list["mu_t_df"] = pp.mu_t_df;
-    r_list["mu_student_t_prior"] = pp.mu_student_t_prior;
+    r_list["epsilon"] = pp.epsilon;
 
     r_list["lambda_eta"] = pp.lambda_eta;
     r_list["lambda_alpha"] = pp.lambda_alpha;
@@ -522,10 +527,12 @@ Rcpp::List GetLogVariationalDensityDerivatives(
     bool const include_lambda,
     const Eigen::Map<Eigen::VectorXi> r_include_mu_groups,
     const Eigen::Map<Eigen::VectorXi> r_include_tau_groups,
+    bool const unconstrained,
     bool const calculate_gradient) {
 
     MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
     VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    vp.unconstrained = unconstrained;
     // PriorParameters<double> pp = ConvertPriorsFromList(r_pp);
     Eigen::VectorXi include_mu_groups = r_include_mu_groups;
     Eigen::VectorXi include_tau_groups = r_include_tau_groups;
@@ -538,7 +545,6 @@ Rcpp::List GetLogVariationalDensityDerivatives(
 }
 
 
-// TODO: rewrite this to return the values as well.
 // [[Rcpp::export]]
 Rcpp::List GetMCMCLogPriorDerivatives(
     const Rcpp::List draw_list, const Rcpp::List r_pp) {

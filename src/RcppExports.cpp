@@ -234,8 +234,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // GetLogVariationalDensityDerivatives
-Rcpp::List GetLogVariationalDensityDerivatives(const Rcpp::List r_obs_mp, const Rcpp::List r_vp, const Rcpp::List r_pp, bool const include_mu, bool const include_lambda, const Eigen::Map<Eigen::VectorXi> r_include_mu_groups, const Eigen::Map<Eigen::VectorXi> r_include_tau_groups, bool const calculate_gradient);
-RcppExport SEXP MicrocreditLRVB_GetLogVariationalDensityDerivatives(SEXP r_obs_mpSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP include_muSEXP, SEXP include_lambdaSEXP, SEXP r_include_mu_groupsSEXP, SEXP r_include_tau_groupsSEXP, SEXP calculate_gradientSEXP) {
+Rcpp::List GetLogVariationalDensityDerivatives(const Rcpp::List r_obs_mp, const Rcpp::List r_vp, const Rcpp::List r_pp, bool const include_mu, bool const include_lambda, const Eigen::Map<Eigen::VectorXi> r_include_mu_groups, const Eigen::Map<Eigen::VectorXi> r_include_tau_groups, bool const unconstrained, bool const calculate_gradient);
+RcppExport SEXP MicrocreditLRVB_GetLogVariationalDensityDerivatives(SEXP r_obs_mpSEXP, SEXP r_vpSEXP, SEXP r_ppSEXP, SEXP include_muSEXP, SEXP include_lambdaSEXP, SEXP r_include_mu_groupsSEXP, SEXP r_include_tau_groupsSEXP, SEXP unconstrainedSEXP, SEXP calculate_gradientSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -246,8 +246,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool const >::type include_lambda(include_lambdaSEXP);
     Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_include_mu_groups(r_include_mu_groupsSEXP);
     Rcpp::traits::input_parameter< const Eigen::Map<Eigen::VectorXi> >::type r_include_tau_groups(r_include_tau_groupsSEXP);
+    Rcpp::traits::input_parameter< bool const >::type unconstrained(unconstrainedSEXP);
     Rcpp::traits::input_parameter< bool const >::type calculate_gradient(calculate_gradientSEXP);
-    rcpp_result_gen = Rcpp::wrap(GetLogVariationalDensityDerivatives(r_obs_mp, r_vp, r_pp, include_mu, include_lambda, r_include_mu_groups, r_include_tau_groups, calculate_gradient));
+    rcpp_result_gen = Rcpp::wrap(GetLogVariationalDensityDerivatives(r_obs_mp, r_vp, r_pp, include_mu, include_lambda, r_include_mu_groups, r_include_tau_groups, unconstrained, calculate_gradient));
     return rcpp_result_gen;
 END_RCPP
 }

@@ -13,13 +13,12 @@ DrawFromQMu <- function(n_draws, vp_opt, rescale=1) {
 }
 
 
-GetMuLogDensity <- function(mu, vp_opt, pp, calculate_gradient) {
-  draw_local <- GetMoments(vp_opt)
-  draw_local$mu_e_vec <- mu
-  include_tau_groups <- include_mu_groups <- as.integer(c())
+GetMuLogDensity <- function(mu, vp_opt, draw, pp, unconstrained, calculate_gradient) {
+  draw$mu_e_vec <- mu
   q_derivs <- GetLogVariationalDensityDerivatives(
-    draw_local, vp_opt, pp, include_mu=TRUE, include_lambda=FALSE,
-    include_mu_groups, include_tau_groups, calculate_gradient=calculate_gradient)
+    draw, vp_opt, pp, include_mu=TRUE, include_lambda=FALSE,
+    integer(), integer(), unconstrained=unconstrained,
+    calculate_gradient=calculate_gradient)
   return(q_derivs)
 }
 
@@ -46,12 +45,12 @@ GetMuLogStudentTPrior <- function(mu, pp_perturb) {
 #
 multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
   library(grid)
-  
+
   # Make a list from the ... arguments and plotlist
   plots <- c(list(...), plotlist)
-  
+
   numPlots = length(plots)
-  
+
   # If layout is NULL, then use 'cols' to determine layout
   if (is.null(layout)) {
     # Make the panel
@@ -60,23 +59,22 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
     layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
                      ncol = cols, nrow = ceiling(numPlots/cols))
   }
-  
+
   if (numPlots==1) {
     print(plots[[1]])
-    
+
   } else {
     # Set up the page
     grid.newpage()
     pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
-    
+
     # Make each plot, in the correct location
     for (i in 1:numPlots) {
       # Get the i,j matrix positions of the regions that contain this subplot
       matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
-      
+
       print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
                                       layout.pos.col = matchidx$col))
     }
   }
 }
-

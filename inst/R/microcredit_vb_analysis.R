@@ -7,9 +7,9 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_robust"
+analysis_name <- "simulated_data_robust"
 #analysis_name <- "simulated_data_nonrobust"
-analysis_name <- "simulated_data_lambda_beta"
+#analysis_name <- "simulated_data_lambda_beta"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")

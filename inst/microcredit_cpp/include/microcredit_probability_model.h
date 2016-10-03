@@ -189,7 +189,11 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
     T log_prior = 0.0;
 
     // Mu:
-    if (pp.mu_student_t_prior) {
+    if (pp.monte_carlo_prior) {
+        T mu_log_t_prior = 0.0;
+        T mu_log_mvn_prior = 0.0;
+        T epsilon = pp.epsilon;
+
         // Each component has an independent student t prior.
         T pp_mu_t_loc = pp.mu_t_loc;
         T pp_mu_t_scale = pp.mu_t_scale;
@@ -198,16 +202,20 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
             T mu_loc = vp.mu.loc(k);
             T mu_var = 1 / vp.mu.info.mat(k, k);
 
-            // TODO: document carefully if you're going to do this.
-            // Negative degrees of freedom will encode independent normal
-            // priors.
-            if (pp.mu_t_df < 0) {
-              log_prior += EvaluateNormalPrior(
-                  vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale);
-            } else {
-              log_prior += EvaluateStudentTPrior(
-                  vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
-            }
+            mu_log_mvn_prior += EvaluateNormalPrior(
+                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale);
+
+            mu_log_t_prior += EvaluateStudentTPrior(
+                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
+        }
+
+        if (epsilon == 0) {
+            log_prior += mu_log_mvn_prior;
+        } else if (epsilon == 1) {
+            log_prior += mu_log_t_prior;
+        } else {
+            log_prior += stan::math::log_sum_exp(
+                mu_log_mvn_prior + log(1 - epsilon), mu_log_t_prior + log(epsilon));
         }
     } else {
         MultivariateNormalNatural<T> vp_mu(vp.mu);
