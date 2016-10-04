@@ -1,7 +1,7 @@
 library(Matrix) # Needed for Matrix::diag :(
 
 # Get a mask for the global parameters only.
-GlobalMask <- function(vp) {
+GlobalMask <- function(vp_base) {
   mask <- GetVectorFromParameters(vp_base, FALSE)
   mask <- rep(0, length(mask))
   vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)

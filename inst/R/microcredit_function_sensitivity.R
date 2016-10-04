@@ -6,6 +6,7 @@ library(Matrix)
 library(mvtnorm)
 library(MicrocreditLRVB)
 
+
 # Load previously computed Stan results
 #analysis_name <- "simulated_data_robust"
 analysis_name <- "simulated_data_nonrobust"
@@ -71,26 +72,6 @@ mp_opt <- GetMoments(vp_opt)
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 lrvb_cov <- lrvb_terms$lrvb_cov
 
-# Fit with the t prior
-moments_list <- list()
-epsilon_vec <- seq(0, 1e-3, length.out=20)
-for (epsilon in epsilon_vec) {
-  cat("-------------   ", epsilon , "\n")
-  pp_perturb$epsilon <- epsilon
-  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
-  vp_opt_perturb_eps <- vb_fit_perturb_eps$vp_opt
-  mp_opt_perturb_eps <- GetMoments(vp_opt_perturb_eps)
-  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb_eps
-}
-# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
-# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
-epsilon_df <- data.frame(epsilon=epsilon_vec,
-                         val=unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )),
-                         parameter_name="mu_g[1][1]")
-ggplot(epsilon_df) +
-  geom_point(aes(x=epsilon, y=val)) +
-  ggtitle(unique(epsilon_df$parameter_name))
-
 pp_perturb$epsilon <- 1
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
 vp_opt_perturb <- vb_fit_perturb$vp_opt
@@ -117,89 +98,117 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 # Monte Carlo samples
 n_samples <- 50000
 
+# Define functions necessary to compute influence function stuff
+
 # You could also do this more numerically stably with a Cholesky decomposition.
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
-if (FALSE) {
-  # Uniform proposals
-  grid_range <- 3 * sqrt(diag(lrvb_cov)[vp_indices$mu_loc])
-  grid_center <- mp_opt$mu_e_vec
+# Proposals based on q
+u_mean <- mp_opt$mu_e_vec
+# Increase the covariance for sampling.  How much is enough?
+u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)
+GetULogDensity <- function(mu) {
+  dmvnorm(mu, mean=u_mean, sigma=u_cov, log=TRUE)
+}
 
-  GetULogDensity <- function(mu) {
-    log(prod(1 / (2 * grid_range)))
-  }
+DrawU <- function(n_samples) {
+  rmvnorm(n_samples, mean=u_mean, sigma=u_cov)
+}
+u_draws <- DrawU(n_samples)
 
-  u_draws <- matrix(NA, n_samples, vp_opt$k_reg)
-  for (k in 1:vp_opt$k_reg) {
-    # Rescale and center uniform draws
-    u_draws[, k] <- grid_range[k] * (2 * runif(n_samples) - 1) + grid_center[k]
-  }
-} else {
-  # Proposals based on q
-  u_mean <- mp_opt$mu_e_vec
-  # Increase the covariance for sampling.  How much is enough?
-  u_cov <- (1 ^ 2) * solve(vp_opt$mu_info)
-  GetULogDensity <- function(mu) {
-    dmvnorm(mu, mean=u_mean, sigma=u_cov, log=TRUE)
-  }
+log_q_grad <- rep(0, vp_indices$encoded_size)
+mp_draw <- mp_opt
 
-  u_draws <- rmvnorm(n_samples, mean=u_mean, sigma=u_cov)
+
+GetLogPrior <- function(u) {
+  GetMuLogPrior(u, pp)
+}
+
+GetLogContaminatingPrior <- function(u) {
+  GetMuLogStudentTPrior(u, pp_perturb)
 }
 
 
-draw <- mp_opt
-GetUniformWeightedInfuenceFunctionVector <- function(mu) {
-  mu_prior_val <- GetMuLogPrior(mu, pp)
-  mu_q_derivs <- GetMuLogDensity(mu, vp_opt, draw, pp, TRUE, TRUE)
-  mu_t_prior_val <- GetMuLogStudentTPrior(mu, pp_perturb)
-  u_log_density <- GetULogDensity(mu)
+global_mask <- GlobalMask(vp_opt)
+GetLogVariationalDensity <- function(u) {
+  mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_draw, pp, TRUE, TRUE)
+  log_q_grad[global_mask] <- mu_q_derivs$grad
+  list(val=mu_q_derivs$val, grad=log_q_grad) 
+}
+
+
+GetInfluenceFunctionSample <- function(u) {
+  log_q_derivs <- GetLogVariationalDensity(u)
+  log_prior_val <- GetLogPrior(u)
+  log_u_density <- GetULogDensity(u)
 
   # It doesn't seem to matter if I just use the inverse.
   # lrvb_term_pre <- lrvb_pre_factor %*% mu_q_derivs$grad
   # lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad)
-  lrvb_term <- lrvb_pre_factor %*% mu_q_derivs$grad
+  lrvb_term <- lrvb_pre_factor %*% log_q_derivs$grad
+  influence_function <- exp(log_q_derivs$val - log_prior_val) * lrvb_term
 
-  # The vector of sensitivities.
-  sens <- exp(mu_t_prior_val - u_log_density + mu_q_derivs$val - mu_prior_val) * lrvb_term
-
-  # Debugging / diagnostic terms:
-  weight <- exp(mu_t_prior_val- u_log_density)
-  sens_pre_factor <- exp(mu_q_derivs$val - mu_prior_val)
-  prior_ratio <- exp(mu_t_prior_val - mu_prior_val)
-  influence_fun <- sens_pre_factor * lrvb_term
-
-  # The "mean value theorem" sensitivity
-  mv_term <- (mu_t_prior_val - mu_prior_val) * prior_ratio / (prior_ratio - 1)
-  mv_sens <- lrvb_term * mv_term * exp(mu_q_derivs$val - u_log_density)
-  mv_int <- (mu_t_prior_val - mu_prior_val) *
-            exp(mu_t_prior_val + mu_prior_val) / (exp(mu_t_prior_val) - exp(mu_prior_val))
-
-  return(list(sens=sens, weight=weight, sens_pre_factor=sens_pre_factor,
-              influence_fun=influence_fun, prior_ratio=prior_ratio,
-              mv_sens=mv_sens, mv_term=mv_term, mv_int=mv_int))
+  return(list(u=u,
+              lrvb_term=lrvb_term,
+              log_q_val=log_q_derivs$val,
+              log_prior_val=log_prior_val,
+              log_u_density=log_u_density,
+              influence_function=influence_function))
 }
 
+
 Rprof("/tmp/rprof")
-sens_list <- list()
+influence_list <- list()
 pb <- txtProgressBar(min=1, max=nrow(u_draws), style=3)
 for (ind in 1:nrow(u_draws)) {
   setTxtProgressBar(pb, ind)
-  sens_list[[ind]] <- GetUniformWeightedInfuenceFunctionVector(u_draws[ind, ])
+  influence_list[[ind]] <- GetInfluenceFunctionSample(u_draws[ind, ])
 }
 close(pb)
 summaryRprof("/tmp/rprof")
 
 
+GetSensitivitySample <- function(u_draw) {
+  log_contaminating_prior_val <- GetLogContaminatingPrior(u_draw$u)
+  
+  # The vector of sensitivities.
+  log_weight <- log_contaminating_prior_val - u_draw$log_u_density
+  log_influence_factor <- u_draw$log_q_val - u_draw$log_prior_val
+  sensitivity_draw <- exp(log_weight + log_influence_factor) * u_draw$lrvb_term
+  
+  # TODO: left off here  
+  # The "mean value theorem" sensitivity
+  prior_val <- exp(u_draw$log_prior_val)
+  contaminating_prior_val <- exp(log_contaminating_prior_val)
+  prior_ratio <- exp(u_draw$log_prior_val - log_contaminating_prior_val)
+
+  # TODO: this is now wrong for some reason
+  mv_sensitivity_draw <-
+    exp(log_influence_factor + u_draw$log_prior_val + log_contaminating_prior_val + log_weight) *
+    u_draw$lrvb_term / (contaminating_prior_val - prior_val)
+
+  return(list(sensitivity_draw=sensitivity_draw,
+              mv_sensitivity_draw=mv_sensitivity_draw,
+              log_weight=log_weight,
+              log_influence_factor=log_influence_factor))
+}
+
+
+sensitivity_list <- lapply(influence_list, GetSensitivitySample)
+
+
+
+
 # Unpack
-sens_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$sens) } )
-sens_vec_list_squared <- lapply(sens_list, function(entry) { as.numeric(entry$sens) ^ 2 } )
+sens_vec_list <- lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw) } )
+sens_vec_list_squared <- lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw) ^ 2 } )
 sens_vec_mean <- Reduce(`+`, sens_vec_list) / n_samples
 sens_vec_mean_square <- Reduce(`+`, sens_vec_list_squared) / n_samples
 sens_vec_sd <- sqrt(sens_vec_mean_square - sens_vec_mean^2) / sqrt(n_samples)
 
-mv_sens_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$mv_sens) } )
+mv_sens_vec_list <- lapply(sensitivity_list, function(entry) { as.numeric(entry$mv_sensitivity_draw) } )
+mv_sens_vec_list_squared <- lapply(sensitivity_list, function(entry) { as.numeric(entry$mv_sensitivity_draw) ^ 2 } )
 mv_sens_vec_mean <- Reduce(`+`, mv_sens_vec_list) / n_samples
-mv_sens_vec_list_squared <- lapply(sens_list, function(entry) { as.numeric(entry$mv_sens) ^ 2 } )
 mv_sens_vec_mean_square <- Reduce(`+`, mv_sens_vec_list_squared) / n_samples
 mv_sens_vec_sd <- sqrt(mv_sens_vec_mean_square - mv_sens_vec_mean^2) / sqrt(n_samples)
 
@@ -338,9 +347,32 @@ sum(component_df$influence2plus * weights)
 sum(component_df$influence2minus * weights)
 
 
+#################################
+# Fit with the t prior
+moments_list <- list()
+epsilon_vec <- seq(0, 1e-3, length.out=20)
+for (epsilon in epsilon_vec) {
+  cat("-------------   ", epsilon , "\n")
+  pp_perturb$epsilon <- epsilon
+  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+  vp_opt_perturb_eps <- vb_fit_perturb_eps$vp_opt
+  mp_opt_perturb_eps <- GetMoments(vp_opt_perturb_eps)
+  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb_eps
+}
+# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
+# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
+epsilon_df <- data.frame(epsilon=epsilon_vec,
+                         val=unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )),
+                         parameter_name="mu_g[1][1]")
+ggplot(epsilon_df) +
+  geom_point(aes(x=epsilon, y=val)) +
+  ggtitle(unique(epsilon_df$parameter_name))
+
+
 ##############################
 # Save selected results
 
 if (save_results) {
+  component_df <- sample_n(component_df, 5000)
   save(sens_results, pp, pp_perturb, component_df, epsilon_df, file=results_file)
 }

@@ -296,15 +296,22 @@ Derivatives GetLogVariationalDensityDerivatives(
     bool const include_lambda,
     VectorXi const include_mu_groups,
     VectorXi const include_tau_groups,
+    bool const global_only,
     bool const calculate_gradient) {
 
     VariationalLogDensity EvalQ(vp, obs);
+    EvalQ.global_only = global_only;
     EvalQ.include_mu = include_mu;
     EvalQ.include_lambda = include_lambda;
     EvalQ.include_mu_groups = include_mu_groups;
     EvalQ.include_tau_groups = include_tau_groups;
 
-    VectorXd theta = GetParameterVector(vp);
+    VectorXd theta;
+    if (global_only) {
+        theta = GetGlobalParameterVector(vp);
+    } else {
+        VectorXd theta = GetParameterVector(vp);        
+    }
 
     double val;
     VectorXd grad = VectorXd::Zero(theta.size());

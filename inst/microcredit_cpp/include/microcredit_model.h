@@ -239,6 +239,7 @@ struct VariationalLogDensity {
     VariationalParameters<double> base_vp;
     bool include_mu;
     bool include_lambda;
+    bool global_only;
     VectorXi include_mu_groups;
     VectorXi include_tau_groups;
 
@@ -250,6 +251,7 @@ struct VariationalLogDensity {
         obs = MomentParameters<double>(_obs);
         include_mu = true;
         include_lambda = true;
+        global_only = false;
         VectorXd include_mu_groups(base_vp.n_g);
         VectorXd include_tau_groups(base_vp.n_g);
         for (int g = 0; g < base_vp.n_g; g++) {
@@ -260,7 +262,11 @@ struct VariationalLogDensity {
 
     template <typename T> T operator()(VectorXT<T> const &theta) const {
         VariationalParameters<T> vp(base_vp);
-        SetFromVector(theta, vp);
+        if (global_only) {
+            SetFromGlobalVector(theta, vp);
+        } else {
+            SetFromVector(theta, vp);
+        }
 
         T q_log_dens = 0.0;
         if (include_mu) {
@@ -273,22 +279,24 @@ struct VariationalLogDensity {
           q_log_dens += vp.lambda.log_lik(lambda_obs);
         }
 
-        for (int g_ind = 0; g_ind < include_mu_groups.size(); g_ind++) {
-          int g = include_mu_groups(g_ind);
-          if (g < 0 || g >= vp.n_g) {
-            throw std::runtime_error("mu_g q log density: g out of bounds.");
-          }
-          VectorXT<T> mu_g_obs = obs.mu_g[g].e_vec.template cast<T>();
-          q_log_dens += vp.mu_g[g].log_lik(mu_g_obs);
-        }
+        if (!global_only) {
+            for (int g_ind = 0; g_ind < include_mu_groups.size(); g_ind++) {
+              int g = include_mu_groups(g_ind);
+              if (g < 0 || g >= vp.n_g) {
+                throw std::runtime_error("mu_g q log density: g out of bounds.");
+              }
+              VectorXT<T> mu_g_obs = obs.mu_g[g].e_vec.template cast<T>();
+              q_log_dens += vp.mu_g[g].log_lik(mu_g_obs);
+            }
 
-        for (int g_ind = 0; g_ind < include_tau_groups.size(); g_ind++) {
-          int g = include_tau_groups(g_ind);
-          if (g < 0 || g >= vp.n_g) {
-            throw std::runtime_error("tau q log density: g out of bounds.");
-          }
-          T tau_obs = obs.tau[g].e;
-          q_log_dens += vp.tau[g].log_lik(tau_obs);
+            for (int g_ind = 0; g_ind < include_tau_groups.size(); g_ind++) {
+              int g = include_tau_groups(g_ind);
+              if (g < 0 || g >= vp.n_g) {
+                throw std::runtime_error("tau q log density: g out of bounds.");
+              }
+              T tau_obs = obs.tau[g].e;
+              q_log_dens += vp.tau[g].log_lik(tau_obs);
+            }
         }
 
         return q_log_dens;
@@ -406,6 +414,7 @@ Derivatives GetLogVariationalDensityDerivatives(
     bool const include_lambda,
     VectorXi const include_mu_groups,
     VectorXi const include_tau_groups,
+    bool const global_only,
     bool const calculate_gradient);
 
 
