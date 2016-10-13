@@ -137,25 +137,9 @@ GetLogVariationalDensity <- function(u) {
 }
 
 
-GetInfluenceFunctionSample <- function(u) {
-  log_q_derivs <- GetLogVariationalDensity(u)
-  log_prior_val <- GetLogPrior(u)
-  log_u_density <- GetULogDensity(u)
 
-  # It doesn't seem to matter if I just use the inverse.
-  # lrvb_term_pre <- lrvb_pre_factor %*% mu_q_derivs$grad
-  # lrvb_term <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad)
-  lrvb_term <- lrvb_pre_factor %*% log_q_derivs$grad
-  influence_function <- exp(log_q_derivs$val - log_prior_val) * lrvb_term
-
-  return(list(u=u,
-              lrvb_term=lrvb_term,
-              log_q_val=log_q_derivs$val,
-              log_prior_val=log_prior_val,
-              log_u_density=log_u_density,
-              influence_function=influence_function))
-}
-
+GetInfluenceFunctionSample <- GetInfluenceFunctionSampleFunction(
+  GetLogVariationalDensity, GetLogPrior, GetULogDensity, lrvb_pre_factor)
 
 Rprof("/tmp/rprof")
 influence_list <- list()
@@ -168,59 +152,19 @@ close(pb)
 summaryRprof("/tmp/rprof")
 
 
-GetSensitivitySample <- function(u_draw) {
-  log_contaminating_prior_val <- GetLogContaminatingPrior(u_draw$u)
-  
-  # The vector of sensitivities.
-  log_weight <- log_contaminating_prior_val - u_draw$log_u_density
-  log_influence_factor <- u_draw$log_q_val - u_draw$log_prior_val
-  sensitivity_draw <- exp(log_weight + log_influence_factor) * u_draw$lrvb_term
-  
-  # TODO: left off here  
-  # The "mean value theorem" sensitivity
-  prior_val <- exp(u_draw$log_prior_val)
-  contaminating_prior_val <- exp(log_contaminating_prior_val)
-  prior_ratio <- exp(u_draw$log_prior_val - log_contaminating_prior_val)
-
-  # TODO: this is now wrong for some reason
-  mv_sensitivity_draw <-
-    exp(log_influence_factor + u_draw$log_prior_val + log_contaminating_prior_val + log_weight) *
-    u_draw$lrvb_term / (contaminating_prior_val - prior_val)
-
-  return(list(sensitivity_draw=sensitivity_draw,
-              mv_sensitivity_draw=mv_sensitivity_draw,
-              log_weight=log_weight,
-              log_influence_factor=log_influence_factor))
-}
-
-
+GetSensitivitySample <- GetSensitivitySampleFunction(GetLogContaminatingPrior)
 sensitivity_list <- lapply(influence_list, GetSensitivitySample)
 
-
-
-
-# Unpack
-sens_vec_list <- lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw) } )
-sens_vec_list_squared <- lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw) ^ 2 } )
-sens_vec_mean <- Reduce(`+`, sens_vec_list) / n_samples
-sens_vec_mean_square <- Reduce(`+`, sens_vec_list_squared) / n_samples
-sens_vec_sd <- sqrt(sens_vec_mean_square - sens_vec_mean^2) / sqrt(n_samples)
-
-mv_sens_vec_list <- lapply(sensitivity_list, function(entry) { as.numeric(entry$mv_sensitivity_draw) } )
-mv_sens_vec_list_squared <- lapply(sensitivity_list, function(entry) { as.numeric(entry$mv_sensitivity_draw) ^ 2 } )
-mv_sens_vec_mean <- Reduce(`+`, mv_sens_vec_list) / n_samples
-mv_sens_vec_mean_square <- Reduce(`+`, mv_sens_vec_list_squared) / n_samples
-mv_sens_vec_sd <- sqrt(mv_sens_vec_mean_square - mv_sens_vec_mean^2) / sqrt(n_samples)
-
+sensitivities <- UnpackSensitivityList(sensitivity_list)
 diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
 
 sens_results <-
   rbind(
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sens_vec_mean),    metric="mean", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sens_vec_sd),      metric="sd", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, mv_sens_vec_mean), metric="mean", method="mv_sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, mv_sens_vec_sd),   metric="sd", method="mv_sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),         metric="mean", method="diff")) %>%
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$sens_vec_mean),    metric="mean", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$sens_vec_sd),      metric="sd", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$mv_sens_vec_mean), metric="mean", method="mv_sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$mv_sens_vec_sd),   metric="sd", method="mv_sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),                       metric="mean", method="diff")) %>%
   dcast(par + component + group ~ method + metric, value.var="val")
 
 
@@ -242,13 +186,17 @@ p2 <- ggplot(sens_results) +
   geom_abline((aes(intercept=0, slope=1))) +
   ggtitle("raw sens")
 
-# The raw local sensitivity vs the mean value sensitivity.
-p3 <- ggplot(sens_results) +
-  geom_point(aes(x=sens_mean, y=mv_sens_mean, color=par)) +
-  geom_abline((aes(intercept=0, slope=1))) +
-  ggtitle("One vs other")
+multiplot(p1, p2)
 
-multiplot(p1, p2, p3)
+
+
+
+
+
+
+
+
+
 
 
 #################################################
@@ -349,12 +297,14 @@ sum(component_df$influence2minus * weights)
 
 #################################
 # Fit with the t prior
+
 moments_list <- list()
 epsilon_vec <- seq(0, 1e-3, length.out=20)
+pp_perturb_epsilon <- pp_perturb
 for (epsilon in epsilon_vec) {
   cat("-------------   ", epsilon , "\n")
-  pp_perturb$epsilon <- epsilon
-  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+  pp_perturb_epsilon$epsilon <- epsilon
+  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb_epsilon, fit_bfgs=FALSE)
   vp_opt_perturb_eps <- vb_fit_perturb_eps$vp_opt
   mp_opt_perturb_eps <- GetMoments(vp_opt_perturb_eps)
   moments_list[[length(moments_list) + 1]] <- mp_opt_perturb_eps
