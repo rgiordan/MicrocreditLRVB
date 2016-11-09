@@ -294,6 +294,7 @@ ggplot(sens_graph_df) +
 # Export selected results for use in the paper
 
 if (save_results) {
-  save(results_pert, pp, vb_sensitivity_results, prior_sens_results_graph, file=results_file)
+  num_obs <- nrow(x)
+  save(results_pert, pp, vb_sensitivity_results, prior_sens_results_graph, num_obs, file=results_file)
 }
 

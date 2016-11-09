@@ -310,7 +310,7 @@ Derivatives GetLogVariationalDensityDerivatives(
     if (global_only) {
         theta = GetGlobalParameterVector(vp);
     } else {
-        VectorXd theta = GetParameterVector(vp);        
+        theta = GetParameterVector(vp);        
     }
 
     double val;

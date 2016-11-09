@@ -5,6 +5,7 @@ library(rstan)
 library(Matrix)
 library(mvtnorm)
 library(MicrocreditLRVB)
+library(LRVBUtils)
 
 
 # Load previously computed Stan results
@@ -20,12 +21,6 @@ source(file.path(r_directory, "density_lib.R"))
 
 fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdata", sep=""))
 print(paste("Loading fits from ", fit_file))
-
-LoadIntoEnvironment <- function(filename) {
-  my_env <- environment()
-  load(filename, envir=my_env)
-  return(my_env)
-}
 
 fit_env <- LoadIntoEnvironment(fit_file)
 stan_results <- fit_env$stan_results
@@ -117,7 +112,6 @@ DrawU <- function(n_samples) {
 u_draws <- DrawU(n_samples)
 
 log_q_grad <- rep(0, vp_indices$encoded_size)
-mp_draw <- mp_opt
 
 
 GetLogPrior <- function(u) {
@@ -128,8 +122,10 @@ GetLogContaminatingPrior <- function(u) {
   GetMuLogStudentTPrior(u, pp_perturb)
 }
 
-
+# TODO: check whether GetMuLogDensity is in fact correct
+warning("Maybe GetMuLogDensity is wrong -- need to set the square")
 global_mask <- GlobalMask(vp_opt)
+mp_draw <- mp_opt
 GetLogVariationalDensity <- function(u) {
   mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_draw, pp, TRUE, TRUE)
   log_q_grad[global_mask] <- mu_q_derivs$grad
@@ -237,24 +233,24 @@ sd(sens_pre_factors)
 # component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
 # component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
 # component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
-component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+# component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+component <- mp_indices$mu_g[[1]]$e_vec[1]; component_name <- "E_q[mu_g[1]][1]"
 
-influence_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$influence_fun) } )
-comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
+influence_vec_list <- lapply(influence_list, function(entry) { as.numeric(entry$influence_function) } )
+comp_sens_vec <- unlist(lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw[component]) } ))
 comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
-weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
 
-component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), diagnostic_df)
+component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), data.frame(u_draws))
 component_df$component_name <- component_name
 
 p1 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) +
   scale_color_gradient2() + ggtitle("Sensitivity")
 p2 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence)) +
   scale_color_gradient2() + ggtitle("Influence")
-p3 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) +
-  scale_color_gradient2() + ggtitle("prior ratio")
+# p3 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) +
+#   scale_color_gradient2() + ggtitle("prior ratio")
 
-multiplot(p1, p2, p3)
+# multiplot(p1, p2, p3)
 
 # Estimate error
 u_dist <- u_draws - rep(colMeans(u_draws), each=nrow(u_draws))
@@ -274,7 +270,8 @@ ggplot(component_df[u_extreme, ]) + geom_point(aes(x=X1, y=X2, color=abs(influen
 # component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
 # component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
 # component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
-component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+# component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
+component <- mp_indices$mu_g[[1]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
 
 influence_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$influence_fun) } )
 comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
@@ -320,7 +317,7 @@ ggplot(epsilon_df) +
 
 
 ##############################
-# Save selected results
+# Save selected results for use in the paper
 
 if (save_results) {
   component_df <- sample_n(component_df, 5000)

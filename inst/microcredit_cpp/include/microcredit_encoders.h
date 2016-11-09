@@ -204,23 +204,22 @@ VectorXT<T> GetGlobalParameterVector(VPType<T> vp) {
 
 template <typename T, template<typename> class VPType>
 void SetFromGlobalVector(VectorXT<T> const &theta, VPType<T> &vp) {
+    int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
+    if (theta.size() != encoded_size) {
+        throw std::runtime_error("SetFromGlobalVector: Vector is wrong size.");
+    }
 
-                int encoded_size = vp.mu.encoded_size + vp.lambda.encoded_size;
-        if (theta.size() != encoded_size) {
-                throw std::runtime_error("SetFromGlobalVector: Vector is wrong size.");
-        }
+    int offset = 0;
+    VectorXT<T> theta_sub;
 
-        int offset = 0;
-        VectorXT<T> theta_sub;
+    // Make sure that GetGlobalParameterVector  and
+    // GetParameterVector follows the same ordering.
+    theta_sub = theta.segment(offset, vp.mu.encoded_size);
+    vp.mu.decode_vector(theta_sub, vp.unconstrained);
+    offset += vp.mu.encoded_size;
 
-        // Make sure that GetGlobalParameterVector  and
-        // GetParameterVector follows the same ordering.
-        theta_sub = theta.segment(offset, vp.mu.encoded_size);
-        vp.mu.decode_vector(theta_sub, vp.unconstrained);
-        offset += vp.mu.encoded_size;
-
-        theta_sub = theta.segment(offset, vp.lambda.encoded_size);
-        vp.lambda.decode_vector(theta_sub, vp.unconstrained);
+    theta_sub = theta.segment(offset, vp.lambda.encoded_size);
+    vp.lambda.decode_vector(theta_sub, vp.unconstrained);
 }
 
 
