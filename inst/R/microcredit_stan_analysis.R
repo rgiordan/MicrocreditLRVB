@@ -12,9 +12,12 @@ project_directory <-
 # source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Choose one.
-analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_nonrobust_t_perturb"
 #analysis_name <- "simulated_data_robust"
 #analysis_name <- "simulated_data_lambda_beta"
+
+stan_draws_file <- file.path(project_directory, sprintf("%s_data_and_mcmc_draws.Rdata", analysis_name))
 
 set.seed(42)
 
@@ -116,6 +119,8 @@ SetStanDat <- function(prior_params) {
        mu_prior_mean = prior_params$mu_loc,
        mu_prior_sigma_c = solve(prior_params$mu_info),
        mu_prior_mean_c = prior_params$mu_loc,
+       mu_prior_df = 1,
+       mu_prior_use_t_contamination = 1,
        mu_epsilon = 0,
        scale_prior_alpha = prior_params$lambda_alpha,
        scale_prior_beta = prior_params$lambda_beta,
@@ -134,33 +139,44 @@ SampleFromStanDat <- function(local_stan_dat, analyis_name) {
   mcmc_time <- Sys.time()
   stan_sim <- sampling(model, data=local_stan_dat, seed=seed, chains=chains, iter=iters)
   mcmc_time <- Sys.time() - mcmc_time
-  # print(stan_sim, "mu")
   return(list(mcmc_time=mcmc_time, sim=stan_sim, dat=local_stan_dat, analysis_name=analysis_name))
+}
+
+EpsilonName <- function(epsilon) {
+  sprintf("epsilon_%f", epsilon)
 }
 
 results <- list()
 
 stan_dat <- SetStanDat(pp)
-stan_dat$mu_prior_sigma <- solve(pp$mu_info)
-stan_dat$mu_prior_sigma_c <- solve(pp_perturb$mu_info)
+
+if (FALSE) {
+  # Set this if you're perturbing the normal covariance not the t distribution.
+  stan_dat$mu_prior_sigma <- solve(pp$mu_info)
+  stan_dat$mu_prior_sigma_c <- solve(pp_perturb$mu_info)
+}
 
 for (epsilon in seq(0, 0.001, length.out=20)) {
   cat("\n\n", epsilon, "\n")
-  analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
   stan_dat$mu_epsilon <- epsilon
-  results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
-  print(results[[analysis_name]]$sim, "mu")
+  analysis <- EpsilonName(epsilon)
+  results[[analysis]] <- SampleFromStanDat(stan_dat)
+  print(results[[analysis]]$sim, "mu")
 }
 
 epsilon <- 0
-analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
 stan_dat$mu_epsilon <- epsilon
-results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
+results[[EpsilonName(epsilon)]] <- SampleFromStanDat(stan_dat)
 
 epsilon <- 1
-analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
 stan_dat$mu_epsilon <- epsilon
-results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
+results[[EpsilonName(epsilon)]] <- SampleFromStanDat(stan_dat)
+
+print(results[[EpsilonName(0)]]$sim, "mu")
+print(results[[EpsilonName(1)]]$sim, "mu")
+
+
+
 
 foo <- list()
 for (analysis in names(results)) {
@@ -188,15 +204,18 @@ orig_draws <- extract(orig_res$sim)
 weights <- exp(orig_draws$mu_log_prior_c - orig_draws$mu_log_prior)
 weights <- length(weights) * weights / sum(weights)
 mu1_draws <- orig_draws$mu[,1]
-mean(mu1_draws * weights)
+
+get_posterior_mean(orig_res$sim, "mu")[1]
 mean(mu1_draws)
+
 get_posterior_mean(contam_res$sim, "mu")[1]
+mean(mu1_draws * weights)
 
 weight_dist <- data.frame(num=(length(weights):1) / length(weights), w=sort(weights))
 
 
 # The power law coefficient 
-w_coeff <- coefficients(lm(log10(num) ~ log10(w), data=filter(weight_dist, w > 5000)))
+w_coeff <- coefficients(lm(log10(num) ~ log10(w), data=filter(weight_dist, w > quantile(weight_dist$w, 0.8))))
 alpha <- -1 * w_coeff["log(w)"] + 1
 ggplot(weight_dist) +
   geom_point(aes(x=log10(w), y=log10(num))) +

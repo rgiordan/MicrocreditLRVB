@@ -12,6 +12,8 @@ data {
   real <lower=0, upper=1> mu_epsilon;
   matrix[K,K] mu_prior_sigma_c;
   vector[K] mu_prior_mean_c;
+  real <lower=0> mu_prior_df;
+  int <lower=0, upper=1> mu_prior_use_t_contamination;
   
   real tau_prior_alpha;
   real tau_prior_beta;
@@ -34,9 +36,20 @@ transformed parameters {
   // Log priors for sensitivity analysis.  
   real mu_log_prior;
   real mu_log_prior_c;
+  real mu_log_prior_eps;
 
   mu_log_prior = multi_normal_lpdf(mu | mu_prior_mean, mu_prior_sigma);
-  mu_log_prior_c = multi_normal_lpdf(mu | mu_prior_mean_c, mu_prior_sigma_c);
+  
+  # Either use a MVN prior or a product of independent student t priors.
+  if (mu_prior_use_t_contamination == 0) {
+    mu_log_prior_c = multi_normal_lpdf(mu | mu_prior_mean_c, mu_prior_sigma_c);
+  } else {
+    mu_log_prior_c = 0.0;
+    for (k in 1:K) {
+      mu_log_prior_c = mu_log_prior_c + student_t_lpdf(mu[k] | mu_prior_df, mu_prior_mean_c, sqrt(mu_prior_sigma_c[k, k]));
+    }
+  }
+  mu_log_prior_eps = log_sum_exp(log(1 - mu_epsilon) + mu_log_prior, log(mu_epsilon) + mu_log_prior_c);
 
   sigma_mu = quad_form_diag(R, S);
   lambda_mu = inverse_spd(sigma_mu);
@@ -62,7 +75,7 @@ model {
     target += mu_log_prior_c;
   } else {
     // A mixture of the two with mixing weight epsilon.
-    target += log_sum_exp(log(1 - mu_epsilon) + mu_log_prior, log(mu_epsilon) + mu_log_prior_c);
+    target += mu_log_prior_eps;
   }
   // mu ~ multi_normal(mu_prior_mean, mu_prior_sigma);
 
