@@ -12,9 +12,9 @@ project_directory <-
 # source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Choose one.
-#analysis_name <- "simulated_data_nonrobust"
+analysis_name <- "simulated_data_nonrobust"
 #analysis_name <- "simulated_data_robust"
-analysis_name <- "simulated_data_lambda_beta"
+#analysis_name <- "simulated_data_lambda_beta"
 
 set.seed(42)
 
@@ -90,7 +90,6 @@ if (file.exists(model_file_rdata)) {
 }
 
 
-
 # Perturb the prior.
 pp_perturb <- pp
 if (analysis_name == "simulated_data_lambda_beta") {
@@ -105,7 +104,6 @@ if (analysis_name == "simulated_data_lambda_beta") {
 }
 
 
-
 # Stan data.
 SetStanDat <- function(prior_params) {
   list(NG = n_g,
@@ -116,9 +114,9 @@ SetStanDat <- function(prior_params) {
        x = x,
        mu_prior_sigma = solve(prior_params$mu_info),
        mu_prior_mean = prior_params$mu_loc,
-       use_mu1_prior = FALSE,
-       mu1_prior_sigma = solve(prior_params$mu_info),
-       mu1_prior_mean = prior_params$mu_loc,
+       mu_prior_sigma_c = solve(prior_params$mu_info),
+       mu_prior_mean_c = prior_params$mu_loc,
+       mu_epsilon = 0,
        scale_prior_alpha = prior_params$lambda_alpha,
        scale_prior_beta = prior_params$lambda_beta,
        lkj_prior_eta = prior_params$lambda_eta,
@@ -126,28 +124,53 @@ SetStanDat <- function(prior_params) {
        tau_prior_beta = prior_params$tau_beta)
 }
 
-stan_dat <- SetStanDat(pp)
-stan_dat_perturbed <- SetStanDat(pp_perturb)
-
-
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 10000
+iters <- 10000 # Was 10000
 seed <- 42
 
-# Note: this takes a while.
-stan_draws_file <-
-  file.path(project_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
-mcmc_time <- Sys.time()
-stan_sim <- sampling(model, data=stan_dat, seed=seed, chains=chains, iter=iters)
-mcmc_time <- Sys.time() - mcmc_time
-stan_sim_perturb <- sampling(model, data=stan_dat_perturbed, seed=seed, chains=chains, iter=iters)
+SampleFromStanDat <- function(local_stan_dat, analyis_name) {
+  mcmc_time <- Sys.time()
+  stan_sim <- sampling(model, data=local_stan_dat, seed=seed, chains=chains, iter=iters)
+  mcmc_time <- Sys.time() - mcmc_time
+  # print(stan_sim, "mu")
+  return(list(mcmc_time=mcmc_time, sim=stan_sim, dat=local_stan_dat, analysis_name=analysis_name))
+}
 
-stan_advi <- vb(model, data =stan_dat,  algorithm="meanfield", output_samples=iters)
-stan_advi_perturb <- vb(model, data=stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
-stan_advi_full <- vb(model, data=stan_dat,  algorithm="fullrank", output_samples=iters)
-stan_advi_full_perturb <- vb(model, data=stan_dat_perturbed,  algorithm="meanfield", output_samples=iters)
+results <- list()
+
+stan_dat <- SetStanDat(pp)
+stan_dat$mu_prior_sigma <- solve(pp$mu_info)
+stan_dat$mu_prior_sigma_c <- solve(pp_perturb$mu_info)
+
+for (epsilon in seq(0, 0.001, length.out=20)) {
+  cat("\n\n", epsilon, "\n")
+  analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
+  stan_dat$mu_epsilon <- epsilon
+  results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
+  print(results[[analysis_name]]$sim, "mu")
+}
+
+epsilon <- 0
+analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
+stan_dat$mu_epsilon <- epsilon
+results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
+
+epsilon <- 1
+analysis_name <- sprintf("epsilon_%f", stan_dat$mu_epsilon)
+stan_dat$mu_epsilon <- epsilon
+results[[sprintf("epsilon_%f", stan_dat$mu_epsilon)]] <- SampleFromStanDat(stan_dat)
+
+foo <- list()
+for (analysis in names(results)) {
+  res <- results[[analysis]]
+  mu <- get_posterior_mean(res[["sim"]], "mu")[1]
+  epsilon <- res$dat$mu_epsilon
+  foo[[length(foo) + 1]] <- data.frame(epsilon=epsilon, mu_1=mu)
+}
+mu_eps_df <- do.call(rbind, foo)
+plot(mu_eps_df$epsilon, mu_eps_df$mu_1)
 
 save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
      stan_dat, stan_dat_perturbed, true_params, pp, pp_perturb,
