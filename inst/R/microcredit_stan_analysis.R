@@ -12,8 +12,8 @@ project_directory <-
 # source(file.path(library_location, "inst/R/microcredit_stan_lib.R"))
 
 # Choose one.
-#analysis_name <- "simulated_data_nonrobust"
-analysis_name <- "simulated_data_nonrobust_t_perturb"
+analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_nonrobust_t_perturb"
 #analysis_name <- "simulated_data_robust"
 #analysis_name <- "simulated_data_lambda_beta"
 
@@ -108,31 +108,31 @@ if (analysis_name == "simulated_data_lambda_beta") {
 
 
 # Stan data.
-SetStanDat <- function(prior_params) {
+stan_dat <-
   list(NG = n_g,
        N = length(y),
        K = ncol(x),
        y_group = y_g,
        y = y,
        x = x,
-       mu_prior_sigma = solve(prior_params$mu_info),
-       mu_prior_mean = prior_params$mu_loc,
-       mu_prior_sigma_c = solve(prior_params$mu_info),
-       mu_prior_mean_c = prior_params$mu_loc,
+       mu_prior_sigma = solve(pp$mu_info),
+       mu_prior_mean = pp$mu_loc,
+       mu_prior_sigma_c = solve(pp_perturb$mu_info),
+       mu_prior_mean_c = pp_perturb$mu_loc,
        mu_prior_df = 1,
-       mu_prior_use_t_contamination = 1,
+       mu_prior_use_t_contamination = 0,
        mu_epsilon = 0,
-       scale_prior_alpha = prior_params$lambda_alpha,
-       scale_prior_beta = prior_params$lambda_beta,
-       lkj_prior_eta = prior_params$lambda_eta,
-       tau_prior_alpha = prior_params$tau_alpha,
-       tau_prior_beta = prior_params$tau_beta)
-}
+       scale_prior_alpha = pp$lambda_alpha,
+       scale_prior_beta = pp$lambda_beta,
+       lkj_prior_eta = pp$lambda_eta,
+       tau_prior_alpha = pp$tau_alpha,
+       tau_prior_beta = pp$tau_beta)
+
 
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
 # the prior sensitivity in the MCMC noise.
 chains <- 1
-iters <- 10000 # Was 10000
+iters <- 10000
 seed <- 42
 
 SampleFromStanDat <- function(local_stan_dat, analyis_name) {
@@ -148,21 +148,13 @@ EpsilonName <- function(epsilon) {
 
 results <- list()
 
-stan_dat <- SetStanDat(pp)
-
-if (FALSE) {
-  # Set this if you're perturbing the normal covariance not the t distribution.
-  stan_dat$mu_prior_sigma <- solve(pp$mu_info)
-  stan_dat$mu_prior_sigma_c <- solve(pp_perturb$mu_info)
-}
-
-for (epsilon in seq(0, 0.001, length.out=20)) {
-  cat("\n\n", epsilon, "\n")
-  stan_dat$mu_epsilon <- epsilon
-  analysis <- EpsilonName(epsilon)
-  results[[analysis]] <- SampleFromStanDat(stan_dat)
-  print(results[[analysis]]$sim, "mu")
-}
+# for (epsilon in seq(0, 0.001, length.out=20)) {
+#   cat("\n\n", epsilon, "\n")
+#   stan_dat$mu_epsilon <- epsilon
+#   analysis <- EpsilonName(epsilon)
+#   results[[analysis]] <- SampleFromStanDat(stan_dat)
+#   print(results[[analysis]]$sim, "mu")
+# }
 
 epsilon <- 0
 stan_dat$mu_epsilon <- epsilon
@@ -172,11 +164,17 @@ epsilon <- 1
 stan_dat$mu_epsilon <- epsilon
 results[[EpsilonName(epsilon)]] <- SampleFromStanDat(stan_dat)
 
+# Make sure that 
 print(results[[EpsilonName(0)]]$sim, "mu")
 print(results[[EpsilonName(1)]]$sim, "mu")
 
+print(sprintf("Saving to %s.", stan_draws_file))
+save(results, pp, pp_perturb, file=stan_draws_file)
 
 
+
+########################
+# Investigate the results
 
 foo <- list()
 for (analysis in names(results)) {
@@ -187,13 +185,6 @@ for (analysis in names(results)) {
 }
 mu_eps_df <- do.call(rbind, foo)
 ggplot(filter(mu_eps_df, epsilon < 1)) + geom_point(aes(x=epsilon, y=mu_1))
-
-save(results, file=stan_draws_file)
-
-# save(stan_sim, stan_sim_perturb, mcmc_time, perturb_epsilon,
-#      stan_dat, stan_dat_perturbed, true_params, pp, pp_perturb,
-#      stan_advi, stan_advi_perturb, stan_advi_full, stan_advi_full_perturb,
-#      file=stan_draws_file)
 
 
 # Look at the weights

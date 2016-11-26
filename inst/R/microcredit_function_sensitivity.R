@@ -23,8 +23,8 @@ fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdat
 print(paste("Loading fits from ", fit_file))
 
 fit_env <- LoadIntoEnvironment(fit_file)
-stan_results <- fit_env$stan_results
-
+stan_results <- fit_env$mcmc_environment$results$epsilon_0.000000
+stan_results_perturb <- fit_env$mcmc_environment$results$epsilon_1.000000
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -34,7 +34,7 @@ results_file <- file.path(project_directory,
 ###########################################
 # Extract results
 
-pp <- fit_env$stan_results$pp
+pp <- fit_env$mcmc_environment$pp
 pp$monte_carlo_prior <- TRUE
 
 # To ensure equivalence, set pp to fit using a normal prior, but evaluated using Monte Carlo.
@@ -49,26 +49,29 @@ pp_perturb$mu_t_df <- 1
 
 # Set the Monte Carlo draws
 n_mu_draws <- 100
-fit_env$vb_fit$vp_opt$mu_draws <-
+vp_opt <- fit_env$vb_fit$vp_opt
+vp_opt$mu_draws <-
   qnorm(seq(1 / (n_mu_draws + 1), 1 - 1 / (n_mu_draws + 1), length.out = n_mu_draws))
 
 
 #################
 # Fit with a t prior
 
-x <- stan_results$stan_dat$x
-y <- stan_results$stan_dat$y
-y_g <- stan_results$stan_dat$y_group
+x <- stan_results$dat$x
+y <- stan_results$dat$y
+y_g <- stan_results$dat$y_group
 
 # Refit to make sure we are comparing apples to oranges.
-vb_fit <- FitVariationalModel(x, y, y_g, fit_env$vb_fit$vp_opt, pp)
+# vb_fit <- FitVariationalModel(x, y, y_g, vp_opt, pp)
+vb_fit <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb)
 vp_opt <- vb_fit$vp_opt
 mp_opt <- GetMoments(vp_opt)
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 lrvb_cov <- lrvb_terms$lrvb_cov
 
 pp_perturb$epsilon <- 1
-vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+# vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb, fit_bfgs=FALSE)
+vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp, fit_bfgs=FALSE)
 vp_opt_perturb <- vb_fit_perturb$vp_opt
 mp_opt_perturb <- GetMoments(vp_opt_perturb)
 
@@ -114,16 +117,22 @@ u_draws <- DrawU(n_samples)
 log_q_grad <- rep(0, vp_indices$encoded_size)
 
 
-GetLogPrior <- function(u) {
+# GetLogPrior <- function(u) {
+#   GetMuLogPrior(u, pp)
+# }
+# 
+# GetLogContaminatingPrior <- function(u) {
+#   GetMuLogStudentTPrior(u, pp_perturb)
+# }
+
+GetLogContaminatingPrior <- function(u) {
   GetMuLogPrior(u, pp)
 }
 
-GetLogContaminatingPrior <- function(u) {
+GetLogPrior <- function(u) {
   GetMuLogStudentTPrior(u, pp_perturb)
 }
 
-# TODO: check whether GetMuLogDensity is in fact correct
-warning("Maybe GetMuLogDensity is wrong -- need to set the square")
 global_mask <- GlobalMask(vp_opt)
 mp_draw <- mp_opt
 GetLogVariationalDensity <- function(u) {
@@ -186,10 +195,92 @@ multiplot(p1, p2)
 
 
 
+################################################
+# Try evaluating directly rather than via the influence function and importance sampling.
+
+global_mask <- GlobalMask(vp_opt)
+mp_draw <- mp_opt
+GetLogVariationalDensity <- function(u) {
+  mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_draw, pp, TRUE, TRUE)
+  log_q_grad[global_mask] <- mu_q_derivs$grad
+  list(val=mu_q_derivs$val, grad=log_q_grad) 
+}
+
+# GetLogPrior <- function(u) {
+#   GetMuLogPrior(u, pp)
+# }
+# 
+# GetLogContaminatingPrior <- function(u) {
+#   GetMuLogStudentTPrior(u, pp_perturb)
+# }
+
+GetLogPrior <- function(u) {
+  GetMuLogStudentTPrior(u, pp_perturb)
+}
+
+GetLogContaminatingPrior <- function(u) {
+  GetMuLogPrior(u, pp)
+}
 
 
+# You could also do this more numerically stably with a Cholesky decomposition.
+lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+
+n_draws <- 50e3
+density_ratios <- rep(NaN, n_draws)
+influence_mat <- matrix(NaN, nrow(lrvb_pre_factor), n_draws)
+
+mu_draws <- DrawFromQMu(n_draws, vp_opt)
+
+pb <- txtProgressBar(min=1, max=n_draws, style=3)
+for (n in 1:n_draws) {
+  setTxtProgressBar(pb, n)
+  mu <- mu_draws[n, ]
+  log_q_derivs <- GetLogVariationalDensity(mu)
+  log_prior_val <- GetLogPrior(mu)
+  log_prior_c_val <- GetLogContaminatingPrior(mu)
+  lrvb_term <- lrvb_pre_factor %*% log_q_derivs$grad
+  density_ratios[n] <- exp(log_prior_c_val - log_prior_val) 
+  influence_mat[, n] <- density_ratios[n] * as.numeric(lrvb_term)
+}
+
+sensitivities <- apply(influence_mat, MARGIN=1, mean)
+sensitivities_sd <- apply(influence_mat, MARGIN=1, sd)
+hist(log10(density_ratios), 100)
 
 
+vis_df <- data.frame(mu_draws) %>%
+  mutate(density_ratio=density_ratios)
+
+ggplot(vis_df) +
+  geom_point(aes(x=X1, y=X2, color=density_ratio), size=2) +
+  scale_color_gradient2()
+
+sens_results <-
+  rbind(
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities),    metric="mean", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities_sd),      metric="sd", method="sens"),
+    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),                       metric="mean", method="diff")) %>%
+  dcast(par + component + group ~ method + metric, value.var="val")
+
+
+# # The "mean value" local sensitivity.  We expect this to be better.
+# p1 <- ggplot(sens_results) +
+#   geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean,
+#                     ymax=mv_sens_mean + 2 * mv_sens_sd,
+#                     ymin=mv_sens_mean - 2 * mv_sens_sd), color="gray") +
+#   geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean, color=par)) +
+#   geom_abline((aes(intercept=0, slope=1))) +
+#   ggtitle("Mean value sens")
+
+# The raw local sensitivity
+ggplot(sens_results) +
+  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean,
+                    ymax=sens_mean + 2 * sens_sd,
+                    ymin=sens_mean - 2 * sens_sd), color="gray") +
+  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean, color=par)) +
+  geom_abline((aes(intercept=0, slope=1))) +
+  ggtitle("raw sens")
 
 
 

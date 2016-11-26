@@ -16,6 +16,7 @@ DrawFromQMu <- function(n_draws, vp_opt, rescale=1) {
 GetMuLogDensity <- function(mu, vp_opt, draw, pp, unconstrained, calculate_gradient) {
   # TODO: don't we also need to set the square?
   draw$mu_e_vec <- mu
+  draw$mu_e_outer <- mu %*% t(mu)
   q_derivs <- GetLogVariationalDensityDerivatives(
     draw, vp_opt, include_mu=TRUE, include_lambda=FALSE,
     integer(), integer(), unconstrained=unconstrained, global_only=TRUE,
