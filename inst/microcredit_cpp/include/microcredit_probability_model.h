@@ -203,10 +203,12 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
             T mu_var = 1 / vp.mu.info.mat(k, k);
 
             mu_log_mvn_prior += EvaluateNormalPrior(
-                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale);
+                vp.mu_draws, mu_loc, mu_var,
+                pp_mu_t_loc, pp_mu_t_scale);
 
             mu_log_t_prior += EvaluateStudentTPrior(
-                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc, pp_mu_t_scale, pp_mu_t_df);
+                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc,
+                pp_mu_t_scale, pp_mu_t_df);
         }
 
         if (epsilon == 0) {
@@ -215,7 +217,8 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
             log_prior += mu_log_t_prior;
         } else {
             log_prior += stan::math::log_sum_exp(
-                mu_log_mvn_prior + log(1 - epsilon), mu_log_t_prior + log(epsilon));
+                mu_log_mvn_prior + log(1 - epsilon),
+                mu_log_t_prior + log(epsilon));
         }
     } else {
         MultivariateNormalNatural<T> vp_mu(vp.mu);
@@ -247,12 +250,40 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihoodDraw(
 
     if (include_mu) {
         // Mu:
-        VectorXT<T> mu_e = mu.template cast<T>();
-        MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
-        MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
+        if (pp.monte_carlo_prior) {
+            T mu_log_t_prior = 0.0;
+            T mu_log_mvn_prior = 0.0;
+            T epsilon = pp.epsilon;
 
-        MultivariateNormalNatural<T> pp_mu = pp.mu;
-        log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+            // Each component has an independent student t prior.
+            T pp_mu_t_loc = pp.mu_t_loc;
+            T pp_mu_t_scale = pp.mu_t_scale;
+            T pp_mu_t_df = pp.mu_t_df;
+            for (int k = 0; k < mu.size(); k++) {
+                mu_log_mvn_prior +=
+                    stan::math::normal_log(mu(k), pp_mu_t_loc, pp_mu_t_scale);
+
+                mu_log_t_prior += stan::math::student_t_log(
+                    mu(k), pp_mu_t_df, pp_mu_t_loc, pp_mu_t_scale);
+            }
+
+            if (epsilon == 0) {
+                log_prior += mu_log_mvn_prior;
+            } else if (epsilon == 1) {
+                log_prior += mu_log_t_prior;
+            } else {
+                log_prior += stan::math::log_sum_exp(
+                    mu_log_mvn_prior + log(1 - epsilon),
+                    mu_log_t_prior + log(epsilon));
+            }
+        } else {
+            VectorXT<T> mu_e = mu.template cast<T>();
+            MatrixXT<T> mu_outer = mu_e * mu_e.transpose();
+            MultivariateNormalMoments<T> mp_mu(mu_e, mu_outer);
+
+            MultivariateNormalNatural<T> pp_mu = pp.mu;
+            log_prior += mp_mu.ExpectedLogLikelihood(pp_mu.loc, pp_mu.info.mat);
+        }
     }
 
     if (include_lambda) {

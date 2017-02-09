@@ -85,7 +85,7 @@ struct MicroCreditLogPriorDraw {
 };
 
 
-// The expected log prior for a variatoinal distribution
+// The expected log prior for a variational distribution
 struct MicroCreditLogPrior {
     VariationalParameters<double> base_vp;
     PriorParameters<double> base_pp;
@@ -173,7 +173,6 @@ struct MicroCreditGlobalElbo {
 };
 
 
-
 struct MicroCreditElbo {
   MicroCreditData data;
   VariationalParameters<double> base_vp;
@@ -215,6 +214,55 @@ struct MicroCreditElbo {
     return obs_log_lik + hier_log_lik + prior + entropy;
   }
 };
+
+
+// // Actually I think this might not be the way to go -- see
+// MuLogPriorFromStdDraw instead.
+// struct MuDrawFromStdNormalDraw {
+//   VariationalParameters<double> base_vp;
+//   VectorXd std_draw;
+// 
+//   MuDrawFromStdNormalDraw(VariationalParameters<double> const &base_vp):
+//     base_vp(base_vp) {
+//         std_draw = VectorXd::Zero(base_vp.k);
+//     };
+// 
+//   template <typename T> VectorXT<T> operator()(VectorXT<T> const &theta) const {
+//     SetFromGlobalVector(theta, vp);
+//     return MVNDrawFromStandardNormalDraw(std_draw, vp.mu);
+//   }
+// };
+
+
+// The log Likelihood  evaluated at a draw of the parameters as a function
+// of the prior parameters.
+struct MuLogPriorFromStdDraw {
+    VariationalParameters<double> base_vp;
+    PriorParameters<double> base_pp;
+    VectorXd std_draw;
+    MatrixXd empty_lambda;
+
+    MuLogPriorFromStdDraw(
+        VariationalParameters<double> base_vp,
+        PriorParameters<double> base_pp):
+        base_vp(base_vp), base_pp(base_pp) {
+
+        std_draw = VectorXd::Zero(base_vp.k);
+        MatrixXd empty_lambda;
+    };
+
+    template <typename T> T operator()(VectorXT<T> const &theta) const {
+        VariationalParameters<T> vp(base_vp);
+        SetFromGlobalVector(theta, vp);
+
+        VectorXT<T> mu_draw = MVNDrawFromStandardNormalDraw(std_draw, vp.mu);
+        T log_prior = GetGlobalPriorLogLikelihoodDraw(
+            empty_lambda, mu_draw, base_pp, true, false);
+
+        return log_prior;
+    }
+};
+
 
 
 

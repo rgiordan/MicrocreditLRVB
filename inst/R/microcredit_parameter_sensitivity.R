@@ -7,8 +7,10 @@ library(MicrocreditLRVB)
 
 # Load previously computed Stan results
 #analysis_name <- "simulated_data_robust"
-analysis_name <- "simulated_data_nonrobust"
+#analysis_name <- "simulated_data_nonrobust"
 #analysis_name <- "simulated_data_lambda_beta"
+analysis_name <- "real_data_informative_priors"
+
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -32,10 +34,16 @@ LoadIntoEnvironment <- function(filename) {
 }
 
 fit_env <- LoadIntoEnvironment(fit_file)
-stan_results <- fit_env$stan_results
-x <- stan_results$stan_dat$x
-y <- stan_results$stan_dat$y
-y_g <- stan_results$stan_dat$y_g
+
+stan_results <- fit_env$mcmc_environment$results$epsilon_0.000000
+stan_results_perturb <- fit_env$mcmc_environment$results$epsilon_1.000000
+
+x <- stan_results$dat$x
+y <- stan_results$dat$y
+y_g <- stan_results$dat$y_group
+
+pp <- fit_env$mcmc_environment$pp
+pp_perturb <- fit_env$mcmc_environment$pp_perturb
 
 
 ###########################################
@@ -48,8 +56,6 @@ prior_sens <- fit_env$prior_sens
 
 mp_opt <- GetMoments(vp_opt)
 mfvb_cov <- GetCovariance(vp_opt)
-
-pp <- fit_env$stan_results$pp
 
 # Convenient indices
 vp_indices <- GetParametersFromVector(vp_opt, as.numeric(1:vp_opt$encoded_size), FALSE)
@@ -67,6 +73,7 @@ if (analysis_name == "simulated_data_lambda_beta") {
 } else {
   vb_sens_vec <- prior_sens[, pp_indices$mu_info[1, 2]]
 }
+
 mp_opt_vec_pert <- mp_opt_vec + stan_results$perturb_epsilon * vb_sens_vec
 mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 
@@ -93,8 +100,11 @@ results_vb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
 results_vb_pert <- SummarizeMomentParameters(mp_opt_pert, mfvb_sd, lrvb_sd)
 results_vb_pert$method <- "mfvb_perturbed"
 
-results_mcmc <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample)
-results_mcmc_pert <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample_perturbed)
+stan_results$sim
+# results_mcmc <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample)
+# results_mcmc_pert <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample_perturbed)
+results_mcmc <- SummarizeMCMCResults(fit_env$mcmc_environment$mcmc_sample)
+results_mcmc_pert <- SummarizeMCMCResults(fit_env$mcmc_environment$mcmc_sample_perturbed)
 results_mcmc_pert$method <- "mcmc_perturbed"
 
 results <- rbind(results_vb, results_mcmc)
