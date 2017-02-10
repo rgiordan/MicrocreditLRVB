@@ -204,19 +204,21 @@ InitializeZeroVariationalParameters <-
 #################################################
 # Optimization:
 
-FitVariationalModel <- function(x, y, y_g, vp_reg, pp, fit_bfgs=TRUE) {
+FitVariationalModel <- function(x, y, y_g, vp_reg, pp, fit_bfgs=TRUE,
+                                loc_bound=60, info_bound=10, tau_bound=100, bfgs_factr=1e7,
+                                rinit=1, rmax=100) {
   # first BFGS
   mask <- rep(TRUE, vp_reg$encoded_size)
   bfgs_opt_fns <- GetOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=GetElboDerivatives, mask=mask)
   theta_init <- GetVectorFromParameters(vp_reg, TRUE)
-  bounds <- GetVectorBounds(vp_reg, loc_bound=60, info_bound=10, tau_bound=100)
+  bounds <- GetVectorBounds(vp_reg, loc_bound=loc_bound, info_bound=info_bound, tau_bound=tau_bound)
 
   if (fit_bfgs) {
     bfgs_time <- Sys.time()
     bfgs_result <- optim(theta_init[mask],
                          bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
                          method="L-BFGS-B", lower=bounds$theta_lower[mask], upper=bounds$theta_upper[mask],
-                         control=list(fnscale=-1, maxit=1000, trace=0, factr=1e7))
+                         control=list(fnscale=-1, maxit=1000, trace=0, factr=bfgs_factr))
     stopifnot(bfgs_result$convergence == 0)
     print(bfgs_result$message)
     bfgs_time <- Sys.time() - bfgs_time
@@ -231,7 +233,7 @@ FitVariationalModel <- function(x, y, y_g, vp_reg, pp, fit_bfgs=TRUE) {
   tr_time <- Sys.time()
   trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_bfgs, pp, verbose=TRUE)
   trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init,
-                        rinit=1, rmax=100, minimize=FALSE, blather=TRUE, iterlim=50)
+                        rinit=rinit, rmax=rmax, minimize=FALSE, blather=TRUE, iterlim=50)
   tr_time <- Sys.time() - tr_time
   trust_result$converged
   trust_result$value

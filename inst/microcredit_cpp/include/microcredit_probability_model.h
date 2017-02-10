@@ -202,18 +202,22 @@ typename promote_args<Tlik, Tprior>::type  GetGlobalPriorLogLikelihood(
             T mu_loc = vp.mu.loc(k);
             T mu_var = 1 / vp.mu.info.mat(k, k);
 
-            mu_log_mvn_prior += EvaluateNormalPrior(
-                vp.mu_draws, mu_loc, mu_var,
-                pp_mu_t_loc, pp_mu_t_scale);
+            if (epsilon <= 1 - 1e-10) {
+                mu_log_mvn_prior += EvaluateNormalPrior(
+                    vp.mu_draws, mu_loc, mu_var,
+                    pp_mu_t_loc, pp_mu_t_scale);                
+            }
 
-            mu_log_t_prior += EvaluateStudentTPrior(
-                vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc,
-                pp_mu_t_scale, pp_mu_t_df);
+            if (epsilon >= 1e-10) {
+                mu_log_t_prior += EvaluateStudentTPrior(
+                    vp.mu_draws, mu_loc, mu_var, pp_mu_t_loc,
+                    pp_mu_t_scale, pp_mu_t_df);                
+            }
         }
 
-        if (epsilon == 0) {
+        if (epsilon < 1e-10) {
             log_prior += mu_log_mvn_prior;
-        } else if (epsilon == 1) {
+        } else if (epsilon > 1 - 1e-10) {
             log_prior += mu_log_t_prior;
         } else {
             log_prior += stan::math::log_sum_exp(

@@ -120,14 +120,9 @@ EpsilonName <- function(epsilon) {
 
 results <- list()
 
-# for (epsilon in seq(0, 0.001, length.out=20)) {
-#   cat("\n\n", epsilon, "\n")
-#   stan_dat$mu_epsilon <- epsilon
-#   analysis <- EpsilonName(epsilon)
-#   results[[analysis]] <- SampleFromStanDat(stan_dat)
-#   print(results[[analysis]]$sim, "mu")
-# }
-
+# Regrettably epsilon is being used two ways here -- both as the size of the
+# perturbation of the prior parameters, and of the mixture between the perturbed
+# and original prior.
 epsilon <- 0
 stan_dat$mu_epsilon <- epsilon
 results[[EpsilonName(epsilon)]] <- SampleFromStanDat(stan_dat)
@@ -141,48 +136,5 @@ print(results[[EpsilonName(0)]]$sim, "mu")
 print(results[[EpsilonName(1)]]$sim, "mu")
 
 print(sprintf("Saving to %s.", stan_draws_file))
-save(results, pp, pp_perturb, file=stan_draws_file)
+save(results, pp, pp_perturb, perturb_epsilon, file=stan_draws_file)
 
-
-
-########################
-# Investigate the results
-
-foo <- list()
-for (analysis in names(results)) {
-  res <- results[[analysis]]
-  mu <- get_posterior_mean(res[["sim"]], "mu")[1]
-  epsilon <- res$dat$mu_epsilon
-  foo[[length(foo) + 1]] <- data.frame(epsilon=epsilon, mu_1=mu, time=res$mcmc_time, analysis=analysis)
-}
-mu_eps_df <- do.call(rbind, foo)
-ggplot(filter(mu_eps_df, epsilon < 1)) + geom_point(aes(x=epsilon, y=mu_1))
-
-
-# Look at the weights
-orig_res <- results[[filter(mu_eps_df, epsilon == 0)[["analysis"]] ]]
-contam_res <- results[[filter(mu_eps_df, epsilon == 1)[["analysis"]] ]]
-
-orig_draws <- extract(orig_res$sim)
-weights <- exp(orig_draws$mu_log_prior_c - orig_draws$mu_log_prior)
-weights <- length(weights) * weights / sum(weights)
-mu1_draws <- orig_draws$mu[,1]
-
-get_posterior_mean(orig_res$sim, "mu")[1]
-mean(mu1_draws)
-
-get_posterior_mean(contam_res$sim, "mu")[1]
-mean(mu1_draws * weights)
-
-weight_dist <- data.frame(num=(length(weights):1) / length(weights), w=sort(weights))
-
-
-if (FALSE) {
-  # The power law coefficient 
-  w_coeff <- coefficients(lm(log10(num) ~ log10(w), data=filter(weight_dist, w > quantile(weight_dist$w, 0.8))))
-  alpha <- -1 * w_coeff["log(w)"] + 1
-  ggplot(weight_dist) +
-    geom_point(aes(x=log10(w), y=log10(num))) +
-    geom_abline(intercept=w_coeff[1], slope=w_coeff[2]) +
-    xlab("log10(Weight)") + ylab("log10(1 - Empirical CDF)")
-}

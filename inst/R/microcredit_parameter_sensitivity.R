@@ -74,7 +74,7 @@ if (analysis_name == "simulated_data_lambda_beta") {
   vb_sens_vec <- prior_sens[, pp_indices$mu_info[1, 2]]
 }
 
-mp_opt_vec_pert <- mp_opt_vec + stan_results$perturb_epsilon * vb_sens_vec
+mp_opt_vec_pert <- mp_opt_vec + fit_env$mcmc_environment$perturb_epsilon * vb_sens_vec
 mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 
 
