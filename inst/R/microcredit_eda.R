@@ -109,13 +109,21 @@ qqnorm(foo$y_trans)
 
 
 
+
 #######################################
 # Debug original data
+
+pp[["mu_t_loc"]] <- 0
+pp[["mu_t_df"]] <- 1
+pp[["mu_t_scale"]] <- 100
+
+pp$monte_carlo_prior <- TRUE
+pp$epsilon <- 0
 
 mask <- rep(TRUE, vp_reg$encoded_size)
 bfgs_opt_fns <- GetOptimFunctions(x, y, y_g, vp_reg, pp, DerivFun=GetElboDerivatives, mask=mask)
 theta_init <- GetVectorFromParameters(vp_reg, TRUE)
-bounds <- GetVectorBounds(vp_reg, loc_bound=8, info_bound=5, tau_bound=10)
+bounds <- GetVectorBounds(vp_reg, loc_bound=100, info_bound=100, tau_bound=100)
 
 bfgs_result <- optim(theta_init[mask],
                      bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
@@ -139,7 +147,10 @@ trust_time <- Sys.time() - trust_time
 
 
 vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)
+mp_opt <- GetMoments(vp_opt)
 
+cbind(SummarizeRawMomentParameters(mp_opt, metric = "mean", method = "optim"),
+      SummarizeRawMomentParameters(mp_opt_t, metric = "mean", method = "optim"))
 
 
 #########################################
@@ -181,7 +192,7 @@ ggplot(d) +
 mask <- rep(TRUE, vp_reg$encoded_size)
 bfgs_opt_fns <- GetOptimFunctions(x_filter, d_filter$y_trans, d_filter$y_g, vp_reg, pp, DerivFun=GetElboDerivatives, mask=mask)
 theta_init <- GetVectorFromParameters(vp_reg, TRUE)
-bounds <- GetVectorBounds(vp_reg, loc_bound=8, info_bound=5, tau_bound=10)
+bounds <- GetVectorBounds(vp_reg, loc_bound=100, info_bound=100, tau_bound=100)
 
 bfgs_result <- optim(theta_init[mask],
                      bfgs_opt_fns$OptimVal, bfgs_opt_fns$OptimGrad,
@@ -234,7 +245,7 @@ trust_moments <- do.call(rbind, trust_moments_list)
 bad_steps <- which(!is.finite(tdf$rho))
 trust_moments <- filter(trust_moments, !(step %in% bad_steps))
 
-trust_moments <- filter(trust_moments, step > 10)
+trust_moments <- filter(trust_moments, step > 0)
 
 trust_moments <-
   group_by(trust_moments, par, component, group) %>%

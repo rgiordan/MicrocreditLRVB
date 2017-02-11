@@ -7,10 +7,11 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_nonrobust"
-#analysis_name <- "simulated_data_lambda_beta"
-analysis_name <- "real_data_informative_priors"
+# analysis_name <- "simulated_data_robust"
+# analysis_name <- "simulated_data_nonrobust"
+# analysis_name <- "simulated_data_lambda_beta"
+# analysis_name <- "real_data_informative_priors"
+analysis_name <- "real_data_t_prior"
 
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
@@ -25,8 +26,8 @@ LoadIntoEnvironment <- function(filename) {
   return(local_env)
 }
 mcmc_environment <- LoadIntoEnvironment(stan_draws_file)
-stan_results <- mcmc_environment$results$epsilon_0.000000
-stan_results_perturb <- mcmc_environment$results$epsilon_1.000000
+stan_results <- mcmc_environment$results$original
+stan_results_perturb <- mcmc_environment$results$perturbed
 
 x <- stan_results$dat$x
 y <- stan_results$dat$y
@@ -49,10 +50,11 @@ mp_reg <- GetMoments(vp_reg)
 #########################################
 # Fit and LRVB
 
-vb_fit <- FitVariationalModel(x, y, y_g, vp_reg, pp, loc_bound=20, info_bound=100, tau_bound=100, bfgs_factr=1e11)
+vb_fit <- FitVariationalModel(x, y, y_g, vp_reg, pp,
+                              loc_bound=60, info_bound=100, tau_bound=100, bfgs_factr=1e8)
 vp_opt <- vb_fit$vp_opt
 print(vb_fit$bfgs_time + vb_fit$tr_time)
-print(mcmc_environment$results$epsilon_0.000000$mcmc_time)
+print(stan_results$mcmc_time)
 lrvb_time <- Sys.time()
 lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
 lrvb_time <- Sys.time() - lrvb_time
@@ -60,14 +62,34 @@ prior_sens <- GetSensitivity(vp_opt, pp, lrvb_terms$jac, lrvb_terms$elbo_hess)
 mp_reg <- GetMoments(vp_reg)
 
 vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb,
-                                      loc_bound=20, info_bound=100, tau_bound=100, bfgs_factr=1e11)
+                                      loc_bound=60, info_bound=100, tau_bound=100, bfgs_factr=1e8)
+lrvb_terms_perturb <- GetLRVB(x, y, y_g, vb_fit_perturb$vp_opt, pp_perturb)
 
+
+###################
+# Debugging the perturbation
+
+if (FALSE) {
+  pp_perturb$mu_t_scale <- 0.1
+  vb_fit_perturb <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb,
+                                        loc_bound=60, info_bound=100, tau_bound=100, bfgs_factr=1e8)
+  
+  mean_comp <-
+    rbind(SummarizeRawMomentParameters(GetMoments(vb_fit$vp_opt),  metric="mean", method = "orig"),
+          SummarizeRawMomentParameters(GetMoments(vb_fit_perturb$vp_opt),  metric="mean", method = "perturb")) %>%
+    dcast(par + component + group + metric ~ method, value.var="val") %>%
+    mutate(diff=orig - perturb)
+  mean_comp
+  
+}
+
+  
 ##########################################
 # Get MCMC sensitivity measures
 
 mcmc_sample <- extract(stan_results$sim)
 mcmc_sample_perturbed <- extract(stan_results_perturb$sim)
-mp_draws <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg) # A little slow
+mp_draws <- PackMCMCSamplesIntoMoments(mcmc_sample, mp_reg)
 
 draws_mat <- do.call(rbind, lapply(mp_draws, GetVectorFromMoments))
 log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
@@ -87,3 +109,74 @@ mcmc_environment$mcmc_sample <- mcmc_sample
 fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdata", sep=""))
 print(paste("Saving fits to ", fit_file))
 save(mcmc_environment, vb_fit, vb_fit_perturb, lrvb_terms, prior_sens, lrvb_time, file=fit_file)
+
+
+############################################
+# Inspect the results
+
+library(dplyr)
+
+GetResultsDF <- function(vp_opt, mcmc_sample, lrvb_terms) {
+  mp_opt <- GetMoments(vp_opt)
+  mfvb_cov <- GetCovariance(vp_opt)
+  lrvb_cov <- lrvb_terms$lrvb_cov
+  
+  # Pack the standard deviations into readable forms.
+  mfvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(mfvb_cov)))
+  lrvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(lrvb_cov)))
+  results_lrvb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
+  results_mcmc <- SummarizeMCMCResults(mcmc_sample)
+  results <- rbind(results_lrvb, results_mcmc)
+
+  return(results)  
+}
+
+results <- GetResultsDF(vb_fit$vp_opt, mcmc_environment$mcmc_sample, lrvb_terms)
+results$data <- "original"
+results_pert <- GetResultsDF(vb_fit_perturb$vp_opt, mcmc_environment$mcmc_sample_perturbed, lrvb_terms_perturb)
+results_pert$data <- "perturbed"
+
+results_both <-
+  rbind(results, results_pert) %>%
+  dcast(par + component + group + metric + method ~ data, value.var="val") %>%
+  filter(metric == "mean")
+
+
+stop()
+
+mean_results <-
+  filter(results, metric == "mean") %>%
+  dcast(par + component + group ~ method, value.var="val")
+
+ggplot(filter(mean_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_results, par == "tau")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(mean_results, par == "lambda")) +
+  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+
+sd_results <-
+  filter(results, metric == "sd") %>%
+  dcast(par + component + group ~ method, value.var="val")
+
+ggplot(filter(sd_results, par != "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(sd_results, par == "mu_g")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+

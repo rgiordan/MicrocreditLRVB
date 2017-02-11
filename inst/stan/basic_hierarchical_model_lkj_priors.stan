@@ -46,7 +46,8 @@ transformed parameters {
   } else {
     mu_log_prior_c = 0.0;
     for (k in 1:K) {
-      mu_log_prior_c = mu_log_prior_c + student_t_lpdf(mu[k] | mu_prior_df, mu_prior_mean_c, sqrt(mu_prior_sigma_c[k, k]));
+      mu_log_prior_c = mu_log_prior_c +
+        student_t_lpdf(mu[k] | mu_prior_df, mu_prior_mean_c, sqrt(mu_prior_sigma_c[k, k]));
     }
   }
   mu_log_prior_eps = log_sum_exp(log(1 - mu_epsilon) + mu_log_prior, log(mu_epsilon) + mu_log_prior_c);

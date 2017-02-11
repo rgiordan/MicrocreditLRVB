@@ -6,10 +6,11 @@ library(Matrix)
 library(MicrocreditLRVB)
 
 # Load previously computed Stan results
-#analysis_name <- "simulated_data_robust"
-#analysis_name <- "simulated_data_nonrobust"
-#analysis_name <- "simulated_data_lambda_beta"
-analysis_name <- "real_data_informative_priors"
+# analysis_name <- "simulated_data_robust"
+# analysis_name <- "simulated_data_nonrobust"
+# analysis_name <- "simulated_data_lambda_beta"
+# analysis_name <- "real_data_informative_priors"
+analysis_name <- "real_data_t_prior"
 
 
 project_directory <-
@@ -35,8 +36,8 @@ LoadIntoEnvironment <- function(filename) {
 
 fit_env <- LoadIntoEnvironment(fit_file)
 
-stan_results <- fit_env$mcmc_environment$results$epsilon_0.000000
-stan_results_perturb <- fit_env$mcmc_environment$results$epsilon_1.000000
+stan_results <- fit_env$mcmc_environment$results$original
+stan_results_perturb <- fit_env$mcmc_environment$results$perturbed
 
 x <- stan_results$dat$x
 y <- stan_results$dat$y
@@ -92,7 +93,6 @@ results_lrvb_pert$method <- "lrvb_perturbed"
 # Get the VB result from manually perturbing and refitting
 vp_opt_pert <- fit_env$vb_fit_perturb$vp_opt
 mp_opt_pert <- GetMoments(vp_opt_pert)
-pp_perturb <- fit_env$stan_results$pp_perturb
 lrvb_terms_pert <- GetLRVB(x, y, y_g, vp_opt_pert, pp_perturb)
 prior_sens_pert <- GetSensitivity(vp_opt_pert, pp_perturb, lrvb_terms_pert$jac, lrvb_terms_pert$elbo_hess)
 
@@ -129,7 +129,6 @@ AppendVBSensitivityResults(pp_indices$tau_alpha, "tau_alpha", "tau[alpha]")
 AppendVBSensitivityResults(pp_indices$tau_beta, "tau_beta", "tau[beta]")
 
 
-
 ##########################################
 # Get MCMC sensitivity measures
 mcmc_sample <- fit_env$stan_results$mcmc_sample
@@ -145,19 +144,17 @@ log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
 # Prior sensitivity results with respect to a particular prior parameter.
 
 # TODO: use these after you've fixed the LKJ prior
-# draws_mat <- fit_env$stan_results$draws_mat
-# log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
+draws_mat <- fit_env$mcmc_environment$draws_mat
+log_prior_grad_mat <- fit_env$mcmc_environment$log_prior_grad_mat
 
-# Note: the LKJ alpha and beta are looking suspicious.
-
-#prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
-#prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
-#prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
-#prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
-prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
-#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
-#prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
-#prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
+prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
+# prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
+# prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
+# prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
+# prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
+# prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
+# prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
+# prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
 
 mcmc_subset_size <- 1000
 mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ],
@@ -173,7 +170,7 @@ prior_sens_results <-
           mutate(draws=""),
         SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
           mutate(draws=nrow(draws_mat)),
-        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, "mcmc") %>%
+        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, method="mcmc_subset") %>%
           mutate(draws=mcmc_subset_size)
   )
 
@@ -277,8 +274,9 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
 
 
 # Full bar chart of the vb changes
-sens_graph_df <- filter(vb_sensitivity_results, par == "mu",
-                        metric %in% c("mu_info_11", "mu_info_12", "mu_info_22", "lambda_eta"))
+sens_graph_df <- filter(vb_sensitivity_results)
+# sens_graph_df <- filter(vb_sensitivity_results, par == "mu",
+#                         metric %in% c("mu_info_11", "mu_info_12", "mu_info_22", "lambda_eta"))
 sens_breaks <- unique(sens_graph_df$metric)
 
 WrapInExpressions <- function(string_vec) {
@@ -296,6 +294,13 @@ ggplot(sens_graph_df) +
                       labels=eval(parse(text=WrapInExpressions(unique(sens_graph_df$expression))))) +
   scale_x_discrete(breaks=c("e_mu_1_-1", "e_mu_2_-1"),
                    labels=c(expression(mu), expression(tau))) +
+  xlab("Prior top-level mean component") + ylab("Sensitivity") +
+  ggtitle("Derivative of the posterior mean")
+
+
+ggplot(sens_graph_df) +
+  geom_bar(aes(x=paste(par, component), y=val, fill=metric),
+           position="dodge", stat="identity") +
   xlab("Prior top-level mean component") + ylab("Sensitivity") +
   ggtitle("Derivative of the posterior mean")
 
