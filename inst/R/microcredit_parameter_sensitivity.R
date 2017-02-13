@@ -71,8 +71,14 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 mp_opt_vec <- GetVectorFromMoments(mp_opt)
 if (analysis_name == "simulated_data_lambda_beta") {
   vb_sens_vec <- prior_sens[, pp_indices$lambda_beta]
-} else {
+} else if (analysis_name %in% c("real_data_informative_priors",
+                                "simulated_data_robust",
+                                "simulated_data_nonrobust")) {
   vb_sens_vec <- prior_sens[, pp_indices$mu_info[1, 2]]
+} else if (analysis_name == "real_data_t_prior") {
+  vb_sens_vec <- prior_sens[, pp_indices$lambda_beta]
+} else {
+  stop("Bad analysis name")
 }
 
 mp_opt_vec_pert <- mp_opt_vec + fit_env$mcmc_environment$perturb_epsilon * vb_sens_vec
@@ -143,15 +149,14 @@ log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
 #######################
 # Prior sensitivity results with respect to a particular prior parameter.
 
-# TODO: use these after you've fixed the LKJ prior
 draws_mat <- fit_env$mcmc_environment$draws_mat
 log_prior_grad_mat <- fit_env$mcmc_environment$log_prior_grad_mat
 
-prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
+# prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
 # prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
 # prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
 # prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
-# prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
+prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
 # prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
 # prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
 # prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
@@ -177,11 +182,11 @@ prior_sens_results <-
 
 prior_sens_results_graph <-
   inner_join(
-  filter(prior_sens_results, method == "lrvb") %>%
-    dcast(par + component + group + metric ~ method, value.var="val"),
-  filter(prior_sens_results, method == "mcmc") %>%
-    dcast(par + component + group + metric + draws ~ method, value.var="val"),
-  by=c("par", "component", "group", "metric"))
+    filter(prior_sens_results, method == "lrvb") %>%
+      dcast(par + component + group + metric ~ method, value.var="val"),
+    filter(prior_sens_results, method == "mcmc") %>%
+      dcast(par + component + group + metric + draws ~ method, value.var="val"),
+    by=c("par", "component", "group", "metric"))
 
 prior_sens_results_graph$ind_name <- ind_name
 

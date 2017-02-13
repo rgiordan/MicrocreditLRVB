@@ -73,6 +73,10 @@ GetLogVariationalDensityDerivatives <- function(r_obs_mp, r_vp, include_mu, incl
     .Call('MicrocreditLRVB_GetLogVariationalDensityDerivatives', PACKAGE = 'MicrocreditLRVB', r_obs_mp, r_vp, include_mu, include_lambda, r_include_mu_groups, r_include_tau_groups, unconstrained, global_only, calculate_gradient)
 }
 
+GetVariationalLogMarginalMuDensityDerivatives <- function(r_obs_mp, r_vp, component, unconstrained) {
+    .Call('MicrocreditLRVB_GetVariationalLogMarginalMuDensityDerivatives', PACKAGE = 'MicrocreditLRVB', r_obs_mp, r_vp, component, unconstrained)
+}
+
 GetMCMCLogPriorDerivatives <- function(draw_list, r_pp) {
     .Call('MicrocreditLRVB_GetMCMCLogPriorDerivatives', PACKAGE = 'MicrocreditLRVB', draw_list, r_pp)
 }

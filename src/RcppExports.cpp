@@ -252,6 +252,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// GetVariationalLogMarginalMuDensityDerivatives
+Rcpp::List GetVariationalLogMarginalMuDensityDerivatives(const Rcpp::List r_obs_mp, const Rcpp::List r_vp, int const component, bool const unconstrained);
+RcppExport SEXP MicrocreditLRVB_GetVariationalLogMarginalMuDensityDerivatives(SEXP r_obs_mpSEXP, SEXP r_vpSEXP, SEXP componentSEXP, SEXP unconstrainedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_obs_mp(r_obs_mpSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type r_vp(r_vpSEXP);
+    Rcpp::traits::input_parameter< int const >::type component(componentSEXP);
+    Rcpp::traits::input_parameter< bool const >::type unconstrained(unconstrainedSEXP);
+    rcpp_result_gen = Rcpp::wrap(GetVariationalLogMarginalMuDensityDerivatives(r_obs_mp, r_vp, component, unconstrained));
+    return rcpp_result_gen;
+END_RCPP
+}
 // GetMCMCLogPriorDerivatives
 Rcpp::List GetMCMCLogPriorDerivatives(const Rcpp::List draw_list, const Rcpp::List r_pp);
 RcppExport SEXP MicrocreditLRVB_GetMCMCLogPriorDerivatives(SEXP draw_listSEXP, SEXP r_ppSEXP) {
