@@ -21,8 +21,8 @@ fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdat
 print(paste("Loading fits from ", fit_file))
 
 fit_env <- LoadIntoEnvironment(fit_file)
-stan_results <- fit_env$mcmc_environment$results$epsilon_0.000000
-stan_results_perturb <- fit_env$mcmc_environment$results$epsilon_1.000000
+stan_results <- fit_env$mcmc_environment$results$original
+stan_results_perturb <- fit_env$mcmc_environment$results$perturbed
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -61,69 +61,79 @@ n_samples <- 5000
 lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 
 # Proposals based on q
-mu_comp <- 1
+mu_comp <- 1 # The component of mu to perturb.
 u_mean <- mp_opt$mu_e_vec[mu_comp]
 # Increase the covariance for sampling.  How much is enough?
 u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)[mu_comp, mu_comp]
 GetULogDensity <- function(mu) {
-  dnorm(mu, mean=u_mean, sigma=u_cov, log=TRUE)
+  dnorm(mu, mean=u_mean, sd=sqrt(u_cov), log=TRUE)
 }
 
 DrawU <- function(n_samples) {
-  rnorm(n_samples, mean=u_mean, sigma=u_cov)
+  rnorm(n_samples, mean=u_mean, sd=sqrt(u_cov))
 }
-
-# GetLogPrior <- function(u) {
-#   GetMuLogPrior(u, pp)
-# }
-# 
-# GetLogContaminatingPrior <- function(u) {
-#   GetMuLogStudentTPrior(u, pp_perturb)
-# }
 
 GetLogContaminatingPrior <- function(u) {
   GetMuLogPrior(u, pp)
 }
 
 GetLogPrior <- function(u) {
-  GetMuLogStudentTPrior(u, pp_perturb)
+  GetMuLogStudentTPrior(u, pp)
 }
 
-# TODO: this needs to be the univariate density.
+GetLogPriorVec <- function(u_vec) {
+  sapply(u_vec, function(u) { GetLogPrior(u) } )
+}
+
+# This is the univariate density, analytically marginalized in C++
+mp_draw <- mp_opt
 GetLogVariationalDensity <- function(u) {
-  mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_opt, pp, TRUE, FALSE)
+  mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
   return(mu_q_derivs$val) 
 }
 
-GetLogQGradTerm <- function(mu) {
-  mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_draw, pp, TRUE, TRUE)
-  as.numeric(-1 * moment_jac %*% solve(vb_fit$hessian, grad_log_q))
+GetLogQGradTerm <- function(u) {
+  mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
+  as.numeric(-1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad))
 }
 
-GetVariationalInfluenceResults(
+mu_influence_results <- GetVariationalInfluenceResults(
   num_draws=5000,
-  DrawImportanceSamples=DrawU, metric="", GetImportanceLogProb=GetULogDensity, GetLogQGradTerm=)
+  DrawImportanceSamples=DrawU,
+  GetImportanceLogProb=GetULogDensity,
+  GetLogQGradTerm=GetLogQGradTerm,
+  GetLogQ=GetLogVariationalDensity,
+  GetLogPrior=GetLogPrior)
 
 
+param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
+g_draws <- param_draws
+
+mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, GetLogPriorVec)
+mcmc_inf <- mcmc_funs$GetMCMCInfluence(g_draws) 
+
+mcmc_influence_df <- data.frame(
+  mu=param_draws,
+  inf=mcmc_inf,
+  dens=mcmc_funs$dens_at_draws)
+
+vb_influence_df <- data.frame(
+  u=mu_influence_results$u_draws,
+  inf=mu_influence_results$influence_fun[, mp_indices$mu_e_vec[mu_comp]],
+  imp_lp=mu_influence_results$importance_lp_ratio,
+  lq=mu_influence_results$log_q,
+  lp=mu_influence_results$log_prior)
 
 
-
-GetInfluenceFunctionSample <- GetInfluenceFunctionSampleFunction(
-  GetLogVariationalDensity, GetLogPrior, GetULogDensity, lrvb_pre_factor)
-
-Rprof("/tmp/rprof")
-influence_list <- list()
-pb <- txtProgressBar(min=1, max=nrow(u_draws), style=3)
-for (ind in 1:nrow(u_draws)) {
-  setTxtProgressBar(pb, ind)
-  influence_list[[ind]] <- GetInfluenceFunctionSample(u_draws[ind, ])
-}
-close(pb)
-summaryRprof("/tmp/rprof")
+# ggplot(vb_influence_df) +
+#   geom_point(aes(x=u, y=exp(lq), color="log q")) +
+#   geom_point(aes(x=u, y=exp(lp), color="log prior"))
 
 
-GetSensitivitySample <- GetSensitivitySampleFunction(GetLogContaminatingPrior)
-sensitivity_list <- lapply(influence_list, GetSensitivitySample)
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=mu, y=inf, color="mcmc"))
+
 
 sensitivities <- UnpackSensitivityList(sensitivity_list)
 diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
