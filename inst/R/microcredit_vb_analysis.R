@@ -83,7 +83,26 @@ if (FALSE) {
   
 }
 
+
+###################
+# Check a more accurate convergence
+
+if (FALSE) {
+  library(trust)
+  trust_fns <- GetTrustRegionELBO(x, y, y_g, vp_opt, pp, verbose = TRUE)
+  trust_result <- trust(trust_fns$TrustFun, trust_fns$theta_init, 
+                        rinit = 10, rmax = 100, minimize = FALSE, blather = TRUE, 
+                        iterlim = 50, mterm=0, fterm=1e-10)
+  new_vp_opt <- GetParametersFromVector(vp_reg, trust_result$argument, TRUE)  
+  max(abs(trust_result$argument - vb_fit$trust_result$argument))
   
+  lrvb_terms <- GetLRVB(x, y, y_g, vp_opt, pp)
+  new_lrvb_terms <- GetLRVB(x, y, y_g, new_vp_opt, pp)
+  
+  plot(log(diag(lrvb_terms$lrvb_cov)), log(diag(new_lrvb_terms$lrvb_cov))); abline(0, 1)
+}
+
+
 ##########################################
 # Get MCMC sensitivity measures
 
@@ -108,76 +127,5 @@ mcmc_environment$mcmc_sample <- mcmc_sample
 
 fit_file <- file.path(project_directory, paste(analysis_name, "_mcmc_and_vb.Rdata", sep=""))
 print(paste("Saving fits to ", fit_file))
-save(mcmc_environment, vb_fit, vb_fit_perturb, lrvb_terms, prior_sens, lrvb_time, file=fit_file)
+save(mcmc_environment, vb_fit, vb_fit_perturb, lrvb_terms, lrvb_terms_perturb, prior_sens, lrvb_time, file=fit_file)
 
-
-############################################
-# Inspect the results
-
-library(dplyr)
-
-GetResultsDF <- function(vp_opt, mcmc_sample, lrvb_terms) {
-  mp_opt <- GetMoments(vp_opt)
-  mfvb_cov <- GetCovariance(vp_opt)
-  lrvb_cov <- lrvb_terms$lrvb_cov
-  
-  # Pack the standard deviations into readable forms.
-  mfvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(mfvb_cov)))
-  lrvb_sd <- GetMomentsFromVector(mp_opt, sqrt(diag(lrvb_cov)))
-  results_lrvb <- SummarizeMomentParameters(mp_opt, mfvb_sd, lrvb_sd)
-  results_mcmc <- SummarizeMCMCResults(mcmc_sample)
-  results <- rbind(results_lrvb, results_mcmc)
-
-  return(results)  
-}
-
-results <- GetResultsDF(vb_fit$vp_opt, mcmc_environment$mcmc_sample, lrvb_terms)
-results$data <- "original"
-results_pert <- GetResultsDF(vb_fit_perturb$vp_opt, mcmc_environment$mcmc_sample_perturbed, lrvb_terms_perturb)
-results_pert$data <- "perturbed"
-
-results_both <-
-  rbind(results, results_pert) %>%
-  dcast(par + component + group + metric + method ~ data, value.var="val") %>%
-  filter(metric == "mean")
-
-
-stop()
-
-mean_results <-
-  filter(results, metric == "mean") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(mean_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "tau")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "lambda")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-
-sd_results <-
-  filter(results, metric == "sd") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(sd_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(sd_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-
-# Some posteriors

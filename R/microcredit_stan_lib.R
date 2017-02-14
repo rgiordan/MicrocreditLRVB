@@ -355,6 +355,7 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
   k_reg <- vp_mom$k_reg
   n_g <- vp_mom$n_g
   
+  # mu
   results_list <- list()
   for (k in 1:k_reg) {
     Accessor <- function(vp) { vp[["mu_e_vec"]][k] }
@@ -363,6 +364,7 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
                 method=method, metric=metric, val=Accessor(vp_mom))
   }
   
+  # lambda
   for (k1 in 1:k_reg) {
     for (k2 in 1:k_reg) {
       Accessor <- function(vp) { vp[["lambda_e"]][k1, k2] }
@@ -373,6 +375,7 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
     }
   }
   
+  # mu_g
   for (g in 1:n_g) {
     for (k in 1:k_reg) {
       Accessor <- function(vp) { vp[["mu_g"]][[g]][["e_vec"]][k] }
@@ -382,10 +385,15 @@ SummarizeRawMomentParameters <- function(vp_mom, metric, method) {
     }
   }
   
+  # tau
   for (g in 1:n_g) {
     Accessor <- function(vp) { vp[["tau"]][[g]][["e"]] }
     results_list[[length(results_list) + 1]] <-
       ResultRow(par="tau", component=-1, group=g,
+                method=method, metric=metric, val=Accessor(vp_mom))
+    Accessor <- function(vp) { vp[["tau"]][[g]][["e_log"]] }
+    results_list[[length(results_list) + 1]] <-
+      ResultRow(par="log_tau", component=-1, group=g,
                 method=method, metric=metric, val=Accessor(vp_mom))
   }
   
@@ -423,6 +431,8 @@ SummarizeMCMCResults <- function(mcmc_sample) {
     tau_draws <- 1 / mcmc_sample$sigma_y[, g] ^ 2
     results_list[[length(results_list) + 1]] <-
       SummarizeMCMCColumn(tau_draws, par="tau", group=g)
+    results_list[[length(results_list) + 1]] <-
+      SummarizeMCMCColumn(log(tau_draws), par="log_tau", group=g)
     for (k in 1:k_reg) {
       results_list[[length(results_list) + 1]] <-
         SummarizeMCMCColumn(mcmc_sample$mu1[, g, k], par="mu_g", component=k, group=g)
@@ -434,169 +444,208 @@ SummarizeMCMCResults <- function(mcmc_sample) {
 
 
 
-
-#############
-# Debugging
-
-GetLambdaMask <- function(vp_base) {
-  mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
-  mask <- rep(0, length(mask))
-  vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
-  # vp_mask$mu_loc[] <- 1
-  # vp_mask$mu_info[] <- 1
-  vp_mask$lambda_v[] <- 1
-  vp_mask$lambda_n <- 1
-  mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
-  return(mask)
-}
-
-
-GetLocalMask <- function(vp_base) {
-  mask <- GetVectorFromParameters(vp_base, FALSE)
-  mask <- rep(1, length(mask))
-  vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)
-  vp_mask$mu_loc[] <- 0
-  vp_mask$mu_info[] <- 0
-  vp_mask$lambda_v[] <- 0
-  vp_mask$lambda_n <- 0
-  mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
-  return(mask)
-}
-
-
-
-GetTrustObj <- function(optim_fns) {
-  TrustObj <- function(theta) {
-    list(value=optim_fns$OptimVal(theta),
-         gradient=optim_fns$OptimGrad(theta),
-         hessian=optim_fns$OptimHess(theta))
+# A dataframe summarizing the VB prior sensitivity
+SummarizePriorSensitivityMatrix <- function(prior_sens, pp_indices, mp_opt, method) {
+  AppendVBSensitivityResults <- function(ind, prior_param, method) {
+    this_mp <- GetMomentsFromVector(mp_opt, prior_sens[, ind])
+    return(SummarizeRawMomentParameters(this_mp, metric=prior_param, method=method))
   }
-  return(TrustObj)
-}
-
-
-EvaluateOnGrid <- function(FUN, theta, dir, grid_min, grid_max, len) {
-  result <- list()
-  grid_points <- seq(grid_min, grid_max, length.out=len)
-  for (i in 1:len) {
-    epsilon <- grid_points[i]
-    print(epsilon)
-    val <- FUN(theta + dir * epsilon)
-    result[[length(result) + 1]] <- data.frame(epsilon=epsilon, val=val)
+  
+  k_reg <- pp_indices$k_reg
+  
+  results_list <- list()
+  for (k in 1:k_reg) {
+    results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+      pp_indices$mu_loc[k], prior_param=paste("mu_loc", k, sep="_"), method=method)
   }
-  return(do.call(rbind, result))
-}
-
-
-EvaluateOn2dGrid <- function(FUN, theta, grid_min1, grid_max1, grid_min2, grid_max2, len) {
-  result <- list()
-  grid_points1 <- seq(grid_min1, grid_max1, length.out=len)
-  grid_points2 <- seq(grid_min2, grid_max2, length.out=len)
-  for (i in 1:len) {   for (j in 1:len) {
-    deli <- grid_points1[i]
-    delj <- grid_points2[j]
-    theta_eval <- theta + c(deli, delj)
-    val <- FUN(theta_eval)
-    result[[length(result) + 1]] <- data.frame(theta1=theta_eval[1], theta2=theta_eval[2], val=val)
+  for (k1 in 1:k_reg) { for (k2 in 1:k1) {
+    results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+      pp_indices$mu_info[k1, k2], prior_param=paste("mu_info", k1, k2, sep="_"), method=method)
   }}
-  return(do.call(rbind, result))
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$mu_t_loc, prior_param="mu_t_loc", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$mu_t_scale, prior_param="mu_t_scale", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$mu_t_df, prior_param="mu_t_df", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$lambda_eta, prior_param="lambda_eta", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$lambda_alpha, prior_param="lambda_alpha", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$lambda_beta, prior_param="lambda_beta", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$tau_alpha, prior_param="tau_alpha", method=method)
+  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
+    pp_indices$tau_beta, prior_param="tau_beta", method=method)
+  return(do.call(rbind, results_list))
 }
 
-
-EntropyFun <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=FALSE,
-                           include_prior=FALSE,
-                           include_entropy=TRUE,
-                           global_only=FALSE,
-                           calculate_gradient=FALSE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$val
-}
-
-
-HierFun <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=TRUE,
-                           include_prior=FALSE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=FALSE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$val
-}
-
-ObsFun <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=TRUE,
-                           include_hier=FALSE,
-                           include_prior=FALSE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=FALSE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$val
-}
-
-PriorFun <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=FALSE,
-                           include_prior=TRUE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=FALSE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$val
-}
-
-EntropyGrad <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=FALSE,
-                           include_prior=FALSE,
-                           include_entropy=TRUE,
-                           global_only=FALSE,
-                           calculate_gradient=TRUE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$grad
-}
-
-
-HierGrad <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=TRUE,
-                           include_prior=FALSE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=TRUE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$grad
-}
-
-ObsGrad <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=TRUE,
-                           include_hier=FALSE,
-                           include_prior=FALSE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=TRUE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$grad
-}
-
-PriorGrad <- function(x, y, y_g, vp, pp) {
-  GetCustomElboDerivatives(x, y, y_g, vp, pp,
-                           include_obs=FALSE,
-                           include_hier=FALSE,
-                           include_prior=TRUE,
-                           include_entropy=FALSE,
-                           global_only=FALSE,
-                           calculate_gradient=TRUE,
-                           calculate_hessian=FALSE,
-                           unconstrained=TRUE)$grad
-}
+# 
+# 
+# 
+# #############
+# # Debugging
+# 
+# GetLambdaMask <- function(vp_base) {
+#   mask <- GetGlobalVectorFromParameters(vp_base, FALSE)
+#   mask <- rep(0, length(mask))
+#   vp_mask <- GetParametersFromGlobalVector(vp_base, mask, FALSE)
+#   # vp_mask$mu_loc[] <- 1
+#   # vp_mask$mu_info[] <- 1
+#   vp_mask$lambda_v[] <- 1
+#   vp_mask$lambda_n <- 1
+#   mask <- GetGlobalVectorFromParameters(vp_mask, FALSE) == 1
+#   return(mask)
+# }
+# 
+# 
+# GetLocalMask <- function(vp_base) {
+#   mask <- GetVectorFromParameters(vp_base, FALSE)
+#   mask <- rep(1, length(mask))
+#   vp_mask <- GetParametersFromVector(vp_base, mask, FALSE)
+#   vp_mask$mu_loc[] <- 0
+#   vp_mask$mu_info[] <- 0
+#   vp_mask$lambda_v[] <- 0
+#   vp_mask$lambda_n <- 0
+#   mask <- GetVectorFromParameters(vp_mask, FALSE) == 1
+#   return(mask)
+# }
+# 
+# 
+# 
+# GetTrustObj <- function(optim_fns) {
+#   TrustObj <- function(theta) {
+#     list(value=optim_fns$OptimVal(theta),
+#          gradient=optim_fns$OptimGrad(theta),
+#          hessian=optim_fns$OptimHess(theta))
+#   }
+#   return(TrustObj)
+# }
+# 
+# 
+# EvaluateOnGrid <- function(FUN, theta, dir, grid_min, grid_max, len) {
+#   result <- list()
+#   grid_points <- seq(grid_min, grid_max, length.out=len)
+#   for (i in 1:len) {
+#     epsilon <- grid_points[i]
+#     print(epsilon)
+#     val <- FUN(theta + dir * epsilon)
+#     result[[length(result) + 1]] <- data.frame(epsilon=epsilon, val=val)
+#   }
+#   return(do.call(rbind, result))
+# }
+# 
+# 
+# EvaluateOn2dGrid <- function(FUN, theta, grid_min1, grid_max1, grid_min2, grid_max2, len) {
+#   result <- list()
+#   grid_points1 <- seq(grid_min1, grid_max1, length.out=len)
+#   grid_points2 <- seq(grid_min2, grid_max2, length.out=len)
+#   for (i in 1:len) {   for (j in 1:len) {
+#     deli <- grid_points1[i]
+#     delj <- grid_points2[j]
+#     theta_eval <- theta + c(deli, delj)
+#     val <- FUN(theta_eval)
+#     result[[length(result) + 1]] <- data.frame(theta1=theta_eval[1], theta2=theta_eval[2], val=val)
+#   }}
+#   return(do.call(rbind, result))
+# }
+# 
+# 
+# EntropyFun <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=FALSE,
+#                            include_prior=FALSE,
+#                            include_entropy=TRUE,
+#                            global_only=FALSE,
+#                            calculate_gradient=FALSE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$val
+# }
+# 
+# 
+# HierFun <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=TRUE,
+#                            include_prior=FALSE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=FALSE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$val
+# }
+# 
+# ObsFun <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=TRUE,
+#                            include_hier=FALSE,
+#                            include_prior=FALSE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=FALSE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$val
+# }
+# 
+# PriorFun <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=FALSE,
+#                            include_prior=TRUE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=FALSE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$val
+# }
+# 
+# EntropyGrad <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=FALSE,
+#                            include_prior=FALSE,
+#                            include_entropy=TRUE,
+#                            global_only=FALSE,
+#                            calculate_gradient=TRUE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$grad
+# }
+# 
+# 
+# HierGrad <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=TRUE,
+#                            include_prior=FALSE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=TRUE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$grad
+# }
+# 
+# ObsGrad <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=TRUE,
+#                            include_hier=FALSE,
+#                            include_prior=FALSE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=TRUE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$grad
+# }
+# 
+# PriorGrad <- function(x, y, y_g, vp, pp) {
+#   GetCustomElboDerivatives(x, y, y_g, vp, pp,
+#                            include_obs=FALSE,
+#                            include_hier=FALSE,
+#                            include_prior=TRUE,
+#                            include_entropy=FALSE,
+#                            global_only=FALSE,
+#                            calculate_gradient=TRUE,
+#                            calculate_hessian=FALSE,
+#                            unconstrained=TRUE)$grad
+# }

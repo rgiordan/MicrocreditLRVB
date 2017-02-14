@@ -68,6 +68,7 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 # VB sensitivity measures
 
 # Calculate vb perturbed estimates
+prior_sens <- fit_env$prior_sens
 mp_opt_vec <- GetVectorFromMoments(mp_opt)
 if (analysis_name == "simulated_data_lambda_beta") {
   vb_sens_vec <- prior_sens[, pp_indices$lambda_beta]
@@ -89,6 +90,10 @@ mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 prior_sens_norm <- fit_env$prior_sens / sqrt(diag(lrvb_cov))
 vb_sensitivity_results <-
   SummarizePriorSensitivityMatrix(prior_sens_norm, pp_indices, mp_opt, method="lrvb")
+
+prior_sens <- fit_env$prior_sens
+vb_sensitivity_results_unnormalized <-
+  SummarizePriorSensitivityMatrix(prior_sens, pp_indices, mp_opt, method="lrvb")
 
 
 ##########################################
@@ -151,58 +156,21 @@ results_mcmc_pert$method <- "mcmc_perturbed"
 results <- rbind(results_vb, results_mcmc)
 results_pert <- rbind(results_vb, results_lrvb_pert, results_vb_pert, results_mcmc, results_mcmc_pert)
 
+prior_sens_results <-
+  rbind(mcmc_sensitivity_results, mcmc_subset_sensitivity_results, vb_sensitivity_results)
+
+prior_sens_results_graph <-
+  dcast(prior_sens_results, par + component + group + metric ~ method, value.var="val")
+
+
 #######################
 # Graphs
 
+if (save_results) {
+  save(results, results_pert, prior_sens_results_graph, file=results_file)
+}
+
 stop("Graphs follow -- not executing.")
-
-mean_results <-
-  filter(results, metric == "mean") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(mean_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(mean_results, par == "tau")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  scale_x_log10() + scale_y_log10()
-
-ggplot(filter(mean_results, par == "lambda")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-
-sd_results <-
-  filter(results, metric == "sd") %>%
-  dcast(par + component + group ~ method, value.var="val")
-
-ggplot(filter(sd_results, par != "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(sd_results, par == "mu_g")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(sd_results, par == "tau")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
-
-ggplot(filter(sd_results, par == "tau")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  scale_x_log10() + scale_y_log10()
-
-
 
 
 ###################
@@ -246,31 +214,42 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
 
 #############
 
-prior_sens_results <-
-  rbind(mcmc_sensitivity_results, mcmc_subset_sensitivity_results, vb_sensitivity_results)
-
-prior_sens_results_graph <-
-  dcast(prior_sens_results, par + component + group + metric ~ method, value.var="val")
 
 grid.arrange(
   ggplot(prior_sens_results_graph) +
     geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle(paste("Local sensitivity to prior parameters"))
-,
-ggplot(prior_sens_results_graph) +
-  geom_point(aes(x=lrvb, y=mcmc_subset, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  ggtitle(paste("Local sensitivity to prior parameters\nMCMC data subset ", mcmc_subset_size))
-, ncol=2
+  ,
+  ggplot(prior_sens_results_graph) +
+    geom_point(aes(x=lrvb, y=mcmc_subset, color=par), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle(paste("Local sensitivity to prior parameters\nMCMC data subset ", mcmc_subset_size))
+  , ncol=2
 )
 
+# Even though the lrvb covariances is bad, the prior sensitivity is reasonable.
+# This appears to be due to the normalization by the lrvb standard deviation!
+ggplot(prior_sens_results_graph %>% filter(par == "tau", metric == "tau_beta")) +
+  geom_point(aes(x=lrvb, y=mcmc, color=metric), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  ggtitle(paste("Local sensitivity to prior parameters"))
 
+ggplot(prior_sens_results_graph %>% filter(par == "log_tau", grepl("tau", metric))) +
+  geom_point(aes(x=lrvb, y=mcmc, color=metric), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  ggtitle(paste("Local sensitivity to prior parameters"))
+
+
+ggplot(prior_sens_results_graph %>% filter(grepl("tau", metric))) +
+  geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  ggtitle(paste("Local sensitivity to prior parameters"))
 
 #############
 
 # Full bar chart of the vb changes
-sens_graph_df <- filter(vb_sensitivity_results)
+sens_graph_df <- filter(vb_sensitivity_results,  !grepl("mu_info", metric), !grepl("mu_loc", metric))
 # sens_graph_df <- filter(vb_sensitivity_results, par == "mu",
 #                         metric %in% c("mu_info_11", "mu_info_12", "mu_info_22", "lambda_eta"))
 sens_breaks <- unique(sens_graph_df$metric)
@@ -309,3 +288,38 @@ if (save_results) {
   save(results_pert, pp, vb_sensitivity_results, prior_sens_results_graph, num_obs, file=results_file)
 }
 
+
+
+##########################
+# debugging
+
+group  <- 2
+ind <- mp_indices$tau[[group]]$e
+inds <- sapply(1:vp_opt$n_g, function(g) { mp_indices$tau[[g]]$e })
+draws_mat <- fit_env$mcmc_environment$draws_mat
+
+colMeans(draws_mat[, inds])
+tau_sum_draws <- rowSums(draws_mat[, inds])
+tau_draws <- draws_mat[, ind]
+
+pp_ind <- pp_indices$tau_beta
+log_prior_grad <- fit_env$mcmc_environment$log_prior_grad_mat[, pp_ind]
+grid.arrange(
+  qplot(log_prior_grad, geom="histogram"),
+  qplot(tau_sum_draws, geom="histogram"),
+  ncol=2
+)
+
+qplot(log_prior_grad, tau_draws, geom="point")
+qplot(log_prior_grad, tau_sum_draws, geom="point")
+
+
+cov(tau_draws, log_prior_grad)
+cov(tau_draws, tau_sum_draws)
+sd(tau_draws)
+
+
+sqrt(-cov(tau_draws, log_prior_grad))
+sd(tau_draws)
+filter(vb_sensitivity_results_unnormalized, par == "tau", metric == "tau_beta") %>%
+  mutate(sd=sqrt(-val))

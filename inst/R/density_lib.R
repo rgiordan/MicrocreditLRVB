@@ -1,3 +1,5 @@
+
+
 GetMuLogPrior <- function(mu, pp) {
   # You can't use the VB priors because they are
   # (1) a function of the natural parameters whose variance would have to be zero and
@@ -62,43 +64,6 @@ GetTauLogPrior <- function(u, pp) {
   return(dgamma(u, pp$tau_alpha, pp$tau_beta))
 }
 
-
-# A dataframe summarizing the VB prior sensitivity
-SummarizePriorSensitivityMatrix <- function(prior_sens, pp_indices, mp_opt, method) {
-  AppendVBSensitivityResults <- function(ind, prior_param, method) {
-    this_mp <- GetMomentsFromVector(mp_opt, prior_sens[, ind])
-    return(SummarizeRawMomentParameters(this_mp, metric=prior_param, method=method))
-  }
-  
-  k_reg <- pp_indices$k_reg
-  
-  results_list <- list()
-  for (k in 1:k_reg) {
-    results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-      pp_indices$mu_loc[k], prior_param=paste("mu_loc", k, sep="_"), method=method)
-  }
-  for (k1 in 1:k_reg) { for (k2 in 1:k1) {
-    results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-      pp_indices$mu_info[k1, k2], prior_param=paste("mu_info", k1, k2, sep="_"), method=method)
-  }}
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$mu_t_loc, prior_param="mu_t_loc", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$mu_t_scale, prior_param="mu_t_scale", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$mu_t_df, prior_param="mu_t_df", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$lambda_eta, prior_param="lambda_eta", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$lambda_alpha, prior_param="lambda_alpha", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$lambda_beta, prior_param="lambda_beta", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$tau_alpha, prior_param="tau_alpha", method=method)
-  results_list[[length(results_list) + 1]] <- AppendVBSensitivityResults(
-    pp_indices$tau_beta, prior_param="tau_beta", method=method)
-  return(do.call(rbind, results_list))
-}
 
 
 

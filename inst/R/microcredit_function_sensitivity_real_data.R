@@ -196,22 +196,100 @@ for (group in 1:vp_opt$n_g) {
 } 
 
 res <- do.call(rbind, results_df_list)
+res_graph <- dcast(res, par + component + group + metric ~ method, value.var="val")
 
-ggplot(dcast(res, par + component + group + metric ~ method, value.var="val")) +
+# Look at one example in detail.
+mu_comp <- 1
+vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
+vb_influence_results <- GetVariationalInfluenceResults(
+  num_draws=n_samples,
+  DrawImportanceSamples=vb_fns$DrawU,
+  GetImportanceLogProb=vb_fns$GetULogDensity,
+  GetLogQGradTerm=vb_fns$GetLogQGradTerm,
+  GetLogQ=vb_fns$GetLogVariationalDensity,
+  GetLogPrior=vb_fns$GetLogPrior)
+
+param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
+mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPriorVec)
+mcmc_inf <- mcmc_funs$GetMCMCInfluence(param_draws)
+
+mcmc_influence_df <- data.frame(
+  u=param_draws,
+  inf=mcmc_inf,
+  dens=mcmc_funs$dens_at_draws$y)
+
+ind <- mp_indices$mu_e_vec[mu_comp]
+log_q_grad_terms <- sapply(vb_influence_results$u_draws, function(u) { vb_fns$GetLogQGradTerm(u)[ind] })
+
+vb_influence_df <- data.frame(
+  u=vb_influence_results$u_draws,
+  inf=vb_influence_results$influence_fun[, ind],
+  imp_lp=vb_influence_results$importance_lp_ratio,
+  lq=vb_influence_results$log_q,
+  lp=vb_influence_results$log_prior,
+  lq_grad=log_q_grad_terms)
+
+
+if (save_results) {
+  save(n_samples, res_graph, mu_comp, mcmc_influence_df, vb_influence_df, file=results_file)
+}
+
+
+
+
+######################
+# Graphs
+
+stop("graphs follow -- not executing.")
+
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms)) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq))) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=dens))
+  
+
+ggplot(res_graph) +
   geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
   geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
 
-ggplot(dcast(res, par + component + group + metric ~ method, value.var="val") %>% filter(metric == "tau_7_wc")) +
+ggplot(filter(res_graph, grepl("tau", metric))) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
+
+ggplot(filter(res_graph, grepl("tau", metric), grepl("1", metric))) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(res_graph, grepl("tau", metric), par == "log_tau")) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
+
+ggplot(filter(res_graph, grepl("tau", metric), par == "mu_g")) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
+
+
+ggplot(res_graph %>% filter(par == "tau")) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
+
+ggplot(res_graph %>% filter(metric == "tau_7_wc")) +
   geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
   geom_abline(aes(slope=1, intercept=0))
 
 
-stop()
+#####################
+# Debugging and analysis
 
-group <- 1
-
+group <- 7
+draws_mat <- fit_env$mcmc_environment$draws_mat
 vb_fns <- GetTauImportanceFunctions(group, vp_opt, pp, lrvb_terms)
 param_draws <- 1 / fit_env$mcmc_environment$mcmc_sample$sigma_y[, group] ^ 2
+
+GetLogPrior <- vb_fns$GetLogPriorVec
 
 vb_influence_results <- GetVariationalInfluenceResults(
   num_draws=n_samples,
@@ -221,39 +299,128 @@ vb_influence_results <- GetVariationalInfluenceResults(
   GetLogQ=vb_fns$GetLogVariationalDensity,
   GetLogPrior=vb_fns$GetLogPrior)
 
+
+ind <- mp_indices$tau[[7]]$e
+g_draws <- draws_mat[, ind]
+
+GetEYGivenX <- function(x_draws, y_draws) {
+  e_y_given_x <- loess.smooth(x_draws, y_draws)
+  return(approx(e_y_given_x$x, e_y_given_x$y, xout = x_draws)$y)
+}
+
+mcmc_dens <- density(param_draws)
+dens_at_draws <- approx(mcmc_dens$x, mcmc_dens$y, xout = param_draws)
+mcmc_influence_ratio <- exp(log(dens_at_draws$y) - GetLogPrior(param_draws))
+mcmc_importance_ratio <- exp(GetLogPrior(param_draws) - log(dens_at_draws$y))
+conditional_mean_diff <- GetEYGivenX(x_draws = param_draws, y_draws = g_draws) - mean(g_draws)
+plot(param_draws, conditional_mean_diff * mcmc_influence_ratio)
+return(conditional_mean_diff * mcmc_influence_ratio)
+
+
 mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPriorVec)
+conditional_mean_diff <- GetEYGivenX(x_draws = param_draws, y_draws = g_draws) - mean(g_draws)
+g_draws - mean(g_draws)
+return(conditional_mean_diff * mcmc_influence_ratio)
+
+mcmc_inf <- mcmc_funs$GetMCMCInfluence(g_draws)
 
 mcmc_influence_df <- data.frame(
   u=param_draws,
+  inf=mcmc_inf,
   dens=mcmc_funs$dens_at_draws$y)
+
+log_q_grad_terms <- sapply(vb_influence_results$u_draws, function(u) { vb_fns$GetLogQGradTerm(u)[ind] })
 
 vb_influence_df <- data.frame(
   u=vb_influence_results$u_draws,
-  inf=vb_influence_results$influence_fun[, 1],
+  inf=vb_influence_results$influence_fun[, ind],
   imp_lp=vb_influence_results$importance_lp_ratio,
   lq=vb_influence_results$log_q,
-  lp=vb_influence_results$log_prior)
+  lp=vb_influence_results$log_prior,
+  lq_grad=log_q_grad_terms)
+
+
+grid.arrange(
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb"))
+,
+ggplot() +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
+, ncol=2
+)
+
+
 
 ggplot() +
   geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
   geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
 
 
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lp), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(vb_fns$GetLogPriorVec(u)), color="mcmc"))
+
 
 ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) 
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq - lp), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(log(dens) - vb_fns$GetLogPriorVec(u)), color="mcmc"))
 
-grid.arrange(
-  ggplot() +
-    geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
-    geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
-  ,
-  ggplot() +
-    geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
-    geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
-  , ncol=2
-)
+# The two influence functions are way off because the log_q_grad_terms look nothing like the draws.
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms, color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=g_draws, color="mcmc"))
+  
 
+
+# Recall that this is wrt the unconstrained variable.
+LogQGrad <- function(u) {
+  mp_draw <- mp_opt
+  tau_q_derivs <- GetTauLogMarginalDensity(u, group, vp_opt, mp_draw, TRUE, TRUE)
+  as.numeric(lrvb_terms$jac %*% tau_q_derivs$grad)
+}
+
+log_q_grad_only_terms <- sapply(vb_influence_results$u_draws, function(u) { LogQGrad(u)[mp_indices$tau[[group]]$e] })
+plot(vb_influence_results$u_draws - mean(vb_influence_results$u_draws),
+     log_q_grad_only_terms / vp_opt$tau[[group]]$beta); abline(0,1)
+
+u <- median(vb_influence_results$u_draws)
+lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+mp_draw <- mp_opt
+tau_q_derivs <- GetTauLogMarginalDensity(u, group, vp_opt, mp_draw, TRUE, TRUE)
+tau_q_derivs$grad[vp_indices$tau[[group]]$alpha]
+tau_q_derivs$grad[vp_indices$tau[[group]]$beta]
+
+# Ultimately, the log q grad term doesn't look like the draws because of the Hessian.  I guess it's because
+# both alpha and beta affect tau.  This deserves more thought.
+beta <-vp_opt$tau[[group]]$beta
+SummarizeRawMomentParameters(
+  GetMomentsFromVector(mp_opt, lrvb_pre_factor[, vp_indices$tau[[group]]$beta]), metric="", method="beta")
+
+SummarizeRawMomentParameters(
+  GetMomentsFromVector(mp_opt, lrvb_pre_factor[, vp_indices$tau[[group]]$alpha]), metric="", method="alpha") 
+
+u
+SummarizeRawMomentParameters(
+  GetMomentsFromVector(mp_opt, as.numeric(lrvb_pre_factor %*% tau_q_derivs$grad)), metric="", method="beta")
+
+SummarizeRawMomentParameters(
+  GetMomentsFromVector(mp_opt, as.numeric(lrvb_pre_factor %*% tau_q_derivs$grad)), metric="", method="alpha")
+
+
+# ggplot() +
+#   geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) 
+# 
+# grid.arrange(
+#   ggplot() +
+#     geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
+#     geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
+#   ,
+#   ggplot() +
+#     geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+#     geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
+#   , ncol=2
+# )
+# 
 
 
 
