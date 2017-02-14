@@ -37,14 +37,30 @@ GetMuLogMarginalDensity <- function(mu, mu_comp, vp_opt, draw, unconstrained) {
   return(q_derivs)
 }
 
-GetMuLogStudentTPrior <- function(mu, pp_perturb) {
+
+GetTauLogMarginalDensity <- function(tau, group, vp_opt, mp_draw, unconstrained, calculate_gradient) {
+  mp_draw$tau[[group]]$e <- tau
+  mp_draw$tau[[group]]$e_log <- log(tau)
+  tau_q_derivs <- GetLogVariationalDensityDerivatives(
+    mp_draw, vp_opt, include_mu=FALSE, include_lambda=FALSE,
+    r_include_tau_groups=as.integer(group - 1), r_include_mu_groups=integer(),
+    unconstrained=TRUE, global_only=FALSE, calculate_gradient=calculate_gradient)
+  return(tau_q_derivs)
+}
+
+
+GetMuLogStudentTPrior <- function(mu, pp) {
   log_t_prior <- 0
   for (k in 1:length(mu)) {
-    log_t_prior <- log_t_prior + student_t_log(mu[k], pp_perturb$mu_t_df, pp_perturb$mu_t_loc, pp_perturb$mu_t_scale)
+    log_t_prior <- log_t_prior + student_t_log(mu[k], pp$mu_t_df, pp$mu_t_loc, pp$mu_t_scale)
   }
   return(log_t_prior)
 }
 
+
+GetTauLogPrior <- function(u, pp) {
+  return(dgamma(u, pp$tau_alpha, pp$tau_beta))
+}
 
 
 # A dataframe summarizing the VB prior sensitivity

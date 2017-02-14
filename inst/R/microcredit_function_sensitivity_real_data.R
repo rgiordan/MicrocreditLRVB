@@ -6,7 +6,7 @@ library(Matrix)
 library(mvtnorm)
 library(MicrocreditLRVB)
 library(LRVBUtils)
-
+library(gridExtra)
 
 # Load previously computed Stan results
 analysis_name <- "real_data_t_prior"
@@ -50,193 +50,213 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
 ##############################################
 # Calculate epsilon sensitivity
-# Monte Carlo integrate using a importance sampling
+
+# Monte Carlo integrate using importance sampling
+
+
+# Mu draws:
+GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
+  mp_opt <- GetMoments(vp_opt)
+  
+  u_mean <- mp_opt$mu_e_vec[mu_comp]
+  # Increase the variance for sampling.  How much is enough?
+  u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)[mu_comp, mu_comp]
+  GetULogDensity <- function(u) {
+    dnorm(u, mean=u_mean, sd=sqrt(u_cov), log=TRUE)
+  }
+  
+  DrawU <- function(n_samples) {
+    rnorm(n_samples, mean=u_mean, sd=sqrt(u_cov))
+  }
+  
+  GetLogPrior <- function(u) {
+    GetMuLogStudentTPrior(u, pp)
+  }
+  
+  GetLogPriorVec <- function(u_vec) {
+    sapply(u_vec, function(u) { GetLogPrior(u) } )
+  }
+  
+  # This is the univariate density, analytically marginalized in C++
+  GetLogVariationalDensity <- function(u) {
+    mp_draw <- mp_opt
+    mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
+    return(mu_q_derivs$val) 
+  }
+  
+  lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+  GetLogQGradTerm <- function(u) {
+    mp_draw <- mp_opt
+    mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
+    as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
+  }
+  
+  return(list(GetULogDensity=GetULogDensity,
+              DrawU=DrawU,
+              GetLogPrior=GetLogPrior,
+              GetLogPriorVec=GetLogPriorVec,
+              GetLogVariationalDensity=GetLogVariationalDensity,
+              GetLogQGradTerm=GetLogQGradTerm))
+}
+
+
+# Tau draws:
+GetTauImportanceFunctions <- function(group, vp_opt, pp, lrvb_terms) {
+  mp_opt <- GetMoments(vp_opt)
+  
+  # Increase the variance for sampling.  How much is enough?
+  u_shape <- 0.5 * vp_opt$tau[[group]]$alpha
+  u_rate <- 0.5 * vp_opt$tau[[group]]$beta
+  
+  GetULogDensity <- function(u) {
+    dgamma(u, shape=u_shape, rate=u_rate, log=TRUE)
+  }
+  
+  DrawU <- function(n_samples) {
+    rgamma(n_samples, shape=u_shape, rate=u_rate)
+  }
+  
+  GetLogPrior <- function(u) {
+    GetTauLogPrior(u, pp)
+  }
+  
+  GetLogPriorVec <- function(u_vec) {
+    sapply(u_vec, function(u) { GetLogPrior(u) } )
+  }
+  
+  # This is the univariate density, analytically marginalized in C++
+  GetLogVariationalDensity <- function(u) {
+    mp_draw <- mp_opt
+    tau_q_derivs <- GetTauLogMarginalDensity(u, group, vp_opt, mp_draw, TRUE, FALSE)
+    return(tau_q_derivs$val) 
+  }
+  
+  lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+  GetLogQGradTerm <- function(u) {
+    mp_draw <- mp_opt
+    tau_q_derivs <- GetTauLogMarginalDensity(u, group, vp_opt, mp_draw, TRUE, TRUE)
+    as.numeric(lrvb_pre_factor %*% tau_q_derivs$grad)
+  }
+  
+  return(list(GetULogDensity=GetULogDensity,
+              DrawU=DrawU,
+              GetLogPrior=GetLogPrior,
+              GetLogPriorVec=GetLogPriorVec,
+              GetLogVariationalDensity=GetLogVariationalDensity,
+              GetLogQGradTerm=GetLogQGradTerm))
+}
+
+
+GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_mat, mp_opt) {
+  vb_influence_results <- GetVariationalInfluenceResults(
+    num_draws=n_samples,
+    DrawImportanceSamples=vb_fns$DrawU,
+    GetImportanceLogProb=vb_fns$GetULogDensity,
+    GetLogQGradTerm=vb_fns$GetLogQGradTerm,
+    GetLogQ=vb_fns$GetLogVariationalDensity,
+    GetLogPrior=vb_fns$GetLogPrior)
+  
+  mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPriorVec)
+  mcmc_worst_case <- sapply(1:ncol(draws_mat), function(ind) { mcmc_funs$GetMCMCWorstCase(draws_mat[, ind]) })
+  
+  return(rbind(
+    SummarizeRawMomentParameters(
+      GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb"),
+    SummarizeRawMomentParameters(
+      GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc")
+  ))
+}
+
 
 # Monte Carlo samples
 n_samples <- 5000
 
 # Define functions necessary to compute influence function stuff
 
-# Proposals based on q
-mu_comp <- 2 # The component of mu to perturb.
+results_df_list <- list()
 
-u_mean <- mp_opt$mu_e_vec[mu_comp]
-# Increase the covariance for sampling.  How much is enough?
-u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)[mu_comp, mu_comp]
-GetULogDensity <- function(mu) {
-  dnorm(mu, mean=u_mean, sd=sqrt(u_cov), log=TRUE)
-}
+# For Mu
+for (mu_comp in 1:vp_opt$k_reg) {
+  cat("Mu component ", mu_comp, "\n")
+  vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
+  param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
+  param_name <- paste("mu", mu_comp, "wc", sep="_")
+  results_df_list[[length(results_df_list) + 1]] <-
+    GetWorstCaseResultsDataFrame(vb_fns, param_draws, param_name, fit_env$mcmc_environment$draws_mat, mp_opt)
+} 
 
-DrawU <- function(n_samples) {
-  rnorm(n_samples, mean=u_mean, sd=sqrt(u_cov))
-}
+# For tau
+for (group in 1:vp_opt$n_g) {
+  cat("Tau group ", group, "\n")
+  vb_fns <- GetTauImportanceFunctions(group, vp_opt, pp, lrvb_terms)
+  param_draws <- 1 / fit_env$mcmc_environment$mcmc_sample$sigma_y[, group] ^ 2
+  param_name <- paste("tau", group, "wc", sep="_")
+  results_df_list[[length(results_df_list) + 1]] <-
+    GetWorstCaseResultsDataFrame(vb_fns, param_draws, param_name, fit_env$mcmc_environment$draws_mat, mp_opt)
+} 
 
-GetLogPrior <- function(u) {
-  GetMuLogStudentTPrior(u, pp)
-}
+res <- do.call(rbind, results_df_list)
 
-GetLogPriorVec <- function(u_vec) {
-  sapply(u_vec, function(u) { GetLogPrior(u) } )
-}
+ggplot(dcast(res, par + component + group + metric ~ method, value.var="val")) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
 
-# This is the univariate density, analytically marginalized in C++
-mp_opt <- GetMoments(vp_opt)
-GetLogVariationalDensity <- function(u) {
-  mp_draw <- mp_opt
-  mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
-  return(mu_q_derivs$val) 
-}
+ggplot(dcast(res, par + component + group + metric ~ method, value.var="val") %>% filter(metric == "tau_7_wc")) +
+  geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
 
-lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
-GetLogQGradTerm <- function(u) {
-  mp_draw <- mp_opt
-  mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
-  # as.numeric(-1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad))
-  as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
-}
-
-mu_influence_results <- GetVariationalInfluenceResults(
-  num_draws=5000,
-  DrawImportanceSamples=DrawU,
-  GetImportanceLogProb=GetULogDensity,
-  GetLogQGradTerm=GetLogQGradTerm,
-  GetLogQ=GetLogVariationalDensity,
-  GetLogPrior=GetLogPrior)
-
-
-mu_influence_results$log_q
-
-
-param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
-g_draws <- param_draws
-
-mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, GetLogPriorVec)
-mcmc_inf <- mcmc_funs$GetMCMCInfluence(g_draws) 
-
-mcmc_influence_df <- data.frame(
-  mu=param_draws,
-  inf=mcmc_inf,
-  dens=mcmc_funs$dens_at_draws$y)
-
-vb_influence_df <- data.frame(
-  u=mu_influence_results$u_draws,
-  inf=mu_influence_results$influence_fun[, mp_indices$mu_e_vec[mu_comp]],
-  imp_lp=mu_influence_results$importance_lp_ratio,
-  lq=mu_influence_results$log_q,
-  lp=mu_influence_results$log_prior)
-
-
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=mu, y=inf, color="mcmc"))
-
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=mu, y=dens, color="mcmc"))
-
-
-mcmc_funs$GetMCMCWorstCase(param_draws)
-mu_influence_results$worst_case[1]
 
 stop()
 
+group <- 1
 
+vb_fns <- GetTauImportanceFunctions(group, vp_opt, pp, lrvb_terms)
+param_draws <- 1 / fit_env$mcmc_environment$mcmc_sample$sigma_y[, group] ^ 2
 
-pp_indices
+vb_influence_results <- GetVariationalInfluenceResults(
+  num_draws=n_samples,
+  DrawImportanceSamples=vb_fns$DrawU,
+  GetImportanceLogProb=vb_fns$GetULogDensity,
+  GetLogQGradTerm=vb_fns$GetLogQGradTerm,
+  GetLogQ=vb_fns$GetLogVariationalDensity,
+  GetLogPrior=vb_fns$GetLogPrior)
 
+mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPriorVec)
 
+mcmc_influence_df <- data.frame(
+  u=param_draws,
+  dens=mcmc_funs$dens_at_draws$y)
 
+vb_influence_df <- data.frame(
+  u=vb_influence_results$u_draws,
+  inf=vb_influence_results$influence_fun[, 1],
+  imp_lp=vb_influence_results$importance_lp_ratio,
+  lq=vb_influence_results$log_q,
+  lp=vb_influence_results$log_prior)
 
-#######################################
-# Look at one component in detail
-
-# component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
-# component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
-# component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
-# component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
-# component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
-# component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
-# component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
-component <- mp_indices$mu_g[[1]]$e_vec[1]; component_name <- "E_q[mu_g[1]][1]"
-
-influence_vec_list <- lapply(influence_list, function(entry) { as.numeric(entry$influence_function) } )
-comp_sens_vec <- unlist(lapply(sensitivity_list, function(entry) { as.numeric(entry$sensitivity_draw[component]) } ))
-comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
-
-component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), data.frame(u_draws))
-component_df$component_name <- component_name
-
-p1 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=sens_vec)) +
-  scale_color_gradient2() + ggtitle("Sensitivity")
-p2 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence)) +
-  scale_color_gradient2() + ggtitle("Influence")
-# p3 <- ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) +
-#   scale_color_gradient2() + ggtitle("prior ratio")
-
-# multiplot(p1, p2, p3)
-
-# Estimate error
-u_dist <- u_draws - rep(colMeans(u_draws), each=nrow(u_draws))
-u_dist <- sqrt(rowSums(u_dist^2))
-u_extreme <- which(u_dist > quantile(u_dist, 0.95))
-max(abs(comp_influence_vec[u_extreme]))
-ggplot(component_df[u_extreme, ]) + geom_point(aes(x=X1, y=X2, color=abs(influence))) + scale_color_gradient2()
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
 
 
 
-############################################
-# Worst-case
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) 
 
-# component <- mp_indices$mu_e_vec[1]; component_name <- "E_q[mu[1]]"
-# component <- mp_indices$mu_e_vec[2]; component_name <- "E_q[mu[2]]"
-# component <- mp_indices$lambda_e[1, 1]; component_name <- "E_q[lambda[1, 1]]"
-# component <- mp_indices$lambda_e[2, 2]; component_name <- "E_q[lambda[2, 2]]"
-# component <- mp_indices$lambda_e[1, 2]; component_name <- "E_q[lambda[1, 2]]"
-# component <- mp_indices$tau[[1]]$e_log; component_name <- "E_q[log(tau[1])]"
-# component <- mp_indices$mu_g[[7]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
-component <- mp_indices$mu_g[[1]]$e_vec[1]; component_name <- "E_q[mu_g[7]][1]"
-
-influence_vec_list <- lapply(sens_list, function(entry) { as.numeric(entry$influence_fun) } )
-comp_sens_vec <- unlist(lapply(sens_vec_list, function(entry) { as.numeric(entry[component]) } ))
-comp_influence_vec <- unlist(lapply(influence_vec_list, function(entry) { as.numeric(entry[component]) } ))
-weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
-
-component_df <- cbind(data.frame(sens_vec=comp_sens_vec, influence=comp_influence_vec), diagnostic_df)
-component_df$component_name <- component_name
-
-component_df$influence2plus <- ifelse(component_df$influence > 0, component_df$influence^2, 0)
-component_df$influence2minus <- ifelse(component_df$influence < 0, component_df$influence^2, 0)
-
-# Worst-case
-ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence2plus)) + scale_color_gradient2() + ggtitle("Influence squared")
-ggplot(component_df) + geom_point(aes(x=X1, y=X2, color=influence2minus)) + scale_color_gradient2() + ggtitle("Influence")
-
-sum(component_df$influence2plus * weights)
-sum(component_df$influence2minus * weights)
+grid.arrange(
+  ggplot() +
+    geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
+    geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
+  ,
+  ggplot() +
+    geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+    geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
+  , ncol=2
+)
 
 
-#################################
-# Fit with the t prior
 
-moments_list <- list()
-epsilon_vec <- seq(0, 1e-3, length.out=20)
-pp_perturb_epsilon <- pp_perturb
-for (epsilon in epsilon_vec) {
-  cat("-------------   ", epsilon , "\n")
-  pp_perturb_epsilon$epsilon <- epsilon
-  vb_fit_perturb_eps <- FitVariationalModel(x, y, y_g, vp_opt, pp_perturb_epsilon, fit_bfgs=FALSE)
-  vp_opt_perturb_eps <- vb_fit_perturb_eps$vp_opt
-  mp_opt_perturb_eps <- GetMoments(vp_opt_perturb_eps)
-  moments_list[[length(moments_list) + 1]] <- mp_opt_perturb_eps
-}
-# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_e_vec[1] } )))
-# plot(epsilon_vec, unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )))
-epsilon_df <- data.frame(epsilon=epsilon_vec,
-                         val=unlist(lapply(moments_list, function(x) { x$mu_g[[1]]$e_vec[1] } )),
-                         parameter_name="mu_g[1][1]")
-ggplot(epsilon_df) +
-  geom_point(aes(x=epsilon, y=val)) +
-  ggtitle(unique(epsilon_df$parameter_name))
+
 
 
 ##############################

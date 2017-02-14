@@ -101,7 +101,7 @@ GetMCMCNormalizedCovarianceSensitivity <- function(draws_mat, log_prior_grad_mat
   
   mcmc_sd_scale_small <- sqrt(diag(cov(t(draws_mat_small)))) 
   log_prior_grad_mat_small <- log_prior_grad_mat[1:keep_rows, ]
-
+  
   draws_mat_small_norm <- draws_mat_small / mcmc_sd_scale_small
   prior_sens_mcmc_norm_small <- draws_mat_small_norm  %*% log_prior_grad_mat_small / keep_rows
   prior_sens_mcmc_norm_squares <- (draws_mat_small_norm ^ 2)  %*% (log_prior_grad_mat_small ^ 2) / keep_rows
@@ -170,7 +170,8 @@ ggplot(filter(mean_results, par == "mu_g")) +
 
 ggplot(filter(mean_results, par == "tau")) +
   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0))
+  geom_abline(aes(slope=1, intercept=0)) +
+  scale_x_log10() + scale_y_log10()
 
 ggplot(filter(mean_results, par == "lambda")) +
   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
@@ -190,6 +191,19 @@ ggplot(filter(sd_results, par == "mu_g")) +
   geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
   geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
   geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(sd_results, par == "tau")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0))
+
+ggplot(filter(sd_results, par == "tau")) +
+  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  scale_x_log10() + scale_y_log10()
+
+
+
 
 ###################
 # Perturbations

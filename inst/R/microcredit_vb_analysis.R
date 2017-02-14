@@ -180,3 +180,4 @@ ggplot(filter(sd_results, par == "mu_g")) +
   geom_abline(aes(slope=1, intercept=0))
 
 
+# Some posteriors
