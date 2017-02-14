@@ -562,6 +562,22 @@ Rcpp::List GetVariationalLogMarginalMuDensityDerivatives(
 
 
 // [[Rcpp::export]]
+Rcpp::List GetVariationalLogMarginalMuGroupDensityDerivatives(
+    const Rcpp::List r_obs_mp, const Rcpp::List r_vp,
+    int const component, int const group, bool const unconstrained) {
+
+    MomentParameters<double> mp_obs = ConvertMomentsFromList(r_obs_mp);
+    VariationalParameters<double> vp = ConvertParametersFromList(r_vp);
+    vp.unconstrained = unconstrained;
+
+    Derivatives derivatives = GetVariationalLogMarginalMuGroupDensityDerivatives(
+        mp_obs, vp, component, group);
+    Rcpp::List ret = ConvertDerivativesToList(derivatives);
+    return ret;
+}
+
+
+// [[Rcpp::export]]
 Rcpp::List GetMCMCLogPriorDerivatives(
     const Rcpp::List draw_list, const Rcpp::List r_pp) {
 

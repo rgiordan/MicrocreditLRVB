@@ -347,3 +347,24 @@ Derivatives GetVariationalLogMarginalMuDensityDerivatives(
 
     return Derivatives(val, grad, hess);
 }
+
+
+Derivatives GetVariationalLogMarginalMuGroupDensityDerivatives(
+    MomentParameters<double> const &obs,
+    VariationalParameters<double> const &vp,
+    int const component, int const group) {
+
+    VariationalLogMarginalMuGroupDensity EvalQ(vp, obs, component, group);
+
+    VectorXd theta;
+    theta = GetParameterVector(vp);        
+
+    double val;
+    VectorXd grad = VectorXd::Zero(theta.size());
+    // The Hessian is not calculated.
+    MatrixXd hess = MatrixXd::Zero(0, 0);
+
+    stan::math::gradient(EvalQ, theta, val, grad);
+
+    return Derivatives(val, grad, hess);
+}

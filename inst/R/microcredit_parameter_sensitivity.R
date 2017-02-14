@@ -2,6 +2,7 @@ library(ggplot2)
 library(dplyr)
 library(reshape2)
 library(Matrix)
+library(gridExtra)
 
 library(MicrocreditLRVB)
 
@@ -53,7 +54,6 @@ pp_perturb <- fit_env$mcmc_environment$pp_perturb
 vp_opt <- fit_env$vb_fit$vp_opt
 
 lrvb_cov <- fit_env$lrvb_terms$lrvb_cov
-prior_sens <- fit_env$prior_sens
 
 mp_opt <- GetMoments(vp_opt)
 mfvb_cov <- GetCovariance(vp_opt)
@@ -85,6 +85,43 @@ mp_opt_vec_pert <- mp_opt_vec + fit_env$mcmc_environment$perturb_epsilon * vb_se
 mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 
 
+# Make a dataframe out of the prior sensitivity
+prior_sens_norm <- fit_env$prior_sens / sqrt(diag(lrvb_cov))
+vb_sensitivity_results <-
+  SummarizePriorSensitivityMatrix(prior_sens_norm, pp_indices, mp_opt, method="lrvb")
+
+
+##########################################
+# MCMC sensitivity measures
+
+GetMCMCNormalizedCovarianceSensitivity <- function(draws_mat, log_prior_grad_mat, keep_rows=nrow(draws_mat)) {
+  keep_rows <- min(c(nrow(log_prior_grad_mat), keep_rows))
+  draws_mat_small <- t(draws_mat[1:keep_rows, ])
+  draws_mat_small <- draws_mat_small - rowMeans(draws_mat_small)
+  
+  mcmc_sd_scale_small <- sqrt(diag(cov(t(draws_mat_small)))) 
+  log_prior_grad_mat_small <- log_prior_grad_mat[1:keep_rows, ]
+
+  draws_mat_small_norm <- draws_mat_small / mcmc_sd_scale_small
+  prior_sens_mcmc_norm_small <- draws_mat_small_norm  %*% log_prior_grad_mat_small / keep_rows
+  prior_sens_mcmc_norm_squares <- (draws_mat_small_norm ^ 2)  %*% (log_prior_grad_mat_small ^ 2) / keep_rows
+  prior_sens_mcmc_norm_sd <- sqrt(prior_sens_mcmc_norm_squares - prior_sens_mcmc_norm_small ^ 2) / sqrt(keep_rows)
+  
+  return(list(prior_sens_norm=prior_sens_mcmc_norm_small, prior_sens_norm_sd=prior_sens_mcmc_norm_sd))
+}
+
+mcmc_prior_sens_list <- GetMCMCNormalizedCovarianceSensitivity(
+  fit_env$mcmc_environment$draws_mat, fit_env$mcmc_environment$log_prior_grad_mat)
+mcmc_sensitivity_results <- SummarizePriorSensitivityMatrix(
+  mcmc_prior_sens_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc")
+
+mcmc_subset_size <- 50
+mcmc_prior_sens_subset_list <- GetMCMCNormalizedCovarianceSensitivity(
+  fit_env$mcmc_environment$draws_mat, fit_env$mcmc_environment$log_prior_grad_mat, keep_rows=mcmc_subset_size)
+mcmc_subset_sensitivity_results <- SummarizePriorSensitivityMatrix(
+  mcmc_prior_sens_subset_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc_subset")
+
+
 ###########################
 # Summarize results
 
@@ -107,96 +144,12 @@ results_vb_pert <- SummarizeMomentParameters(mp_opt_pert, mfvb_sd, lrvb_sd)
 results_vb_pert$method <- "mfvb_perturbed"
 
 stan_results$sim
-# results_mcmc <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample)
-# results_mcmc_pert <- SummarizeMCMCResults(fit_env$stan_results$mcmc_sample_perturbed)
 results_mcmc <- SummarizeMCMCResults(fit_env$mcmc_environment$mcmc_sample)
 results_mcmc_pert <- SummarizeMCMCResults(fit_env$mcmc_environment$mcmc_sample_perturbed)
 results_mcmc_pert$method <- "mcmc_perturbed"
 
 results <- rbind(results_vb, results_mcmc)
 results_pert <- rbind(results_vb, results_lrvb_pert, results_vb_pert, results_mcmc, results_mcmc_pert)
-
-# A result summarizing the VB prior sensitivity
-vb_sensitivity_results <- data.frame()
-AppendVBSensitivityResults <- function(ind, prior_param, display_expression) {
-  this_mp <- GetMomentsFromVector(mp_opt, prior_sens[, ind])
-  vb_sensitivity_results <<- rbind(
-    vb_sensitivity_results,
-    SummarizeRawMomentParameters(this_mp, metric=prior_param, method="lrvb") %>%
-      mutate(expression=display_expression))
-}
-AppendVBSensitivityResults(pp_indices$mu_info[1, 2], "mu_info_offdiag", "Lambda[12]^mu")
-AppendVBSensitivityResults(pp_indices$mu_info[1, 1], "mu_info_11", "Lambda[11]^mu")
-AppendVBSensitivityResults(pp_indices$mu_info[1, 1], "mu_info_22", "Lambda[22]^mu")
-AppendVBSensitivityResults(pp_indices$lambda_eta, "lambda_eta", "eta")
-AppendVBSensitivityResults(pp_indices$lambda_alpha, "lambda_alpha", "Lambda^alpha")
-AppendVBSensitivityResults(pp_indices$lambda_beta, "lambda_beta", "Lambda^beta")
-AppendVBSensitivityResults(pp_indices$tau_alpha, "tau_alpha", "tau[alpha]")
-AppendVBSensitivityResults(pp_indices$tau_beta, "tau_beta", "tau[beta]")
-
-
-##########################################
-# Get MCMC sensitivity measures
-mcmc_sample <- fit_env$stan_results$mcmc_sample
-draws_mat <- fit_env$stan_results$draws_mat
-mp_draws <- fit_env$stan_results$mp_draws
-log_prior_grad_mat <- fit_env$stan_results$log_prior_grad_mat
-
-# log_prior_grad_list <- GetMCMCLogPriorDerivatives(mp_draws, pp)
-# log_prior_grad_mat <- do.call(rbind, log_prior_grad_list)
-
-
-#######################
-# Prior sensitivity results with respect to a particular prior parameter.
-
-draws_mat <- fit_env$mcmc_environment$draws_mat
-log_prior_grad_mat <- fit_env$mcmc_environment$log_prior_grad_mat
-
-# prior_sensitivity_ind <- pp_indices$mu_info[1, 2]; ind_name <- "mu_info_offdiag_sens"
-# prior_sensitivity_ind <- pp_indices$mu_info[1, 1]; ind_name <- "mu_info_diag_sens"
-# prior_sensitivity_ind <- pp_indices$lambda_eta; ind_name <- "lambda_eta"
-# prior_sensitivity_ind <- pp_indices$lambda_alpha; ind_name <- "lambda_alpha"
-prior_sensitivity_ind <- pp_indices$lambda_beta; ind_name <- "lambda_beta"
-# prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_alpha"
-# prior_sensitivity_ind <- pp_indices$tau_alpha; ind_name <- "tau_beta"
-# prior_sensitivity_ind <- pp_indices$mu_loc[1]; ind_name <- "mu_loc_1"
-
-mcmc_subset_size <- 1000
-mcmc_prior_sens_subset <- cov(draws_mat[1:mcmc_subset_size, ],
-                              log_prior_grad_mat[1:mcmc_subset_size, ])
-
-mcmc_prior_sens <- cov(draws_mat, log_prior_grad_mat)
-
-vb_prior_sens_mom <- GetMomentsFromVector(mp_opt, prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_mom <- GetMomentsFromVector(mp_opt, mcmc_prior_sens[, prior_sensitivity_ind])
-mcmc_prior_sens_subset <- GetMomentsFromVector(mp_opt, mcmc_prior_sens_subset[, prior_sensitivity_ind])
-prior_sens_results <-
-  rbind(SummarizeRawMomentParameters(vb_prior_sens_mom, metric=ind_name, method="lrvb") %>%
-          mutate(draws=""),
-        SummarizeRawMomentParameters(mcmc_prior_sens_mom, metric=ind_name, method="mcmc") %>%
-          mutate(draws=nrow(draws_mat)),
-        SummarizeRawMomentParameters(mcmc_prior_sens_subset, metric=ind_name, method="mcmc_subset") %>%
-          mutate(draws=mcmc_subset_size)
-  )
-
-
-prior_sens_results_graph <-
-  inner_join(
-    filter(prior_sens_results, method == "lrvb") %>%
-      dcast(par + component + group + metric ~ method, value.var="val"),
-    filter(prior_sens_results, method == "mcmc") %>%
-      dcast(par + component + group + metric + draws ~ method, value.var="val"),
-    by=c("par", "component", "group", "metric"))
-
-prior_sens_results_graph$ind_name <- ind_name
-
-ggplot(prior_sens_results_graph) +
-  geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  facet_grid(~ draws) +
-  ggtitle(paste("Local sensitivity to", unique(prior_sens_results_graph$ind_name),
-                "as measured by VB and MCMC, grouped by # of MCMC draws"))
-
 
 #######################
 # Graphs
@@ -277,6 +230,30 @@ ggplot(filter(mean_pert_results, par == "mu_g")) +
   geom_abline(aes(slope=1, intercept=0))
 
 
+#############
+
+prior_sens_results <-
+  rbind(mcmc_sensitivity_results, mcmc_subset_sensitivity_results, vb_sensitivity_results)
+
+prior_sens_results_graph <-
+  dcast(prior_sens_results, par + component + group + metric ~ method, value.var="val")
+
+grid.arrange(
+  ggplot(prior_sens_results_graph) +
+    geom_point(aes(x=lrvb, y=mcmc, color=par), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle(paste("Local sensitivity to prior parameters"))
+,
+ggplot(prior_sens_results_graph) +
+  geom_point(aes(x=lrvb, y=mcmc_subset, color=par), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  ggtitle(paste("Local sensitivity to prior parameters\nMCMC data subset ", mcmc_subset_size))
+, ncol=2
+)
+
+
+
+#############
 
 # Full bar chart of the vb changes
 sens_graph_df <- filter(vb_sensitivity_results)

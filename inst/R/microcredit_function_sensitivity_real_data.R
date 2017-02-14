@@ -57,11 +57,9 @@ n_samples <- 5000
 
 # Define functions necessary to compute influence function stuff
 
-# You could also do this more numerically stably with a Cholesky decomposition.
-lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
-
 # Proposals based on q
-mu_comp <- 1 # The component of mu to perturb.
+mu_comp <- 2 # The component of mu to perturb.
+
 u_mean <- mp_opt$mu_e_vec[mu_comp]
 # Increase the covariance for sampling.  How much is enough?
 u_cov <- (1.5 ^ 2) * solve(vp_opt$mu_info)[mu_comp, mu_comp]
@@ -73,10 +71,6 @@ DrawU <- function(n_samples) {
   rnorm(n_samples, mean=u_mean, sd=sqrt(u_cov))
 }
 
-GetLogContaminatingPrior <- function(u) {
-  GetMuLogPrior(u, pp)
-}
-
 GetLogPrior <- function(u) {
   GetMuLogStudentTPrior(u, pp)
 }
@@ -86,15 +80,19 @@ GetLogPriorVec <- function(u_vec) {
 }
 
 # This is the univariate density, analytically marginalized in C++
-mp_draw <- mp_opt
+mp_opt <- GetMoments(vp_opt)
 GetLogVariationalDensity <- function(u) {
+  mp_draw <- mp_opt
   mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
   return(mu_q_derivs$val) 
 }
 
+lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
 GetLogQGradTerm <- function(u) {
+  mp_draw <- mp_opt
   mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
-  as.numeric(-1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad))
+  # as.numeric(-1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess, mu_q_derivs$grad))
+  as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
 }
 
 mu_influence_results <- GetVariationalInfluenceResults(
@@ -106,6 +104,9 @@ mu_influence_results <- GetVariationalInfluenceResults(
   GetLogPrior=GetLogPrior)
 
 
+mu_influence_results$log_q
+
+
 param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
 g_draws <- param_draws
 
@@ -115,7 +116,7 @@ mcmc_inf <- mcmc_funs$GetMCMCInfluence(g_draws)
 mcmc_influence_df <- data.frame(
   mu=param_draws,
   inf=mcmc_inf,
-  dens=mcmc_funs$dens_at_draws)
+  dens=mcmc_funs$dens_at_draws$y)
 
 vb_influence_df <- data.frame(
   u=mu_influence_results$u_draws,
@@ -125,168 +126,24 @@ vb_influence_df <- data.frame(
   lp=mu_influence_results$log_prior)
 
 
-# ggplot(vb_influence_df) +
-#   geom_point(aes(x=u, y=exp(lq), color="log q")) +
-#   geom_point(aes(x=u, y=exp(lp), color="log prior"))
-
-
 ggplot() +
   geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb")) +
   geom_point(data=mcmc_influence_df, aes(x=mu, y=inf, color="mcmc"))
 
-
-sensitivities <- UnpackSensitivityList(sensitivity_list)
-diff_vec <- GetVectorFromMoments(mp_opt_perturb) - GetVectorFromMoments(mp_opt)
-
-sens_results <-
-  rbind(
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$sens_vec_mean),    metric="mean", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$sens_vec_sd),      metric="sd", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$mv_sens_vec_mean), metric="mean", method="mv_sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities$mv_sens_vec_sd),   metric="sd", method="mv_sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),                       metric="mean", method="diff")) %>%
-  dcast(par + component + group ~ method + metric, value.var="val")
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=mu, y=dens, color="mcmc"))
 
 
-# The "mean value" local sensitivity.  We expect this to be better.
-p1 <- ggplot(sens_results) +
-  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean,
-                    ymax=mv_sens_mean + 2 * mv_sens_sd,
-                    ymin=mv_sens_mean - 2 * mv_sens_sd), color="gray") +
-  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean, color=par)) +
-  geom_abline((aes(intercept=0, slope=1))) +
-  ggtitle("Mean value sens")
+mcmc_funs$GetMCMCWorstCase(param_draws)
+mu_influence_results$worst_case[1]
 
-# The raw local sensitivity
-p2 <- ggplot(sens_results) +
-  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean,
-                    ymax=sens_mean + 2 * sens_sd,
-                    ymin=sens_mean - 2 * sens_sd), color="gray") +
-  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean, color=par)) +
-  geom_abline((aes(intercept=0, slope=1))) +
-  ggtitle("raw sens")
-
-multiplot(p1, p2)
+stop()
 
 
 
-################################################
-# Try evaluating directly rather than via the influence function and importance sampling.
+pp_indices
 
-global_mask <- GlobalMask(vp_opt)
-mp_draw <- mp_opt
-GetLogVariationalDensity <- function(u) {
-  mu_q_derivs <- GetMuLogDensity(u, vp_opt, mp_draw, pp, TRUE, TRUE)
-  log_q_grad[global_mask] <- mu_q_derivs$grad
-  list(val=mu_q_derivs$val, grad=log_q_grad) 
-}
-
-# GetLogPrior <- function(u) {
-#   GetMuLogPrior(u, pp)
-# }
-# 
-# GetLogContaminatingPrior <- function(u) {
-#   GetMuLogStudentTPrior(u, pp_perturb)
-# }
-
-GetLogPrior <- function(u) {
-  GetMuLogStudentTPrior(u, pp_perturb)
-}
-
-GetLogContaminatingPrior <- function(u) {
-  GetMuLogPrior(u, pp)
-}
-
-
-# You could also do this more numerically stably with a Cholesky decomposition.
-lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
-
-n_draws <- 50e3
-density_ratios <- rep(NaN, n_draws)
-influence_mat <- matrix(NaN, nrow(lrvb_pre_factor), n_draws)
-
-mu_draws <- DrawFromQMu(n_draws, vp_opt)
-
-pb <- txtProgressBar(min=1, max=n_draws, style=3)
-for (n in 1:n_draws) {
-  setTxtProgressBar(pb, n)
-  mu <- mu_draws[n, ]
-  log_q_derivs <- GetLogVariationalDensity(mu)
-  log_prior_val <- GetLogPrior(mu)
-  log_prior_c_val <- GetLogContaminatingPrior(mu)
-  lrvb_term <- lrvb_pre_factor %*% log_q_derivs$grad
-  density_ratios[n] <- exp(log_prior_c_val - log_prior_val) 
-  influence_mat[, n] <- density_ratios[n] * as.numeric(lrvb_term)
-}
-
-sensitivities <- apply(influence_mat, MARGIN=1, mean)
-sensitivities_sd <- apply(influence_mat, MARGIN=1, sd)
-hist(log10(density_ratios), 100)
-
-
-vis_df <- data.frame(mu_draws) %>%
-  mutate(density_ratio=density_ratios)
-
-ggplot(vis_df) +
-  geom_point(aes(x=X1, y=X2, color=density_ratio), size=2) +
-  scale_color_gradient2()
-
-sens_results <-
-  rbind(
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities),    metric="mean", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, sensitivities_sd),      metric="sd", method="sens"),
-    SummarizeRawMomentParameters(GetMomentsFromVector(mp_opt, diff_vec),                       metric="mean", method="diff")) %>%
-  dcast(par + component + group ~ method + metric, value.var="val")
-
-
-# # The "mean value" local sensitivity.  We expect this to be better.
-# p1 <- ggplot(sens_results) +
-#   geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean,
-#                     ymax=mv_sens_mean + 2 * mv_sens_sd,
-#                     ymin=mv_sens_mean - 2 * mv_sens_sd), color="gray") +
-#   geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=mv_sens_mean, color=par)) +
-#   geom_abline((aes(intercept=0, slope=1))) +
-#   ggtitle("Mean value sens")
-
-# The raw local sensitivity
-ggplot(sens_results) +
-  geom_errorbar(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean,
-                    ymax=sens_mean + 2 * sens_sd,
-                    ymin=sens_mean - 2 * sens_sd), color="gray") +
-  geom_point(aes(x=diff_mean / pp_perturb$epsilon, y=sens_mean, color=par)) +
-  geom_abline((aes(intercept=0, slope=1))) +
-  ggtitle("raw sens")
-
-
-
-
-
-#################################################
-# Diagnostics and debugging
-
-# This doesn't seem to matter ever.
-# lrvb_term_diff_list <- lapply(sens_list, function(entry) { as.numeric(entry$lrvb_term) - as.numeric(entry$lrvb_term_pre) } )
-# Reduce(max, lrvb_term_diff_list)
-
-prior_ratios <- unlist(lapply(sens_list, function(entry) { entry$prior_ratio} ))
-weights <- unlist(lapply(sens_list, function(entry) { entry$weight} ))
-
-sens_pre_factors <- unlist(lapply(sens_list, function(entry) { entry$sens_pre_factor} ))
-mv_term <- unlist(lapply(sens_list, function(entry) { entry$mv_term} ))
-max(sens_pre_factors) / median(sens_pre_factors)
-summary(sens_pre_factors)
-
-diagnostic_df <- data.frame(sens_pre_factor=sens_pre_factors, weight=weights, prior_ratios=prior_ratios, mv_term=mv_term)
-diagnostic_df <- cbind(diagnostic_df, data.frame(u_draws))
-mean(sens_pre_factors)
-sd(sens_pre_factors)
-
-# ggplot(diagnostic_df) + geom_point(aes(x=X1, y=X2, color=sens_pre_factor)) + scale_color_gradient2()
-# ggplot(diagnostic_df) + geom_point(aes(x=X1, y=X2, color=log10(prior_ratios))) + scale_color_gradient2()
-# ggplot(diagnostic_df) + geom_point(aes(x=X1, y=X2, color=mv_term)) + scale_color_gradient2()
-
-# hist((sens_pre_factors), 100)
-# hist(log10(weights))
 
 
 

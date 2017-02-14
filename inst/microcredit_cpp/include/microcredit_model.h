@@ -386,6 +386,43 @@ struct VariationalLogMarginalMuDensity {
 };
 
 
+// The marginal densities for the normal parameters.
+struct VariationalLogMarginalMuGroupDensity {
+    // The observation is encoded in a MomentParameters object.
+    MomentParameters<double> obs;
+    VariationalParameters<double> base_vp;
+    int component; // Zero-indexed
+    int group; // Zero-indexed
+
+    VariationalLogMarginalMuGroupDensity(
+        VariationalParameters<double> const &vp,
+        MomentParameters<double> const & _obs,
+        int const _component,
+        int const _group) {
+
+        base_vp = VariationalParameters<double>(vp);
+        obs = MomentParameters<double>(_obs);
+        component = _component;
+        group = _group;
+    };
+
+    template <typename T> T operator()(VectorXT<T> const &theta) const {
+        VariationalParameters<T> vp(base_vp);
+        SetFromVector(theta, vp);
+
+        T q_log_dens = 0.0;
+        MatrixXT<T> mu_cov = vp.mu_g[group].info.mat.inverse();
+        UnivariateNormalNatural<T> mu_marginal(
+            vp.mu_g[group].loc(component), 1 / mu_cov(component, component));
+
+        VectorXT<T> mu_obs = obs.mu_g[group].e_vec.template cast<T>();
+        q_log_dens += mu_marginal.log_lik(mu_obs(component));
+
+        return q_log_dens;
+    }
+};
+
+
 struct Derivatives {
   double val;
   VectorXd grad;
@@ -504,6 +541,12 @@ Derivatives GetVariationalLogMarginalMuDensityDerivatives(
     MomentParameters<double> const &obs,
     VariationalParameters<double> const &vp,
     int const component);
+
+
+Derivatives GetVariationalLogMarginalMuGroupDensityDerivatives(
+    MomentParameters<double> const &obs,
+    VariationalParameters<double> const &vp,
+    int const component, int const group);
 
 
 # endif
