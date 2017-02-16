@@ -285,7 +285,15 @@ ggplot(sens_graph_df) +
 
 if (save_results) {
   num_obs <- nrow(x)
-  save(results_pert, pp, vb_sensitivity_results, prior_sens_results_graph, num_obs, file=results_file)
+  lrvb_time <- as.numeric(fit_env$lrvb_time, units="secs")
+  vb_time <- as.numeric(fit_env$vb_fit$bfgs_time + fit_env$vb_fit$tr_time, units="secs")
+  mcmc_time <- as.numeric(fit_env$mcmc_environment$results$original$mcmc_time, units="secs")
+  num_mcmc_draws <- nrow(fit_env$mcmc_environment$draws_mat)
+  num_mu_draws <- length(vp_opt$mu_draws)
+  save(results, results_pert, pp, pp_perturb,
+       vb_sensitivity_results, prior_sens_results_graph, num_obs,
+       lrvb_time, vb_time, mcmc_time, num_mcmc_draws, num_mu_draws,
+       file=results_file)
 }
 
 

@@ -249,7 +249,7 @@ ggplot() +
 ggplot() +
   geom_point(data=vb_influence_df, aes(x=u, y=exp(lq))) +
   geom_point(data=mcmc_influence_df, aes(x=u, y=dens))
-  
+
 
 ggplot(res_graph) +
   geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
