@@ -240,7 +240,7 @@ GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_
     SummarizeRawMomentParameters(
       GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb"),
     SummarizeRawMomentParameters(
-      GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc")
+      GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc"))
     
   return(worst_case_df)
 }
@@ -279,6 +279,7 @@ res_graph <- dcast(res, par + component + group + metric ~ method, value.var="va
 # Look at one example in detail.
 
 mu_comp <- 1
+influence_symbol <- "mu" # This will be used to make the graphs in the paper
 vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
 vb_influence_results <- GetVariationalInfluenceResults(
   num_draws=n_samples,
@@ -311,7 +312,7 @@ vb_influence_df <- data.frame(
 
 
 if (save_results) {
-  save(n_samples, res_graph, mu_comp, mcmc_influence_df, vb_influence_df, file=results_file)
+  save(n_samples, res_graph, mu_comp, mcmc_influence_df, vb_influence_df, influence_symbol, file=results_file)
 }
 
 
@@ -336,7 +337,7 @@ grid.arrange(
     geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
 ,
   ggplot() +
-    geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms, color="vb_g")) +
+    geom_point(data=vb_influence_df, aes(x=u, y=lq_grad, color="vb_g")) +
     geom_point(data=mcmc_influence_df, aes(x=u, y=u - mean(mcmc_influence_df$u), color="mcmc_g"))
 , ncol=1  
 )
