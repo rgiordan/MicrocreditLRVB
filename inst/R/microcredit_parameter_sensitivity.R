@@ -163,12 +163,28 @@ prior_sens_results_graph <-
   dcast(prior_sens_results, par + component + group + metric ~ method, value.var="val")
 
 
+
+#######################################
+# Export selected results for use in the paper
+
+if (save_results) {
+  num_obs <- nrow(x)
+  lrvb_time <- as.numeric(fit_env$lrvb_time, units="secs")
+  vb_time <- as.numeric(fit_env$vb_fit$bfgs_time + fit_env$vb_fit$tr_time, units="secs")
+  mcmc_time <- as.numeric(fit_env$mcmc_environment$results$original$mcmc_time, units="secs")
+  num_mcmc_draws <- nrow(fit_env$mcmc_environment$draws_mat)
+  num_mu_draws <- length(vp_opt$mu_draws)
+  perturb_epsilon <- fit_env$mcmc_environment$perturb_epsilon
+  save(results, results_pert, pp, pp_perturb, perturb_epsilon,
+       vb_sensitivity_results, prior_sens_results_graph, num_obs,
+       lrvb_time, vb_time, mcmc_time, num_mcmc_draws, num_mu_draws,
+       file=results_file)
+}
+
+
 #######################
 # Graphs
 
-if (save_results) {
-  save(results, results_pert, prior_sens_results_graph, file=results_file)
-}
 
 stop("Graphs follow -- not executing.")
 
@@ -278,23 +294,6 @@ ggplot(sens_graph_df) +
            position="dodge", stat="identity") +
   xlab("Prior top-level mean component") + ylab("Sensitivity") +
   ggtitle("Derivative of the posterior mean")
-
-
-#######################################
-# Export selected results for use in the paper
-
-if (save_results) {
-  num_obs <- nrow(x)
-  lrvb_time <- as.numeric(fit_env$lrvb_time, units="secs")
-  vb_time <- as.numeric(fit_env$vb_fit$bfgs_time + fit_env$vb_fit$tr_time, units="secs")
-  mcmc_time <- as.numeric(fit_env$mcmc_environment$results$original$mcmc_time, units="secs")
-  num_mcmc_draws <- nrow(fit_env$mcmc_environment$draws_mat)
-  num_mu_draws <- length(vp_opt$mu_draws)
-  save(results, results_pert, pp, pp_perturb,
-       vb_sensitivity_results, prior_sens_results_graph, num_obs,
-       lrvb_time, vb_time, mcmc_time, num_mcmc_draws, num_mu_draws,
-       file=results_file)
-}
 
 
 

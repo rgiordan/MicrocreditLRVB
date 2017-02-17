@@ -15,12 +15,12 @@ DrawFromQMu <- function(n_draws, vp_opt, rescale=1) {
 }
 
 
-GetMuLogDensity <- function(mu, vp_opt, draw, pp, unconstrained, calculate_gradient) {
+GetMuLogDensity <- function(mu, vp_opt, draw, pp, unconstrained, calculate_gradient, global_only=TRUE) {
   draw$mu_e_vec <- mu
   draw$mu_e_outer <- mu %*% t(mu)
   q_derivs <- GetLogVariationalDensityDerivatives(
     draw, vp_opt, include_mu=TRUE, include_lambda=FALSE,
-    integer(), integer(), unconstrained=unconstrained, global_only=TRUE,
+    integer(), integer(), unconstrained=unconstrained, global_only=global_only,
     calculate_gradient=calculate_gradient)
   return(q_derivs)
 }

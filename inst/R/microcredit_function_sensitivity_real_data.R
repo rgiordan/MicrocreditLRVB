@@ -53,9 +53,56 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 
 # Monte Carlo integrate using importance sampling
 
+# Get a function that converts a a draw from mu_k and a standard mvn into a draw from (mu_c | mu_k)
+# k is the conditioned component, c is the "complement", i.e. the rest
+GetConditionalMVNFunction <- function(k_ind, mvn_mean, mvn_info) {
+  mvn_sigma <- solve(mvn_info)
+  c_ind <- setdiff(1:length(mvn_mean), k_ind)
+  
+  # The scale in front of the mu_k for the mean of (mu_c | mu_k)
+  # mu_cc_sigma <- mu_sigma[c_ind, c_ind, drop=FALSE]
+  mu_kk_sigma <- mvn_sigma[k_ind, k_ind, drop=FALSE]
+  mu_ck_sigma <- mvn_sigma[c_ind, k_ind, drop=FALSE]
+  sig_cc_corr <- mu_ck_sigma %*% solve(mu_kk_sigma)
+  
+  # What to multiply by to get Cov(mu_c | mu_k)
+  mu_c_scale <- t(chol(solve(mvn_info[c_ind, c_ind])))
+  
+  # Given u and a draws mu_c_std ~ Standard normal, convert mu_c_std to a draw from MVN( . | mu_k)
+  GetConditionalDraw <- function(mu_k, mu_c_std) {
+    mu_c_scale %*% mu_c_std + mvn_mean[c_ind] + sig_cc_corr %*% (mu_k - mvn_mean[k_ind])
+  }
+}
+
+if (FALSE) {
+  # Test GetConditionalDraw
+  n_draws <- 100000
+  mvn_mean <- runif(4)
+  mvn_cov <- diag(4) + 0.2
+  k_ind <- c(1, 2)
+  CondFn <- GetConditionalMVNFunction(k_ind, mvn_mean, solve(mvn_cov))
+  mu_k_draws <- rmvnorm(n_draws, mean=mvn_mean[k_ind], sigma=mvn_cov[k_ind, k_ind])
+  mu_std_draws <- rmvnorm(n_draws, mean=rep(0, length(mvn_mean) - length(k_ind)))
+  mu_c_draws <- matrix(NaN, n_draws, ncol(mu_std_draws))
+  for (k in 1:nrow(mu_k_draws)) {
+    mu_c_draws[k,] <- CondFn(as.matrix(mu_k_draws[k, ]), as.matrix(mu_std_draws[k, ]))
+  }
+  
+  mu_cond_draws <- matrix(NaN, n_draws, length(mvn_mean))
+  mu_cond_draws[, k_ind] <- mu_k_draws
+  mu_cond_draws[, setdiff(1:length(mvn_mean), k_ind)] <- mu_c_draws
+  
+  colMeans(mu_cond_draws)
+  mvn_mean
+  
+  cov(mu_cond_draws)
+  mvn_cov
+}
+
+
 
 # Mu draws:
-GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
+GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms, num_mu_c_draws=10) {
   mp_opt <- GetMoments(vp_opt)
   
   u_mean <- mp_opt$mu_e_vec[mu_comp]
@@ -84,11 +131,35 @@ GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
     return(mu_q_derivs$val) 
   }
   
+  # This is wrong.  The average grad term is not the grad of the marginal.
+  # lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
+  # GetLogQGradTerm <- function(u) {
+  #   mp_draw <- mp_opt
+  #   mu_q_derivs <- GetLogVariationalDensityDerivatives(u, mu_comp, vp_opt, mp_draw, TRUE)
+  #   as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
+  # }
+  
+  GetConditionalDraw <- GetConditionalMVNFunction(mu_comp, vp_opt$mu_loc, vp_opt$mu_info)
+    
+  mu_c_std_draws <- rmvnorm(num_mu_c_draws, mean=rep(0, length(c_ind)))
   lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
   GetLogQGradTerm <- function(u) {
+    # Estimate the average log term conditional on mu[mu_comp] = u
     mp_draw <- mp_opt
-    mu_q_derivs <- GetMuLogMarginalDensity(u, mu_comp, vp_opt, mp_draw, TRUE)
-    as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
+    
+    # Draw mu2
+    this_mu <- rep(NaN, vp_opt$k_reg)
+    c_ind <- setdiff(1:vp_opt$k, mu_comp)
+    avg_grad_term <- rep(0, vp_opt$encoded_size)
+    for (row in 1:nrow(mu_c_std_draws)) {
+      this_mu[mu_comp] <- u
+      this_mu[c_ind] <- GetConditionalDraw(u, mu_c_std_draws[row, ])
+      mu_q_derivs <- GetMuLogDensity(mu=this_mu, vp_opt=vp_opt, draw=mp_draw, pp=pp,
+                                     unconstrained=TRUE, calculate_gradient=TRUE, global_only=FALSE)
+      avg_grad_term <- avg_grad_term + as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
+    }
+    avg_grad_term <- avg_grad_term / nrow(mu_c_std_draws)
+    return(avg_grad_term)
   }
   
   return(list(GetULogDensity=GetULogDensity,
@@ -96,8 +167,14 @@ GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
               GetLogPrior=GetLogPrior,
               GetLogPriorVec=GetLogPriorVec,
               GetLogVariationalDensity=GetLogVariationalDensity,
-              GetLogQGradTerm=GetLogQGradTerm))
+              GetLogQGradTerm=GetLogQGradTerm,
+              GetConditionalDraw=GetConditionalDraw))
 }
+
+
+
+
+
 
 
 # Tau draws:
@@ -159,12 +236,13 @@ GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_
   mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPriorVec)
   mcmc_worst_case <- sapply(1:ncol(draws_mat), function(ind) { mcmc_funs$GetMCMCWorstCase(draws_mat[, ind]) })
   
-  return(rbind(
+  worst_case_df <- rbind(
     SummarizeRawMomentParameters(
       GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb"),
     SummarizeRawMomentParameters(
       GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc")
-  ))
+    
+  return(worst_case_df)
 }
 
 
@@ -178,7 +256,7 @@ results_df_list <- list()
 # For Mu
 for (mu_comp in 1:vp_opt$k_reg) {
   cat("Mu component ", mu_comp, "\n")
-  vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
+  vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms, num_mu_c_draws=100)
   param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
   param_name <- paste("mu", mu_comp, "wc", sep="_")
   results_df_list[[length(results_df_list) + 1]] <-
@@ -199,6 +277,7 @@ res <- do.call(rbind, results_df_list)
 res_graph <- dcast(res, par + component + group + metric ~ method, value.var="val")
 
 # Look at one example in detail.
+
 mu_comp <- 1
 vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
 vb_influence_results <- GetVariationalInfluenceResults(
@@ -223,6 +302,7 @@ log_q_grad_terms <- sapply(vb_influence_results$u_draws, function(u) { vb_fns$Ge
 
 vb_influence_df <- data.frame(
   u=vb_influence_results$u_draws,
+  u_centered=vb_influence_results$u_draws - vp_opt$mu_loc[mu_comp],
   inf=vb_influence_results$influence_fun[, ind],
   imp_lp=vb_influence_results$importance_lp_ratio,
   lq=vb_influence_results$log_q,
@@ -243,15 +323,29 @@ if (save_results) {
 stop("graphs follow -- not executing.")
 
 ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms)) +
+  geom_point(data=vb_influence_df, aes(x=u_centered, y=log_q_grad_terms)) +
   geom_abline(aes(slope=1, intercept=0))
 
 ggplot() +
   geom_point(data=vb_influence_df, aes(x=u, y=exp(lq))) +
   geom_point(data=mcmc_influence_df, aes(x=u, y=dens))
 
+grid.arrange(
+  ggplot() +
+    geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+    geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
+,
+  ggplot() +
+    geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms, color="vb_g")) +
+    geom_point(data=mcmc_influence_df, aes(x=u, y=u - mean(mcmc_influence_df$u), color="mcmc_g"))
+, ncol=1  
+)
+  
+# ggplot(res_graph) +
+#   geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
+#   geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
 
-ggplot(res_graph) +
+ggplot(filter(res_graph, grepl("mu", metric))) +
   geom_point(aes(color=par, x=mcmc, y=lrvb), size=3) +
   geom_abline(aes(slope=1, intercept=0)) + facet_grid(~ metric, scales="free")
 
