@@ -53,10 +53,6 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 ##############################################
 # Calculate function sensitivity
 
-# Monte Carlo integrate using importance sampling
-
-
-
 
 GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_mat, mp_opt) {
   vb_influence_results <- GetVariationalInfluenceResults(
@@ -113,6 +109,11 @@ ggplot(filter(res_graph, grepl("mu", metric))) +
   geom_abline(aes(slope=1, intercept=0)) +
   facet_grid(~ metric)
 
+ggplot(filter(res_graph, !grepl("mu", metric))) +
+  geom_point(aes(x=mcmc, y=lrvb, color=par)) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  facet_grid(~ metric)
+
 # Look at one example in detail.
 mu_comp <- 1
 influence_symbol <- "mu" # This will be used to make the graphs in the paper
@@ -125,6 +126,7 @@ vb_influence_results <- GetVariationalInfluenceResults(
   GetLogQ=vb_fns$GetLogVariationalDensity,
   GetLogPrior=vb_fns$GetLogPrior)
 
+
 param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
 mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPrior)
 mcmc_inf <- mcmc_funs$GetMCMCInfluence(param_draws)
@@ -135,7 +137,7 @@ mcmc_influence_df <- data.frame(
   dens=mcmc_funs$dens_at_draws$y)
 
 ind <- mp_indices$mu_e_vec[mu_comp]
-log_q_grad_terms <- sapply(vb_influence_results$u_draws, function(u) { vb_fns$GetLogQGradTerm(u)[ind] })
+log_q_grad_terms <- vb_fns$GetLogQGradTerm(vb_influence_results$u_draws)[ind, ]
 
 vb_influence_df <- data.frame(
   u=vb_influence_results$u_draws,
@@ -144,6 +146,7 @@ vb_influence_df <- data.frame(
   imp_lp=vb_influence_results$importance_lp_ratio,
   lq=vb_influence_results$log_q,
   lp=vb_influence_results$log_prior,
+  worst_case_u=vb_influence_results$worst_case_u[, ind],
   lq_grad=log_q_grad_terms)
 
 
@@ -157,7 +160,23 @@ if (save_results) {
 ######################
 # Graphs
 
+GetNormalizingConstant <- function(x, dens) {
+  x_order <- order(x)
+  sum(diff(x[x_order]) * dens[-1])
+}
+
 stop("graphs follow -- not executing.")
+
+prior_draws <- vb_fns$DrawFromPrior(5000)
+prior_draws <- prior_draws[ prior_draws < quantile(prior_draws, 0.97) & prior_draws > quantile(prior_draws, 0.03)]
+
+
+worst_case_u_const <- with(vb_influence_df, GetNormalizingConstant(u_draws, worst_case_u))
+ggplot() +
+  geom_line(data=vb_influence_df, aes(x=u, y=worst_case_u / worst_case_u_const, color="u")) +
+  geom_line(aes(x=prior_draws, y=exp(vb_fns$GetLogPrior(prior_draws)), color="prior"))
+  
+
 
 ggplot() +
   geom_point(data=vb_influence_df, aes(x=u_centered, y=log_q_grad_terms)) +

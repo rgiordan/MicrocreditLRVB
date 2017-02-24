@@ -120,6 +120,7 @@ if (FALSE) {
   mvn_cov
 }
 
+
 # Mu draws:
 GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
   mp_opt <- GetMoments(vp_opt)
@@ -135,36 +136,18 @@ GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
     rnorm(n_samples, mean=u_mean, sd=sqrt(u_cov))
   }
   
-  GetLogPrior <- function(u) {
-    sapply(u, function(u) GetMuLogStudentTPrior(u, pp))
+  GetLogPrior <- function(u_vec) {
+    sapply(u_vec, function(u) student_t_log(u, pp$mu_t_df, pp$mu_t_loc, pp$mu_t_scale))
+  }
+
+  DrawFromPrior <- function(n_samples) {
+    rt(n_samples, pp$mu_t_df) * pp$mu_t_scale + pp$mu_t_loc
   }
   
   mu_cov <- solve(vp_opt$mu_info)
   GetLogVariationalDensity <- function(u) {
     return(dnorm(u, mean=vp_opt$mu_loc[mu_comp], sd=sqrt(mu_cov[mu_comp, mu_comp]), log=TRUE))
   }
-  
-  # GetConditionalDraw <- GetConditionalMVNFunction(mu_comp, vp_opt$mu_loc, vp_opt$mu_info)
-  # mu_c_std_draws <- rmvnorm(num_mu_c_draws, mean=rep(0, length(c_ind)))
-  # lrvb_pre_factor <- -1 * lrvb_terms$jac %*% solve(lrvb_terms$elbo_hess)
-  # GetLogQGradTerm <- function(u) {
-  #   # Estimate the average log term conditional on mu[mu_comp] = u
-  #   mp_draw <- mp_opt
-  #   
-  #   # Draw mu2
-  #   this_mu <- rep(NaN, vp_opt$k_reg)
-  #   c_ind <- setdiff(1:vp_opt$k, mu_comp)
-  #   avg_grad_term <- rep(0, vp_opt$encoded_size)
-  #   for (row in 1:nrow(mu_c_std_draws)) {
-  #     this_mu[mu_comp] <- u
-  #     this_mu[c_ind] <- GetConditionalDraw(u, mu_c_std_draws[row, ])
-  #     mu_q_derivs <- GetMuLogDensity(mu=this_mu, vp_opt=vp_opt, draw=mp_draw, pp=pp,
-  #                                    unconstrained=TRUE, calculate_gradient=TRUE, global_only=FALSE)
-  #     avg_grad_term <- avg_grad_term + as.numeric(lrvb_pre_factor %*% mu_q_derivs$grad)
-  #   }
-  #   avg_grad_term <- avg_grad_term / nrow(mu_c_std_draws)
-  #   return(avg_grad_term)
-  # }
   
   mp_draw <- mp_opt
   GetFullLogQGradTerm <- function(mu) {
@@ -215,7 +198,8 @@ GetMuImportanceFunctions <- function(mu_comp, vp_opt, pp, lrvb_terms) {
               GetLogPrior=GetLogPrior,
               GetLogVariationalDensity=GetLogVariationalDensity,
               GetLogQGradTerms=GetLogQGradTerms,
-              GetLogQGradResults=GetLogQGradResults))
+              GetLogQGradResults=GetLogQGradResults,
+              DrawFromPrior=DrawFromPrior))
 }
 
 
