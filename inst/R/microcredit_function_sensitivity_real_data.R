@@ -54,7 +54,7 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 # Calculate function sensitivity
 
 
-GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_mat, mp_opt) {
+GetVBWorstCaseResultsDataFrame <- function(vb_fns, param_name, mp_opt, n_samples) {
   vb_influence_results <- GetVariationalInfluenceResults(
     num_draws=n_samples,
     DrawImportanceSamples=vb_fns$DrawU,
@@ -62,24 +62,27 @@ GetWorstCaseResultsDataFrame <- function(vb_fns, param_draws, param_name, draws_
     GetLogQGradTerm=vb_fns$GetLogQGradTerm,
     GetLogQ=vb_fns$GetLogVariationalDensity,
     GetLogPrior=vb_fns$GetLogPrior)
-  
+
+  SummarizeRawMomentParameters(
+    GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb")
+}
+
+
+GetMCMCWorstCaseResultsDataFrame <- function(param_draws, param_name, draws_mat, mp_opt) {
   mcmc_funs <- GetMCMCInfluenceFunctions(param_draws, vb_fns$GetLogPrior)
   mcmc_worst_case <- sapply(1:ncol(draws_mat), function(ind) { mcmc_funs$GetMCMCWorstCase(draws_mat[, ind]) })
   
-  worst_case_df <- rbind(
-    SummarizeRawMomentParameters(
-      GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb"),
-    SummarizeRawMomentParameters(
-      GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc"))
-    
-  return(worst_case_df)
+  SummarizeRawMomentParameters(
+    GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc")
 }
 
 
 # Monte Carlo samples
 n_samples <- 500
+num_bootstraps <- 10
 
 results_df_list <- list()
+draws_mat <- fit_env$mcmc_environment$draws_mat
 
 # For Mu
 for (mu_comp in 1:vp_opt$k_reg) {
@@ -87,9 +90,20 @@ for (mu_comp in 1:vp_opt$k_reg) {
   vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
   param_draws <- fit_env$mcmc_environment$mcmc_sample$mu[, mu_comp]
   param_name <- paste("mu", mu_comp, "wc", sep="_")
-  results_df_list[[length(results_df_list) + 1]] <-
-    GetWorstCaseResultsDataFrame(vb_fns, param_draws, param_name, fit_env$mcmc_environment$draws_mat, mp_opt)
-} 
+
+  for (draw in 1:num_bootstraps) {
+    cat(".")
+    results_df_list[[length(results_df_list) + 1]] <-
+      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt) %>%
+      mutate(draw=draw)
+
+    mcmc_rows <- sample.int(nrow(draws_mat), replace=TRUE)
+    results_df_list[[length(results_df_list) + 1]] <-
+      GetMCMCWorstCaseResultsDataFrame(param_draws[mcmc_rows], param_name, draws_mat[mcmc_rows, ], mp_opt) %>%
+      mutate(draw=draw)
+  }
+  cat("\n")
+}
 
 # For tau
 for (group in 1:vp_opt$n_g) {
@@ -97,25 +111,69 @@ for (group in 1:vp_opt$n_g) {
   vb_fns <- GetTauImportanceFunctions(group, vp_opt, pp, lrvb_terms)
   param_draws <- 1 / fit_env$mcmc_environment$mcmc_sample$sigma_y[, group] ^ 2
   param_name <- paste("tau", group, "wc", sep="_")
-  results_df_list[[length(results_df_list) + 1]] <-
-    GetWorstCaseResultsDataFrame(vb_fns, param_draws, param_name, fit_env$mcmc_environment$draws_mat, mp_opt)
+  
+  for (draw in 1:num_bootstraps) {
+    cat(".")
+    results_df_list[[length(results_df_list) + 1]] <-
+      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt) %>%
+      mutate(draw=draw)
+    
+    mcmc_rows <- sample.int(nrow(draws_mat), replace=TRUE)
+    results_df_list[[length(results_df_list) + 1]] <-
+      GetMCMCWorstCaseResultsDataFrame(param_draws[mcmc_rows], param_name, draws_mat[mcmc_rows, ], mp_opt) %>%
+      mutate(draw=draw)
+  }
+  cat("\n")
 } 
 
-res <- do.call(rbind, results_df_list)
-res_graph <- dcast(res, par + component + group + metric ~ method, value.var="val")
 
-ggplot(filter(res_graph, grepl("mu", metric))) +
-  geom_point(aes(x=mcmc, y=lrvb, color=par)) +
-  geom_abline(aes(slope=1, intercept=0)) +
-  facet_grid(~ metric)
+worst_case_df <- do.call(rbind, results_df_list) %>%
+  group_by(par, component, group, metric, method) %>%
+  summarize(val_mean=mean(val), val_sd=sd(val)) %>%
+  melt(id.vars=c("par", "component", "group", "metric", "method")) %>%
+  mutate(summary=variable)
 
-ggplot(filter(res_graph, !grepl("mu", metric))) +
-  geom_point(aes(x=mcmc, y=lrvb, color=par)) +
+worst_case_cast <-
+  dcast(worst_case_df, par + component + group + metric ~ method + summary, value.var="value")
+  
+
+# Add uncertainty ellipses
+theta <- seq(0, 2 * pi, length.out=20)
+ellipse_dfs <- list()
+for (row in 1:nrow(worst_case_cast)) {
+  sd_x <- worst_case_cast[row, "mcmc_val_sd"]
+  sd_y <- worst_case_cast[row, "lrvb_val_sd"]
+  loc_x <- worst_case_cast[row, "mcmc_val_mean"]
+  loc_y <- worst_case_cast[row, "lrvb_val_mean"]
+  ellipse_dfs[[length(ellipse_dfs) + 1]] <-
+    data.frame(x=loc_x + 2 * sd_x * cos(theta), y=loc_y + 2 * sd_y * sin(theta), row=row)
+}
+worst_case_cast_sds <- do.call(rbind, ellipse_dfs) %>%
+  inner_join(mutate(worst_case_cast, row=1:nrow(worst_case_cast)), by="row")
+
+
+ggplot(filter(worst_case_cast_sds, grepl("mu", metric))) +
+  geom_polygon(aes(x=x, y=y, group=row), alpha=0.1, color=NA) +
+  geom_point(aes(x=mcmc_val_mean, y=lrvb_val_mean), size=2) +
   geom_abline(aes(slope=1, intercept=0)) +
-  facet_grid(~ metric)
+  expand_limits(x=0, y=0) +
+  xlab("MCMC") + ylab("VB") 
+
+ggplot(filter(worst_case_cast_sds, !grepl("mu", metric))) +
+  geom_polygon(aes(x=x, y=y, group=row), alpha=0.1, color=NA) +
+  geom_point(aes(x=mcmc_val_mean, y=lrvb_val_mean), size=2) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  expand_limits(x=0, y=0) +
+  xlab("MCMC") + ylab("VB") 
+
+
+# res_graph <- dcast(res, par + component + group + metric ~ method, value.var="val")
+
 
 # Look at one example in detail.
 mu_comp <- 1
+ind <- mp_indices$mu_e_vec[mu_comp]
+# ind <- mp_indices$mu_g[[5]]$e_vec[1]
 influence_symbol <- "mu" # This will be used to make the graphs in the paper
 vb_fns <- GetMuImportanceFunctions(mu_comp, vp_opt, pp, lrvb_terms)
 vb_influence_results <- GetVariationalInfluenceResults(
@@ -134,7 +192,7 @@ mcmc_inf <- mcmc_funs$GetMCMCInfluence(param_draws)
 mcmc_influence_df <- data.frame(
   u=param_draws,
   inf=mcmc_inf,
-  dens=mcmc_funs$dens_at_draws$y)
+  dens=mcmc_funs$dens_at_draws)
 
 ind <- mp_indices$mu_e_vec[mu_comp]
 log_q_grad_terms <- vb_fns$GetLogQGradTerm(vb_influence_results$u_draws)[ind, ]
@@ -151,21 +209,33 @@ vb_influence_df <- data.frame(
 
 
 if (save_results) {
-  save(n_samples, res_graph, mu_comp, mcmc_influence_df, vb_influence_df, influence_symbol, file=results_file)
+  save(n_samples, worst_case_cast_sds, mu_comp, mcmc_influence_df, vb_influence_df, influence_symbol, file=results_file)
 }
 
 
+stop("graphs follow -- not executing.")
 
 
 ######################
 # Graphs
+
+ggplot(filter(res_graph, grepl("mu", metric))) +
+  geom_point(aes(x=mcmc, y=lrvb, color=par, shape=factor(group)), size=3) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  facet_grid(~ metric)
+
+ggplot(filter(res_graph, !grepl("mu", metric))) +
+  geom_point(aes(x=mcmc, y=lrvb, color=par)) +
+  geom_abline(aes(slope=1, intercept=0)) +
+  facet_grid(~ metric)
+
+
 
 GetNormalizingConstant <- function(x, dens) {
   x_order <- order(x)
   sum(diff(x[x_order]) * dens[-1])
 }
 
-stop("graphs follow -- not executing.")
 
 prior_draws <- vb_fns$DrawFromPrior(5000)
 prior_draws <- prior_draws[ prior_draws < quantile(prior_draws, 0.97) & prior_draws > quantile(prior_draws, 0.03)]
@@ -275,38 +345,6 @@ vb_influence_df <- data.frame(
   lq_grad=log_q_grad_terms)
 
 
-grid.arrange(
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb"))
-,
-ggplot() +
-  geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
-, ncol=2
-)
-
-
-
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
-
-
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=exp(lp), color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(vb_fns$GetLogPriorVec(u)), color="mcmc"))
-
-
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq - lp), color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(log(dens) - vb_fns$GetLogPriorVec(u)), color="mcmc"))
-
-# The two influence functions are way off because the log_q_grad_terms look nothing like the draws.
-ggplot() +
-  geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms, color="vb")) +
-  geom_point(data=mcmc_influence_df, aes(x=u, y=g_draws, color="mcmc"))
-  
-
-
 # Recall that this is wrt the unconstrained variable.
 LogQGrad <- function(u) {
   mp_draw <- mp_opt
@@ -334,12 +372,45 @@ SummarizeRawMomentParameters(
 SummarizeRawMomentParameters(
   GetMomentsFromVector(mp_opt, lrvb_pre_factor[, vp_indices$tau[[group]]$alpha]), metric="", method="alpha") 
 
-u
 SummarizeRawMomentParameters(
   GetMomentsFromVector(mp_opt, as.numeric(lrvb_pre_factor %*% tau_q_derivs$grad)), metric="", method="beta")
 
 SummarizeRawMomentParameters(
   GetMomentsFromVector(mp_opt, as.numeric(lrvb_pre_factor %*% tau_q_derivs$grad)), metric="", method="alpha")
+
+
+
+
+grid.arrange(
+  ggplot() +
+    geom_point(data=vb_influence_df, aes(x=u, y=inf, color="vb"))
+  ,
+  ggplot() +
+    geom_point(data=mcmc_influence_df, aes(x=u, y=inf, color="mcmc"))
+  , ncol=2
+)
+
+
+
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=dens, color="mcmc"))
+
+
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lp), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(vb_fns$GetLogPriorVec(u)), color="mcmc"))
+
+
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=exp(lq - lp), color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=exp(log(dens) - vb_fns$GetLogPriorVec(u)), color="mcmc"))
+
+# The two influence functions are way off because the log_q_grad_terms look nothing like the draws.
+ggplot() +
+  geom_point(data=vb_influence_df, aes(x=u, y=log_q_grad_terms, color="vb")) +
+  geom_point(data=mcmc_influence_df, aes(x=u, y=g_draws, color="mcmc"))
+
 
 
 # ggplot() +
@@ -357,14 +428,3 @@ SummarizeRawMomentParameters(
 # )
 # 
 
-
-
-
-
-##############################
-# Save selected results for use in the paper
-
-if (save_results) {
-  component_df <- sample_n(component_df, 5000)
-  save(sens_results, pp, pp_perturb, component_df, epsilon_df, file=results_file)
-}
