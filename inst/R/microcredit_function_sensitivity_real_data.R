@@ -94,7 +94,7 @@ for (mu_comp in 1:vp_opt$k_reg) {
   for (draw in 1:num_bootstraps) {
     cat(".")
     results_df_list[[length(results_df_list) + 1]] <-
-      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt) %>%
+      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt, n_samples) %>%
       mutate(draw=draw)
 
     mcmc_rows <- sample.int(nrow(draws_mat), replace=TRUE)
@@ -115,7 +115,7 @@ for (group in 1:vp_opt$n_g) {
   for (draw in 1:num_bootstraps) {
     cat(".")
     results_df_list[[length(results_df_list) + 1]] <-
-      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt) %>%
+      GetVBWorstCaseResultsDataFrame(vb_fns, param_name, mp_opt, n_samples) %>%
       mutate(draw=draw)
     
     mcmc_rows <- sample.int(nrow(draws_mat), replace=TRUE)
