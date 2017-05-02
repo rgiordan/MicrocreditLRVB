@@ -41,6 +41,9 @@ if (file.exists(model_file_rdata)) {
   save(model, file=model_file_rdata)
 }
 
+#################
+# Get the sensitivity using the MCMC draws from before and using stan's log model gradients.
+
 mcmc_draws <- extract(stan_results$sim)
 num_draws <- length(mcmc_draws$lp__)
 weight_grad_mat <- matrix(NA, nrow=num_draws, ncol=stan_results$dat$N)
@@ -48,10 +51,10 @@ weight_grad_mat <- matrix(NA, nrow=num_draws, ncol=stan_results$dat$N)
 # Load the data object containing the priors and data.
 stan_dat <- mcmc_environment$results$original$dat
 
-# This is a "fit object" -- we won't use it for drawing, but instead use it for log gradients.
+# This is a "fit object" -- we won't use it for drawing, but instead use it for calculating log gradients.
 data_sensitivity_fit_obj <- sampling(model, stan_dat, iter=1, chains=1)
 
-# These should be the prior param names
+# These should be the prior param names.
 param_names <- data_sensitivity_fit_obj@.MISC$stan_fit_instance$unconstrained_param_names(FALSE, FALSE)
 
 # These are the rows of the gradient that will correspond to the weights.
@@ -60,6 +63,7 @@ weight_param_rows <- grepl("^weight", param_names)
 # Evaluate the gradient at equal weights on every point
 id_weights <- rep(1.0, stan_dat$N)
 
+# Extract the gradients with respect to the weights for each draw.
 prog_bar <- txtProgressBar(min=1, max=num_draws, style=3)
 for (draw in 1:num_draws) {
   setTxtProgressBar(prog_bar, value=draw)
@@ -70,17 +74,24 @@ for (draw in 1:num_draws) {
                         S=mcmc_draws$S[draw,],
                         weights=id_weights)
   pars_free <- unconstrain_pars(data_sensitivity_fit_obj, mcmc_draw_dat)
-  weight_grad_mat[draw, ] <- grad_log_prob(data_sensitivity_fit_obj, pars_free, adjust_transform=FALSE)[weight_param_rows]
+  weight_grad_mat[draw, ] <-
+    grad_log_prob(data_sensitivity_fit_obj, pars_free)[weight_param_rows]
 }
 close(prog_bar)
 
 
+# The covariance is the sensitivity.
+# mu_sens1 = dE[mu] / dw (where mu is the mu in the paper)
+# mu_sens2 = dE[tau] / dw (where tau is the tau in the paper)
 mu_draws <- mcmc_draws$mu
 mu_weight_sens <- cov(mu_draws, weight_grad_mat)
-
-graph_df <- data.frame(mu=mu_weight_sens[1,], tau=mu_weight_sens[1,])
-
-summary(graph_df$tau)
-hist(graph_df$tau, 1000)
+graph_df <- data.frame(mu_sens1=mu_weight_sens[1,], mu_sens2=mu_weight_sens[2,], y=y, y_g=y_g, treat=x[, 2])
 
 
+# View the effect on tau and mu as a function of y for each of the seven groups.
+ggplot(graph_df) +
+  geom_line(aes(x=y, y=mu_sens1, color="mu")) +
+  geom_point(aes(x=y, y=mu_sens1, color="mu")) +
+  geom_line(aes(x=y, y=mu_sens2, color="tau")) +
+  geom_point(aes(x=y, y=mu_sens2, color="tau")) +
+  facet_grid(treat ~ y_g)
