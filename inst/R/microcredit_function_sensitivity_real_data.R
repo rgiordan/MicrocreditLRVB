@@ -53,6 +53,9 @@ pp_indices <- GetPriorsFromVector(pp, as.numeric(1:pp$encoded_size))
 ##############################################
 # Calculate function sensitivity
 
+# Standard deviations to normalize
+mcmc_sd_scale <- sapply(1:ncol(draws_mat), function(col) { sd(draws_mat[, col]) })
+lrvb_sd_scale <- sqrt(diag(lrvb_cov))
 
 GetVBWorstCaseResultsDataFrame <- function(vb_fns, param_name, mp_opt, n_samples) {
   vb_influence_results <- GetVariationalInfluenceResults(
@@ -64,7 +67,7 @@ GetVBWorstCaseResultsDataFrame <- function(vb_fns, param_name, mp_opt, n_samples
     GetLogPrior=vb_fns$GetLogPrior)
 
   SummarizeRawMomentParameters(
-    GetMomentsFromVector(mp_opt, vb_influence_results$worst_case), metric=param_name, method="lrvb")
+    GetMomentsFromVector(mp_opt, vb_influence_results$worst_case / lrvb_sd_scale), metric=param_name, method="lrvb")
 }
 
 
@@ -73,7 +76,7 @@ GetMCMCWorstCaseResultsDataFrame <- function(param_draws, param_name, draws_mat,
   mcmc_worst_case <- sapply(1:ncol(draws_mat), function(ind) { mcmc_funs$GetMCMCWorstCase(draws_mat[, ind]) })
   
   SummarizeRawMomentParameters(
-    GetMomentsFromVector(mp_opt, mcmc_worst_case), metric=param_name, method="mcmc")
+    GetMomentsFromVector(mp_opt, mcmc_worst_case / mcmc_sd_scale), metric=param_name, method="mcmc")
 }
 
 

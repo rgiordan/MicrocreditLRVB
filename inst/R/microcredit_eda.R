@@ -32,6 +32,22 @@ x <- stan_results$dat$x
 y <- stan_results$dat$y
 y_g <- stan_results$dat$y_group
 
+data_df <- data.frame(x=x, y=y, y_g=y_g)
+
+# Group 3 has no negative profit?
+group <- 1
+ggplot(filter(data_df, y_g==group, abs(y) > 1e-8)) +
+  geom_histogram(aes(x=log(abs(y)), y=..density..), bins=100) +
+  facet_grid(y > 0 ~ .) + ggtitle(group)
+
+group <- 2
+ggplot(filter(data_df, y_g==group, abs(y) > 1e-8, abs(y) < 500)) +
+  geom_histogram(aes(x=abs(y), y=..density..), bins=100) +
+  facet_grid(y > 0 ~ .) + ggtitle(group)
+
+
+
+
 pp <- mcmc_environment$pp
 pp_perturb <- mcmc_environment$pp_perturblibrary(ggplot2)
 library(dplyr)

@@ -180,5 +180,5 @@ print(results[["original"]]$sim, "mu")
 print(results[["perturbed"]]$sim, "mu")
 
 print(sprintf("Saving to %s.", stan_draws_file))
-save(results, pp, pp_perturb, perturb_epsilon, file=stan_draws_file)
+save(results, pp, pp_perturb, perturb_epsilon, stan_dat, file=stan_draws_file)
 
