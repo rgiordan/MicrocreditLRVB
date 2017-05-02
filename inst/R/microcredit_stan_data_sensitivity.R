@@ -7,6 +7,7 @@ library(Matrix)
 project_directory <-
   file.path(Sys.getenv("GIT_REPO_LOC"), "MicrocreditLRVB/inst/simulated_data")
 
+analysis_name <- "real_data_t_prior"
 stan_draws_file <-
   file.path(project_directory, paste(analysis_name, "_data_and_mcmc_draws.Rdata", sep=""))
 print(paste("Loading draws from ", stan_draws_file))
@@ -52,6 +53,8 @@ weight_grad_mat <- matrix(NA, nrow=num_draws, ncol=stan_results$dat$N)
 stan_dat <- mcmc_environment$results$original$dat
 
 # This is a "fit object" -- we won't use it for drawing, but instead use it for calculating log gradients.
+# You can ignore the error.  It seems like there should be a way to get a fit object without calling
+# sampling(), but I don't know it.
 data_sensitivity_fit_obj <- sampling(model, stan_dat, iter=1, chains=1)
 
 # These should be the prior param names.
