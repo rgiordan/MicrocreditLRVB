@@ -85,5 +85,20 @@ Y & \sim\mathcal{N}\left(X\beta,\sigma^{2}I\right)\\
 
 \end_layout
 
+\begin_layout Standard
+I think we also want
+\begin_inset Formula 
+\begin{align*}
+\rho & =\alpha+\gamma T_{i}\\
+p & =\frac{\exp\left(\rho\right)}{1+\exp\left(\rho\right)}\\
+P\left(n_{zero}\right) & \propto p^{n_{zero}}\left(1-p\right)^{N-n_{zero}}\\
+ & =\left(\frac{p}{1-p}\right)^{n_{zero}}\left(1-p\right)^{N}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
 \end_body
 \end_document

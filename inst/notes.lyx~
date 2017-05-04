@@ -77,7 +77,22 @@ For normal observations in groups where
 y_{n} & \sim\mathcal{N}\left(x_{n}^{T}\beta,\sigma^{2}\right)\\
 Y & \sim\mathcal{N}\left(X\beta,\sigma^{2}I\right)\\
 \sum_{n}\log p\left(y_{n}\vert\beta,\sigma^{2}\right) & =-\frac{1}{2\sigma^{2}}\left(Y-X\beta\right)^{T}\left(Y-X\beta\right)-\frac{n}{2}\log\sigma^{2}\\
- & =-\frac{1}{2\sigma^{2}}\left(Y^{T}Y-\beta^{T}X^{T}X\beta\right)-\frac{n}{2}\log\sigma^{2}
+ & =-\frac{1}{2\sigma^{2}}\left(Y^{T}Y-2Y^{T}X\beta+\beta^{T}X^{T}X\beta\right)-\frac{n}{2}\log\sigma^{2}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+I think we also want
+\begin_inset Formula 
+\begin{align*}
+\rho & =\alpha+\gamma T_{i}\\
+p & =\frac{\exp\left(\rho\right)}{1+\exp\left(\rho\right)}\\
+P\left(n_{zero}\right) & \propto p^{n_{zero}}\left(1-p\right)^{N-n_{zero}}\\
+ & =\frac{p}{1-p}^{n_{zero}}\left(1-p\right)^{N}
 \end{align*}
 
 \end_inset

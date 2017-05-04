@@ -90,6 +90,7 @@ mutate(data_df_transform, y_pos=y > 0) %>%
   group_by(y_g, y_pos) %>%
   summarize(lambda=unique(lambda))
 
+save(data-)
 
 
 
