@@ -89,7 +89,7 @@ mp_opt_lrvb_pert <- GetMomentsFromVector(mp_opt, mp_opt_vec_pert)
 # Make a dataframe out of the prior sensitivity
 prior_sens_norm <- fit_env$prior_sens / sqrt(diag(lrvb_cov))
 vb_sensitivity_results <-
-  SummarizePriorSensitivityMatrix(prior_sens_norm, pp_indices, mp_opt, method="lrvb")
+  SummarizePriorSensitivityMatrix(prior_sens_norm, pp_indices, mp_opt, method="lrvb_norm")
 
 prior_sens <- fit_env$prior_sens
 vb_sensitivity_results_unnormalized <-
@@ -118,13 +118,13 @@ GetMCMCNormalizedCovarianceSensitivity <- function(draws_mat, log_prior_grad_mat
 mcmc_prior_sens_list <- GetMCMCNormalizedCovarianceSensitivity(
   fit_env$mcmc_environment$draws_mat, fit_env$mcmc_environment$log_prior_grad_mat)
 mcmc_sensitivity_results <- SummarizePriorSensitivityMatrix(
-  mcmc_prior_sens_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc")
+  mcmc_prior_sens_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc_norm")
 
 mcmc_subset_size <- 50
 mcmc_prior_sens_subset_list <- GetMCMCNormalizedCovarianceSensitivity(
   fit_env$mcmc_environment$draws_mat, fit_env$mcmc_environment$log_prior_grad_mat, keep_rows=mcmc_subset_size)
 mcmc_subset_sensitivity_results <- SummarizePriorSensitivityMatrix(
-  mcmc_prior_sens_subset_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc_subset")
+  mcmc_prior_sens_subset_list$prior_sens_norm, pp_indices, mp_opt, method="mcmc_subset_norm")
 
 
 ###########################

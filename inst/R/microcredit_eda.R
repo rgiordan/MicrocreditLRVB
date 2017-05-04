@@ -45,8 +45,56 @@ ggplot(filter(data_df, y_g==group, abs(y) > 1e-8, abs(y) < 500)) +
   geom_histogram(aes(x=abs(y), y=..density..), bins=100) +
   facet_grid(y > 0 ~ .) + ggtitle(group)
 
+#####################
+# A good reference for the Box-Cox transform:
+# https://www.ime.usp.br/~abe/lista/pdfm9cJKUmFZp.pdf
+library(MASS)
+
+data_df_transform <-
+  data_df %>%
+  mutate(zero_y=abs(y) < 1e-8)
+
+# Non-zero values of y_trans will be sent in the loop below.
+data_df_transform$y_trans <- 0.0
+data_df_transform$lambda <- NaN
+
+for (group in 1:max(y_g)) { for (y_sign in c(-1, 1)) {
+  rows <- with(data_df_transform, (y_g == group) & (!zero_y) & (y * y_sign > 0))
+  bc_y <- y_sign * data_df_transform[rows, ]$y
+  if (length(bc_y) > 0) {
+    # The MASS boxcox function is pretty primitive.  Better to do it yourself with optim.
+    bc <- boxcox(bc_y ~ 1, plotit=FALSE, lambda=seq(-1, 1, 0.001))
+    lambda <- bc$x[which.max(bc$y)]
+    if (abs(lambda) < 0.001) {
+      lambda <- 0
+    }
+    if (lambda == 0) {
+      y_trans <- log(bc_y)
+    } else {
+      y_trans <- ((bc_y ^ lambda) - 1) / lambda
+    }
+    print(qqnorm(y_trans, main=lambda))
+    readline(prompt="Press [enter] to continue")
+    data_df_transform[rows, "y_trans"] <- y_sign * y_trans
+    data_df_transform[rows, "lambda"] <- lambda
+  }
+}}
 
 
+ggplot(filter(data_df_transform, !zero_y)) +
+  geom_histogram(aes(x=y_trans, y=..density..), bins=100) +
+  facet_grid(y_g ~ .)
+
+mutate(data_df_transform, y_pos=y > 0) %>%
+  filter(!zero_y) %>%
+  group_by(y_g, y_pos) %>%
+  summarize(lambda=unique(lambda))
+
+
+
+
+
+#####################
 
 pp <- mcmc_environment$pp
 pp_perturb <- mcmc_environment$pp_perturblibrary(ggplot2)
