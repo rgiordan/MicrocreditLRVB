@@ -36,20 +36,32 @@ data_df_transform <-
 #######################
 # Look at the raw distributions with outlier trimming.
 
-trim_level <- 0.01
+trim_level <- 0.3
 y_quantiles <-
   filter(data_df_transform, !zero_y) %>%
   group_by(y_g) %>%
   summarize(qlower=quantile(y, trim_level), qupper=quantile(y, 1 - trim_level))
 
 data_df_trim <-
-  inner_join(data_df_transform, y_quantiles, by="y_g") %>%
-  filter(y < qupper & y > qlower)
+  filter(data_df_transform, !zero_y) %>%
+  inner_join(y_quantiles, by="y_g") %>%
+  filter(y < qupper & y > qlower) %>%
+  group_by(y_g) %>%
+  arrange(y) %>%
+  mutate(q=(1:length(y)) / length(y)) %>%
+  mutate(norm=qnorm(q))
 
-ggplot(filter(data_df_trim, !zero_y)) +
-  geom_histogram(aes(x=y, y=..ndensity..), bins=50) +
+# Qqplots
+ggplot(filter(data_df_trim)) +
+  geom_point(aes(x=norm, y=y)) +
+  facet_grid(y_g ~ ., scales="free")
+
+ggplot(filter(data_df_trim)) +
+  geom_histogram(aes(x=y, y=..ndensity..), bins=20) +
   facet_grid(~ y_g, scales="free") + 
   geom_vline(aes(xintercept=0))
+
+
 
 
 
@@ -87,6 +99,7 @@ grid.arrange(
     ggtitle("Everything overlaid")
 , ncol=3
 )
+
 
 
 ##########################################
@@ -143,15 +156,25 @@ save(data_df_transform, file=file.path(project_directory, "boxcox_data.Rdata"))
 ##########################################
 # Look at the treatments transformed by the inverse CDF of the control.
 
+# switch the role control and treatment to make sure you're not building in biases.
+switcheroo <- TRUE
+
 result_list <- list()
 for (group in 1:max(data_df_transform$y_g)) {
   group_df <- filter(data_df_transform, !zero_y, y_g == group) 
-  y_c <- filter(group_df, x.2 == 0)$y
-  y_t <- filter(group_df, x.2 == 1)$y
+  
+  if (switcheroo) {
+    y_c <- filter(group_df, x.2 == 1)$y
+    y_t <- filter(group_df, x.2 == 0)$y
+  } else {
+    y_c <- filter(group_df, x.2 == 0)$y
+    y_t <- filter(group_df, x.2 == 1)$y
+  }
   cdf <- data.frame(q=1:length(y_c) / (length(y_c) + 1), y=sort(y_c))
   y_t_q <- approx(x=cdf$y, y=cdf$q, xout=y_t, rule=2)$y
-  # ggplot(cdf) + geom_point(aes(x=y, y=q))
+
   cdf_t <- data.frame(y=y_t, q=y_t_q, group=group)
+  # cdf_t <- filter(cdf_t, is.finite(y_t_q))
 
   # Look at a uniform binning.
   num_bins <- 10
@@ -167,11 +190,12 @@ cdf_t <- do.call(rbind, result_list)
 
 # y_normed_range <- with(cdf_t, seq(min(y_normed) - 0.01, max(y_normed) + 0.01, length.out=length(y_normed)))
 
-ggplot(cdf_t) +
-  geom_density(aes(x=y_normed, color="treatment"), lwd=2) +
-  geom_density(aes(x=std_normal, color="null"), lwd=1) +
-  facet_grid(~ group)
+# ggplot(cdf_t) +
+#   geom_density(aes(x=y_normed, color="treatment"), lwd=2) +
+#   geom_density(aes(x=std_normal, color="null"), lwd=1) +
+#   facet_grid(~ group)
 
+# Why does each direction shrink the first and last quantiles?
 num_bins <- 10
 ggplot(cdf_t) +
   geom_histogram(aes(x=q, y=..density..), bins=num_bins, fill="gray", color="black") +
