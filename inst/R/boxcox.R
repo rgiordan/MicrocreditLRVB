@@ -138,3 +138,45 @@ mutate(data_df_transform, y_pos=y > 0) %>%
   summarize(lambda=unique(lambda))
 
 save(data_df_transform, file=file.path(project_directory, "boxcox_data.Rdata"))
+
+
+##########################################
+# Look at the treatments transformed by the inverse CDF of the control.
+
+result_list <- list()
+for (group in 1:max(data_df_transform$y_g)) {
+  group_df <- filter(data_df_transform, !zero_y, y_g == group) 
+  y_c <- filter(group_df, x.2 == 0)$y
+  y_t <- filter(group_df, x.2 == 1)$y
+  cdf <- data.frame(q=1:length(y_c) / (length(y_c) + 1), y=sort(y_c))
+  y_t_q <- approx(x=cdf$y, y=cdf$q, xout=y_t, rule=2)$y
+  # ggplot(cdf) + geom_point(aes(x=y, y=q))
+  cdf_t <- data.frame(y=y_t, q=y_t_q, group=group)
+
+  # Look at a uniform binning.
+  num_bins <- 10
+  
+  # Look at a normal transform.
+  cdf_t$y_normed <- qnorm(p=cdf_t$q)
+  cdf_t$std_normal <- rnorm(nrow(cdf_t)) # For easy graphing
+
+  result_list[[length(result_list) + 1]] <- cdf_t
+}
+
+cdf_t <- do.call(rbind, result_list)
+
+# y_normed_range <- with(cdf_t, seq(min(y_normed) - 0.01, max(y_normed) + 0.01, length.out=length(y_normed)))
+
+ggplot(cdf_t) +
+  geom_density(aes(x=y_normed, color="treatment"), lwd=2) +
+  geom_density(aes(x=std_normal, color="null"), lwd=1) +
+  facet_grid(~ group)
+
+num_bins <- 10
+ggplot(cdf_t) +
+  geom_histogram(aes(x=q, y=..density..), bins=num_bins, fill="gray", color="black") +
+  geom_hline(aes(yintercept=1)) +
+  facet_grid(~ group)
+
+
+  
