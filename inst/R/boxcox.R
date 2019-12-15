@@ -154,7 +154,8 @@ save(data_df_transform, file=file.path(project_directory, "boxcox_data.Rdata"))
 
 
 ##########################################
-# Look at the treatments transformed by the inverse CDF of the control.
+# Look at the treatments transformed by the inverse CDF of the control.  This is not basically
+# different than quantile regression and has all the same attendant problems.
 
 # switch the role control and treatment to make sure you're not building in biases.
 switcheroo <- TRUE
@@ -203,4 +204,65 @@ ggplot(cdf_t) +
   facet_grid(~ group)
 
 
-  
+#######################
+# Look at an alternative parameterization of the box-cox transform.
+
+n_sim <- 100
+std_normal <- qnorm(seq(1 / n_sim, 1 - 1 / n_sim, length.out=n_sim))
+
+GetBoxCoxQuantiles <- function(lambda, norm_mu, norm_sd) {
+  bc_draws <- (lambda * (std_normal * norm_sd + norm_mu) + 1) ^ (1 / lambda)
+  bc_draws <- bc_draws[is.finite(bc_draws)]
+  return(quantile(bc_draws, c(0.05, 0.5, 0.95)))
+}
+
+norm_mus <- seq(-1, 1, length.out=20)
+lambdas <- seq(0.1, 0.4, length.out=20)
+
+norm_sd <- 1
+results_list <- list()
+for (norm_mu in norm_mus) { for (lambda in lambdas) {
+  bcq <- GetBoxCoxQuantiles(lambda, norm_mu, norm_sd)
+  results_list[[length(results_list) + 1]] <-
+    data.frame(norm_sd=norm_sd, norm_mu=norm_mu, lambda=lambda, bcq1=bcq[1], bcq2=bcq[2], bcq3=bcq[3])
+}}
+bc_param_df <- do.call(rbind, results_list)
+head(bc_param_df)
+
+grid.arrange(
+  ggplot(bc_param_df) +
+    geom_tile(aes(x=norm_mu, y=lambda, fill=bcq1))
+,
+  ggplot(bc_param_df) +
+    geom_tile(aes(x=norm_mu, y=lambda, fill=bcq2))
+,
+  ggplot(bc_param_df) +
+    geom_tile(aes(x=norm_mu, y=lambda, fill=bcq3))
+, ncol=3
+)
+
+
+grid.arrange(
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq1, y=bcq2, color=norm_mu), size=2)
+  ,
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq1, y=bcq3, color=norm_mu), size=2)
+  ,
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq2, y=bcq3, color=norm_mu), size=2)
+  , ncol=3
+)
+
+grid.arrange(
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq1, y=bcq2, color=lambda), size=2)
+  ,
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq1, y=bcq3, color=lambda), size=2)
+  ,
+  ggplot(bc_param_df) +
+    geom_point(aes(x=bcq2, y=bcq3, color=lambda), size=2)
+  , ncol=3
+)
+

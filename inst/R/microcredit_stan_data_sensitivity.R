@@ -88,7 +88,8 @@ close(prog_bar)
 # mu_sens2 = dE[tau] / dw (where tau is the tau in the paper)
 mu_draws <- mcmc_draws$mu
 mu_weight_sens <- cov(mu_draws, weight_grad_mat)
-graph_df <- data.frame(mu_sens1=mu_weight_sens[1,], mu_sens2=mu_weight_sens[2,], y=y, y_g=y_g, treat=x[, 2])
+mu_sd <- sqrt(diag(cov(mu_draws, mu_draws)))
+graph_df <- data.frame(mu_sens1=mu_weight_sens[1,] / mu_sd[1], mu_sens2=mu_weight_sens[2,] / mu_sd[2], y=y, y_g=y_g, treat=x[, 2])
 
 
 # View the effect on tau and mu as a function of y for each of the seven groups.
@@ -98,3 +99,11 @@ ggplot(graph_df) +
   geom_line(aes(x=y, y=mu_sens2, color="tau")) +
   geom_point(aes(x=y, y=mu_sens2, color="tau")) +
   facet_grid(treat ~ y_g)
+
+
+ggplot(filter(graph_df, treat==1, y_g==1)) +
+  #geom_line(aes(x=y, y=mu_sens1)) +
+  geom_point(aes(x=y, y=mu_sens1), size=2) +
+  xlab("Data value") + ylab("Sensitivity") +
+  geom_hline(aes(yintercept=0)) +
+  ggtitle(TeX("Sensitivity of $\\mu$ to individual data points"))

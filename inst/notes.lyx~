@@ -70,6 +70,241 @@
 
 \begin_body
 
+\begin_layout Section
+Hierarchical models of transformed quantiles
+\end_layout
+
+\begin_layout Standard
+The microcredit data can be described simply with a few parameters: a Box-Cox
+ (BC) parameter, a mean, and a standard deviation.
+ However, these are not the parameters to which we want to apply a hierarchical
+ model.
+ For example, it is not clear at all what a common normal distribution on
+ the Box-Cox parameter would mean, nor does it make sense to describe the
+ a priori correlation between that and the pre-transform mean.
+ What we really want is to put a group prior on observed quantities.
+ Fortunately, if we are willing to restrict ourselves to putting a prior
+ on a function of as many quantiles as there are free parameters in the
+ transform, this can be done with a simple change of variables.
+\end_layout
+
+\begin_layout Standard
+Let us simply model the control and treatment separately for the moment
+ – we can always use simulation to infer any needed posterior quantities,
+ such as quantile differences.
+ Let's also assume for simplicity that the profit is all positive – we can
+ either model the positive and negative profit separately, or we can choose
+ from the zoo of BC extensions that allow negative numbers.
+ The setup then is that we have profit data which is distributed normally
+ after a BC transform:
+\begin_inset Formula 
+\begin{align*}
+y_{gn} & =\textrm{Profit of observation n in group g}\\
+\gamma_{gn} & =\frac{y_{gn}^{\lambda_{g}}-1}{\lambda_{g}}\\
+\gamma_{gn} & \sim\mathcal{N}\left(\mu_{g},\sigma_{g}^{2}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The 
+\begin_inset Formula $\alpha-$
+\end_inset
+
+quantiles of 
+\begin_inset Formula $\gamma_{gn}$
+\end_inset
+
+, which we'll call 
+\begin_inset Formula $\tilde{q}_{g}^{\alpha}$
+\end_inset
+
+, have a closed form as a function of 
+\begin_inset Formula $\mu_{g}$
+\end_inset
+
+ and 
+\begin_inset Formula $\sigma_{g}^{2}$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{align*}
+\tilde{q}_{g}^{\alpha} & =\sigma_{g}\Phi^{-1}\left(\alpha\right)+\mu_{g}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Because quantiles are transformed 1:1 under invertible transformations,
+ this means that the quantiles of 
+\begin_inset Formula $y_{gn}$
+\end_inset
+
+, 
+\begin_inset Formula $q_{g}^{\alpha}$
+\end_inset
+
+ also have a closed form:
+\begin_inset Formula 
+\begin{align*}
+q_{g}^{\alpha} & =\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{1/\lambda_{g}}=\left(\lambda_{g}\left(\sigma_{g}\Phi^{-1}\left(\alpha\right)+\mu_{g}\right)+1\right)^{1/\lambda_{g}}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Thus, we can put priors on the quantiles of 
+\begin_inset Formula $q_{g}^{\alpha}$
+\end_inset
+
+ or smooth functions of it with a change of variables, since we can calculate
+ the Jacobian of the mapping 
+\begin_inset Formula $\left(\mu_{g},\sigma_{g},\lambda_{g}\right)\rightarrow\left(q_{g}^{\alpha_{1}},q_{g}^{\alpha_{2}},q_{g}^{\alpha_{3}}\right)$
+\end_inset
+
+ in closed form for three distinct values of 
+\begin_inset Formula $\alpha$
+\end_inset
+
+.
+ 
+\begin_inset Formula 
+\begin{align*}
+\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}} & =\frac{1}{\lambda_{g}}\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{\frac{1}{\lambda_{g}}-1}\lambda_{g}=\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{\frac{1}{\lambda_{g}}-1}\\
+\frac{\partial q_{g}^{\alpha}}{\partial\mu_{g}} & =\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\frac{\partial\tilde{q}_{g}^{\alpha}}{\partial\mu_{g}}=\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\\
+\frac{\partial q_{g}^{\alpha}}{\partial\sigma_{g}} & =\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\frac{\partial\tilde{q}_{g}^{\alpha}}{\partial\sigma_{g}}=\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\Phi^{-1}\left(\alpha\right)\\
+\frac{\partial q_{g}^{\alpha}}{\partial\lambda_{g}} & =\frac{1}{\lambda_{g}}\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{\frac{1}{\lambda_{g}}-1}\tilde{q}_{g}^{\alpha}=\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\tilde{q}_{g}^{\alpha}\lambda_{g}^{-1}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+So
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\nabla q_{g}^{\alpha} & =\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\left(\begin{array}{c}
+1\\
+\Phi^{-1}\left(\alpha\right)\\
+\tilde{q}_{g}^{\alpha}\lambda_{g}^{-1}
+\end{array}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The second derivatives (which you don't need) are given by
+\begin_inset Formula 
+\begin{align*}
+\frac{\partial^{2}q_{g}^{\alpha}}{\partial\left(\tilde{q}_{g}^{\alpha}\right)^{2}} & =\left(\frac{1}{\lambda_{g}}-1\right)\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{\frac{1}{\lambda_{g}}-2}\lambda_{g}=\left(1-\lambda_{g}\right)\left(\lambda_{g}\tilde{q}_{g}^{\alpha}+1\right)^{\frac{1}{\lambda_{g}}-2}\\
+\nabla\nabla^{T}q_{g}^{\alpha} & =\frac{\partial^{2}q_{g}^{\alpha}}{\partial\left(\tilde{q}_{g}^{\alpha}\right)^{2}}\left(\begin{array}{c}
+1\\
+\Phi^{-1}\left(\alpha\right)\\
+-\tilde{q}_{g}^{\alpha}\lambda_{g}^{-2}
+\end{array}\right)\frac{\partial\tilde{q}_{g}^{\alpha}}{\partial\left(\mu_{g},\sigma_{g},\lambda_{g}\right)}+\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\frac{\partial}{\partial\left(\mu_{g},\sigma_{g},\lambda_{g}\right)}\left(\begin{array}{c}
+1\\
+\Phi^{-1}\left(\alpha\right)\\
+\tilde{q}_{g}^{\alpha}\lambda_{g}^{-1}
+\end{array}\right)\\
+ & =\frac{\partial^{2}q_{g}^{\alpha}}{\partial\left(\tilde{q}_{g}^{\alpha}\right)^{2}}\left(\begin{array}{c}
+1\\
+\Phi^{-1}\left(\alpha\right)\\
+\tilde{q}_{g}^{\alpha}
+\end{array}\right)\left(\begin{array}{ccc}
+1 & \Phi^{-1}\left(\alpha\right) & 0\end{array}\right)+\frac{\partial q_{g}^{\alpha}}{\partial\tilde{q}_{g}^{\alpha}}\left(\begin{array}{ccc}
+0 & 0 & 0\\
+0 & 0 & 0\\
+1 & \Phi^{-1}\left(\alpha\right) & -\tilde{q}_{g}^{\alpha}\lambda_{g}^{-2}
+\end{array}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Denote the Jacobian by 
+\begin_inset Formula 
+\begin{align*}
+\left|J_{g}\right| & =\left|\left[\begin{array}{ccc}
+\nabla q_{g}^{\alpha_{1}} & \nabla q_{g}^{\alpha_{2}} & \nabla q_{g}^{\alpha_{3}}\end{array}\right]\right|
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A sensible thing to put an informative prior (shared across groups) on might
+ be the ratio of the median to the inter-quartile range:
+\begin_inset Formula 
+\begin{align*}
+\eta_{g} & :=\frac{q_{g}^{0.5}}{q_{g}^{0.75}-q_{g}^{0.25}}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+You could then put a non-shared, non-informative prior on the actual quartiles,
+ 
+\begin_inset Formula $q_{g}^{0.75}$
+\end_inset
+
+ and 
+\begin_inset Formula $q_{g}^{0.25}$
+\end_inset
+
+.
+ The model (in vector notation) would then be
+\begin_inset Formula 
+\begin{align*}
+\log P\left(y_{g},\mu_{g},\sigma_{g},\lambda_{g}\right) & =-\frac{1}{2\sigma_{g}}\left(\gamma_{g}-\mu_{g}\right)^{T}\left(\gamma_{g}-\mu_{g}\right)-\frac{1}{2}N\log\sigma_{g}^{2}+\log\left|J_{g}\right|+\\
+ & -\frac{1}{2\sigma_{\eta}^{2}}\left(\eta_{g}-\eta\right)^{2}-\frac{1}{2}\log\sigma_{\eta}^{2}+\log P\left(q_{g}^{0.75}\right)+\log P\left(q_{g}^{0.25}\right)+\log\left|\frac{\partial}{\partial\left(q_{g}^{0.25},q_{g}^{0.5},q_{g}^{0.75}\right)}\left(\begin{array}{c}
+\eta_{g}\\
+q_{g}^{0.25}\\
+q_{g}^{0.75}
+\end{array}\right)\right|
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+(I often get the Jacobian the wrong way around, so someone should double
+ check that this is the right way.
+ Also, I often get the Jacobians themselves wrong, so someone should check
+ that, too.)
+\end_layout
+
+\begin_layout Section
+Sufficient statistics for the normal model
+\end_layout
+
 \begin_layout Standard
 For normal observations in groups where
 \begin_inset Formula 
@@ -86,13 +321,30 @@ Y & \sim\mathcal{N}\left(X\beta,\sigma^{2}I\right)\\
 \end_layout
 
 \begin_layout Standard
-I think we also want
+So to run the sampler all we need are the quantities 
+\begin_inset Formula $Y^{T}Y$
+\end_inset
+
+ , 
+\begin_inset Formula $Y^{T}X$
+\end_inset
+
+, and 
+\begin_inset Formula $X^{T}X$
+\end_inset
+
+.
+ These can be pre-computed as they are the same for every draw.
+ For the spike we just need the counts:
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
 \rho & =\alpha+\gamma T_{i}\\
 p & =\frac{\exp\left(\rho\right)}{1+\exp\left(\rho\right)}\\
 P\left(n_{zero}\right) & \propto p^{n_{zero}}\left(1-p\right)^{N-n_{zero}}\\
- & =\frac{p}{1-p}^{n_{zero}}\left(1-p\right)^{N}
+ & =\left(\frac{p}{1-p}\right)^{n_{zero}}\left(1-p\right)^{N}
 \end{align*}
 
 \end_inset
